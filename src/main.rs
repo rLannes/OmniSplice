@@ -24,11 +24,11 @@ use crate::common::utils::{ExonType, ReadAssign};
 use crate::common::utils;
 
 
-fn parse_bam<T>  (
+fn parse_bam  (
     // required parameter
     bam_file: &str,
     library_type: LibType,
-    final_hash: &mut HashMap<String, PointContainer<utils::ReadAssign>>,
+    final_hash: &mut HashMap<String, PointContainer>,
     overhang: i64,
 
     // TODO not yet implemented QC optional option (None for no filter) // TODO
@@ -176,7 +176,7 @@ fn main_loop(
     }
 
 
-    parse_bam::<utils::ReadAssign>(
+    parse_bam(
         &bam_file,
         LibType::frFirstStrand,
         &mut results,

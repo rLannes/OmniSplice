@@ -14,18 +14,57 @@ use std::io::{BufReader, BufWriter};
 use strand_specifier_lib::Strand;
 use CigarParser::cigar::Cigar;
 
-pub struct PointContainer<T> where T: Clone + Eq + Hash + PartialEq {
-    pub points: Vec<Point<T>>,
+
+#[derive(Debug, Clone)]
+pub struct PointContainer {
+    pub points: Vec<Point>,
 }
 
-pub struct PointContainerIterator<'a, T> where T: Clone + Eq + Hash + PartialEq {
-    my_struct: &'a PointContainer<T>,
+pub struct PointContainerIterator<'a> {
+    my_struct: &'a PointContainer,
     index: usize,
 }
 
-impl<'a, T> Iterator for PointContainerIterator<'a, T> where T: Clone + Eq + Hash + PartialEq  {
+/* pub struct PointContainerMutableIterator<'a, T> where T: Clone + Eq + Hash + PartialEq {
+    data: &'a mut [Point<T>],
+    index: usize,
+} */
+
+/* impl<'a, T> IntoIterator for &'a mut PointContainer<T> where T: Clone + Eq + Hash + PartialEq  {
+    type Item = &'a mut Point<T>;
+    type IntoIter = PointContainerMutableIterator<'a, T>;
+    fn into_iter(self) -> Self::IntoIter {
+        PointContainerMutableIterator {
+            data: &mut self.points,
+            index: 0 }
+    }
+} */
+/* 
+impl<'a, T> Iterator for PointContainerMutableIterator<'a, T> where T: Clone + Eq + Hash + PartialEq  {
     // We can refer to this type using Self::Item
-    type Item = &'a Point<T>;
+    type Item = &'a mut Point<T>;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.index < self.data.len() {
+
+            let item: *mut Point<T> = &mut self.data[self.index] as *mut Point<T>;
+            self.index += 1;
+            unsafe { Some(&mut *item) }
+
+        } else {
+            None
+        }
+    }
+} */
+/* 
+impl<T> PointContainer<T> where T: Clone + Eq + Hash + PartialEq {
+    pub fn iter_mut(&mut self) -> PointContainerMutableIterator<'_, T> {
+        self.into_iter()
+    }
+} */
+
+impl<'a> Iterator for PointContainerIterator<'a>   {
+    // We can refer to this type using Self::Item
+    type Item = &'a Point;
     fn next(&mut self) -> Option<Self::Item> {
         if self.index < self.my_struct.points.len() {
             let item = &self.my_struct.points[self.index];
@@ -57,7 +96,7 @@ where
 
 
 
-impl PointContainer<ReadAssign> {
+impl PointContainer {
     pub fn parse_reads(
         self: &mut Self,
         contig: &str,
@@ -154,8 +193,8 @@ impl PointContainer<ReadAssign> {
 }
 
 
-impl<T> PointContainer<T> where T: Clone + Eq + Hash + PartialEq {
-    pub fn iter(&self) -> PointContainerIterator<T> {
+impl PointContainer {
+    pub fn iter(&self) -> PointContainerIterator {
         PointContainerIterator {
             my_struct: self,
             index: 0,
@@ -196,7 +235,7 @@ impl<T> PointContainer<T> where T: Clone + Eq + Hash + PartialEq {
         j
     }
 
-    pub fn push(self: &mut Self, point: Point<T>) {
+    pub fn push(self: &mut Self, point: Point) {
         self.points.push(point)
     }
 
@@ -300,23 +339,23 @@ impl<T> PointContainer<T> where T: Clone + Eq + Hash + PartialEq {
     } */
 }
 
-#[derive(Debug)]
-pub struct Point<T> where T: Clone + Eq + Hash + PartialEq {
+#[derive(Debug, Clone)]
+pub struct Point{
     pub pos: i64,
     pub gene_name: String,
     pub transcript_id: String,
     pub strand: Strand,
-    pub counter: HashMap<T, i32>,
+    pub counter: HashMap<ReadAssign, i32>,
     pub exon_type: ExonType,
 }
 
 
-pub trait InsideCounter<T> where T: Sized{
-    fn insert_in_counter(&mut self, item: T) -> ();
+pub trait InsideCounter{
+    fn insert_in_counter(&mut self, item: ReadAssign) -> ();
 }
 
-impl<T> InsideCounter<T> for Point<T> where T: Clone + Eq + Hash + PartialEq{
-    fn insert_in_counter(self: &mut Self, item: T) -> () {
+impl InsideCounter for Point{
+    fn insert_in_counter(self: &mut Self, item: ReadAssign) -> () {
         if let Some(val) = self.counter.get_mut(&item) {
             *val += 1;
         } else {
@@ -325,37 +364,37 @@ impl<T> InsideCounter<T> for Point<T> where T: Clone + Eq + Hash + PartialEq{
     }
 }
 
-impl<T> Point<T> where T: Clone + Eq + Hash + PartialEq{
+/* impl<T> Point<T> where T: Clone + Eq + Hash + PartialEq{
 
-}
+} */
 
-impl<T> PartialEq<i64> for Point<T> where T : Clone + Eq + Hash + PartialEq  {
+impl PartialEq<i64> for Point  {
     fn eq(&self, other: &i64) -> bool {
         self.pos == *other
     }
 }
 
-impl<T> PartialEq<Point<T>> for Point<T> where T : Clone + Eq + Hash + PartialEq {
-    fn eq(&self, other: &Point<T>) -> bool {
+impl PartialEq<Point> for Point {
+    fn eq(&self, other: &Point) -> bool {
         self.pos == other.pos
     }
 }
 
-impl<T> PartialOrd<i64> for Point<T> where T : Clone + Eq + Hash + PartialEq {
+impl PartialOrd<i64> for Point {
     fn partial_cmp(&self, other: &i64) -> Option<Ordering> {
         Some(self.pos.cmp(other))
     }
 }
 
-impl<T> PartialOrd<Point<T>> for Point<T> where T : Clone + Eq + Hash + PartialEq {
-    fn partial_cmp(&self, other: &Point<T>) -> Option<Ordering> {
+impl PartialOrd<Point> for Point {
+    fn partial_cmp(&self, other: &Point) -> Option<Ordering> {
         Some(self.pos.cmp(&other.pos))
     }
 }
-impl<T> Eq for Point<T> where T : Clone + Eq + Hash + PartialEq {}
+impl Eq for Point  {}
 
-impl<T> Ord for Point<T> where T : Clone + Eq + Hash + PartialEq {
-    fn cmp(&self, other: &Point<T>) -> Ordering {
+impl Ord for Point {
+    fn cmp(&self, other: &Point) -> Ordering {
         self.pos.cmp(&other.pos)
     }
 }
@@ -375,7 +414,7 @@ pub fn get_attr_id(attr: &str, toget: &str) -> Option<String> {
     None
 }
 
-pub fn read_gtf<T : Clone + Eq + Hash + PartialEq>(file: &str) -> Result<HashMap<String, PointContainer<T>>, Box<dyn Error>> {
+pub fn read_gtf(file: &str) -> Result<HashMap<String, PointContainer>, Box<dyn Error>> {
     let f = File::open(file)?;
     let reader = BufReader::new(f);
     let mut this_line: String;//::new();
@@ -390,7 +429,7 @@ pub fn read_gtf<T : Clone + Eq + Hash + PartialEq>(file: &str) -> Result<HashMap
 
     // (gene_id, start, end)
     let mut been_seen: HashSet<(String, i64, ExonType)> = HashSet::new();
-    let mut results: HashMap<String, PointContainer<T>> = HashMap::new();
+    let mut results: HashMap<String, PointContainer> = HashMap::new();
 
     for line in reader.lines() {
         this_line = line?;
@@ -472,7 +511,7 @@ pub fn read_gtf<T : Clone + Eq + Hash + PartialEq>(file: &str) -> Result<HashMap
     Ok(results)
 }
 
-pub fn my_bs<T : Clone + Eq + Hash + PartialEq>(vec: &Vec<Point<T>>, thr: &i64) -> Result<usize, usize> {
+pub fn my_bs(vec: &Vec<Point>, thr: &i64) -> Result<usize, usize> {
     let length = vec.len();
     let mut i = length / 2;
     let mut left = 0;
