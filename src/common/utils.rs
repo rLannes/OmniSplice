@@ -222,6 +222,7 @@ pub fn read_toassign(
             return None;
         }
     };
+    // TODO earlier
 
     if !((aln_start < feature_pos) & (aln_end > feature_pos)) {
         return Some(ReadAssign::FailPosFilter);

@@ -144,6 +144,7 @@ struct Args {
     #[clap(long, short, action)]
     clipped: bool
 }
+// TODO add LibType
 
 fn main_loop(
     output: String,

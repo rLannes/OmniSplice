@@ -23,9 +23,9 @@ use crate::common::point::{get_attr_id, PointContainer, Point};
 use strand_specifier_lib::{check_flag, LibType};
 use std::hash::Hash;
 use itertools::Itertools; 
-
+use std::path::{Path, PathBuf};
 use std::fmt::{self, format};
-
+use std::cmp::Reverse;
 
 fn aln_bw(fa: &str, reference: &str, out_bam: &str){
 
@@ -92,7 +92,7 @@ struct ReadInfo{
 
 
 
-fn clipped_to_fasta(clipped_file: &str, clipped_fasta: &str) -> HashMap<String, ReadInfo> {
+fn clipped_to_fasta(clipped_file: &str, clipped_fasta: &str, min_size: usize) -> HashMap<String, ReadInfo> {
 
     let mut seen:  HashSet<String> = HashSet::new();
     let mut read_map:  HashMap<String, ReadInfo> = HashMap::new();
@@ -132,7 +132,7 @@ fn clipped_to_fasta(clipped_file: &str, clipped_fasta: &str) -> HashMap<String, 
         clip_seq = get_sofclipped_seq(&cig, &exon_type, &strand, spt[11]).unwrap();
 
         l =  clip_seq.len();
-        if l < 25{
+        if l < min_size{
             continue
         }
 
@@ -145,22 +145,12 @@ fn clipped_to_fasta(clipped_file: &str, clipped_fasta: &str) -> HashMap<String, 
             exon_type: exon_type,
             chr_: spt[3].to_string(),
         });
-        //id_ = format("{}_{}", seq[0])
-
 
        let _ = f_out.write(format!(">{}\n{}\n", spt[0], clip_seq).as_bytes());
-
-
 
     }
     read_map
 }
-
-
-//
-// struct 
-// transcript_id ->  Vec<()>
-//
 
 
 
@@ -229,10 +219,10 @@ fn get_gtf_clipped(gtf: &str) -> Result<HashMap<String, PointContainer>, Box<dyn
         };
 
         results
-            .entry(transcript_id.to_string().clone())
+            .entry(gene_name.to_string().clone())
             .or_insert_with(|| PointContainer::new());
-        if let Some(val) = results.get_mut(&transcript_id.to_string()) {
-            if !been_seen.contains(&(transcript_id.to_string(), start, start_type)) {
+        if let Some(val) = results.get_mut(&gene_name.to_string()) {
+            if !been_seen.contains(&(gene_name.to_string(), start, start_type)) {
                 val.push(Point {
                     pos: start,
                     gene_name: gene_name.clone(), //get_gene_id(spt[8]),
@@ -241,9 +231,9 @@ fn get_gtf_clipped(gtf: &str) -> Result<HashMap<String, PointContainer>, Box<dyn
                     counter: HashMap::new(),
                     exon_type: start_type,
                 });
-                been_seen.insert((transcript_id.to_string(), start, start_type));
+                been_seen.insert((gene_name.to_string(), start, start_type));
             }
-            if !been_seen.contains(&(transcript_id.to_string(), end, end_type)) {
+            if !been_seen.contains(&(gene_name.to_string(), end, end_type)) {
                 val.push(Point {
                     pos: end,
                     gene_name: gene_name.clone(), //get_gene_id(spt[8]),
@@ -252,7 +242,7 @@ fn get_gtf_clipped(gtf: &str) -> Result<HashMap<String, PointContainer>, Box<dyn
                     counter: HashMap::new(),
                     exon_type: end_type,
                 });
-                been_seen.insert((transcript_id.to_string(), end, end_type));
+                been_seen.insert((gene_name.to_string(), end, end_type));
             }
         }
     }
@@ -280,7 +270,6 @@ fn get_gtf_clipped(gtf: &str) -> Result<HashMap<String, PointContainer>, Box<dyn
 #[derive(Clone, Debug)]
 struct BackSplicingCounter{
     gene: String,
-    transcript: String,
     support_donnor: i64, // should I use hashset read name?
     support_acceptor: i64,
     tot_donnor: i64,
@@ -292,7 +281,7 @@ struct BackSplicingCounter{
 }
 
 impl BackSplicingCounter{
-    fn new(strand: Strand, prime5: i64, prime3: i64, contig:String, gene: String, transcript: String) -> Self{
+    fn new(strand: Strand, prime5: i64, prime3: i64, contig:String, gene: String) -> Self{
         BackSplicingCounter{
             support_donnor: 0,
             support_acceptor: 0,
@@ -303,7 +292,6 @@ impl BackSplicingCounter{
             prime5: prime5,
             contig: contig,
             gene: gene,
-            transcript: transcript
         }
     }
     fn add_support_donnor(&mut self) -> (){
@@ -329,8 +317,8 @@ impl BackSplicingCounter{
 
 impl fmt::Display for BackSplicingCounter {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", &format!("{}\t{}\t{}:{}-{}({})\t{}\t{}\t{}",
-         self.gene, self.transcript, self.contig, self.prime5, self.prime3, self.strand, self.get_support(), self.support_donnor, self.support_acceptor))
+        write!(f, "{}", &format!("{}\t{}:{}-{}({})\t{}\t{}\t{}",
+         self.gene, self.contig, self.prime5, self.prime3, self.strand, self.get_support(), self.support_donnor, self.support_acceptor))
     }
 }
 
@@ -383,7 +371,8 @@ pub fn parse_bam(bam_file: &str, transcript_map: HashMap<String, PointContainer>
         
         //read_info = readmap.get(&read_name).unwrap().clone();
         if let Some(original_map_info) = readmap.get(&read_name){
-            let transcript_container = transcript_map.get(&original_map_info.transcript).unwrap().clone();
+            println!("{:?} {:?}", original_map_info, read_name);
+            let transcript_container = transcript_map.get(&original_map_info.gene).unwrap().clone();
             for (indice,  tr_junction) in transcript_container.iter().enumerate(){
                 if tr_junction.exon_type == original_map_info.exon_type{
                     continue;
@@ -397,48 +386,49 @@ pub fn parse_bam(bam_file: &str, transcript_map: HashMap<String, PointContainer>
                 else if (tr_junction.pos == pos_s) & (pos_s < original_map_info.pos){
                     if (tr_junction.strand == Strand::Plus) & (tr_junction.exon_type == ExonType::Acceptor){
                             results.entry((contig.clone(), pos_s, original_map_info.pos))
-                            .or_insert_with(|| BackSplicingCounter::new(tr_junction.strand, pos_s, original_map_info.pos, contig.clone(), original_map_info.gene.clone(), original_map_info.transcript.clone()))
+                            .or_insert_with(|| BackSplicingCounter::new(tr_junction.strand, pos_s, original_map_info.pos, contig.clone(), original_map_info.gene.clone()))
                             .add_support_acceptor();
                     }
                     else if (tr_junction.strand == Strand::Minus)  & (tr_junction.exon_type == ExonType::Donnor) {
 
                         results.entry((contig.clone(), pos_s, original_map_info.pos))
-                        .or_insert_with(|| BackSplicingCounter::new(tr_junction.strand, pos_s, original_map_info.pos, contig.clone(), original_map_info.gene.clone(), original_map_info.transcript.clone()))
+                        .or_insert_with(|| BackSplicingCounter::new(tr_junction.strand, pos_s, original_map_info.pos, contig.clone(), original_map_info.gene.clone()))
                         .add_support_donnor();
 
                     }
                     else{
                         println!("{} {}", tr_junction.strand, tr_junction.exon_type);
-                    }
+                        continue;
+                    } 
                 }
                 else if (tr_junction.pos == pos_e) & (pos_s > original_map_info.pos){
                     if (tr_junction.strand == Strand::Plus) & (tr_junction.exon_type == ExonType::Donnor){
 
                         results.entry((contig.clone(), original_map_info.pos, pos_e))
-                        .or_insert_with(|| BackSplicingCounter::new(tr_junction.strand, original_map_info.pos, pos_e, contig.clone(), original_map_info.gene.clone(), original_map_info.transcript.clone()))
+                        .or_insert_with(|| BackSplicingCounter::new(tr_junction.strand, original_map_info.pos, pos_e, contig.clone(), original_map_info.gene.clone()))
                         .add_support_donnor();
 
                     }
                     else if (tr_junction.strand == Strand::Minus)  & (tr_junction.exon_type == ExonType::Acceptor){
 
                         results.entry((contig.clone(), original_map_info.pos, pos_e))
-                        .or_insert_with(|| BackSplicingCounter::new(tr_junction.strand, original_map_info.pos, pos_e, contig.clone(), original_map_info.gene.clone(), original_map_info.transcript.clone()))
+                        .or_insert_with(|| BackSplicingCounter::new(tr_junction.strand, original_map_info.pos, pos_e, contig.clone(), original_map_info.gene.clone()))
                         .add_support_acceptor();
 
                     }
                     else{
                         println!("{} {}", tr_junction.strand, tr_junction.exon_type);
                         continue;
-                    }
+                    } 
                     
                 }
-                else if (original_map_info.strand == "-") & ((tr_junction.pos == pos_e) | (tr_junction.pos == pos_s)){
+/*                 else if (original_map_info.strand == "-") & ((tr_junction.pos == pos_e) | (tr_junction.pos == pos_s)){
                     println!("{:?}", transcript_container);
                     println!("{:?} {:?}", tr_junction, original_map_info);
                     println!("{:?} {:?} {:?}\n", pos_s, pos_e, read_name);
                     
                  //   continue;
-                }
+                } */
             }
 
         }
@@ -447,31 +437,77 @@ pub fn parse_bam(bam_file: &str, transcript_map: HashMap<String, PointContainer>
 }
 
 
+
+
+
+// TODO add specific subcommand to retrieve only specific reads;
+/// you need bowtie 2 in the path.
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+struct Args {
+    /// Name of Input file
+    #[arg(short, long, required = true)]
+    input_clipped_read: String,
+    /// Name of the base for output file will generate a .fna .bam .bai .backspliced.tsv
+    #[arg(short, long, required = true)]
+    output_base: String,
+    // path to a bowtie2 reference for yor genome
+    #[arg(short, long, required = true)]
+    bowtie2_ref:String,
+        /*     // path to a bowtie2 reference for yor genome
+            #[arg(short, long, required = true)]
+            bowtie2_ref:String, */
+    /// Name of GTF Input file define the feature to look at
+    /// (v1) only consider feature annotated as exon
+    /// you may want to subset gene / feature you are interested in.
+    #[arg(short, long, required = true)]
+    gtf: String,
+    /// clipped part of the read are only consider if thei length is longet than this value. defualt 20
+    #[arg(short, long, default_value_t = 20)]
+    min_clipped_size: usize,
+}
+
+
 fn main() {
 
-    let clipped_file = "/lab/solexa_yamashita/people/Romain/Projets/OmniSplice/Jackie_MD6_OmniSplice/omniRun/trimmed_L459_1501_S2_L001_Aligned.read_through.read.tsv";
-    let clipped_fasta = "/lab/solexa_yamashita/people/Romain/Projets/OmniSplice/Jackie_MD6_OmniSplice/trimmed_L459_1501_S2_L001_Aligned.clipped.fna";
-    let bw2_ref = "/lab/solexa_yamashita/people/Romain/Projets/OmniSplice/Jackie_MD6_OmniSplice/bwRef/dm6_bw2";
-    let bw_bam = "/lab/solexa_yamashita/people/Romain/Projets/OmniSplice/Jackie_MD6_OmniSplice/trimmed_L459_1501_S2_L001_Aligned.clipped.bam";
-    let gtf = "/lab/solexa_yamashita/people/Romain/References/MD6/gtf/dmel-all-r6.48.gtf";
-    let map_read = clipped_to_fasta(clipped_file, clipped_fasta);// read map -> HashMap<String, ReadInfo>
-    aln_bw( clipped_fasta, bw2_ref, bw_bam);
-    let mut point_cont = get_gtf_clipped(gtf).expect("Failed to parse GTF"); // transcript is -> point container not optimal but I reuse what exist!
 
-/*     let ten_millis = time::Duration::from_millis(1000);
-    let now = time::Instant::now();
-    
-    thread::sleep(ten_millis); */
-    let result= parse_bam(&bw_bam, point_cont, &map_read);
-    for (key, val) in result.iter().sorted_by_key( |x| x.1.get_support()) {
-        println!("{val}");
+
+    let args = Args::parse();
+
+    let output_base = args.output_base;
+
+
+    let mut clipped_fasta = PathBuf::from(&output_base);
+    clipped_fasta.set_extension("fna");
+    let mut bw_bam = PathBuf::from(&output_base);
+    bw_bam.set_extension("bam");
+    let mut output_file = PathBuf::from(&output_base);
+    output_file.set_extension("backspliced.tsv");
+    let gtf = args.gtf;
+    let clipped_size_min = args.min_clipped_size;
+    let bw2_ref = args.bowtie2_ref;
+    let clipped_file = args.input_clipped_read;
+
+    //let clipped_file = "/lab/solexa_yamashita/people/Romain/Projets/OmniSplice/Jackie_MD6_OmniSplice/omniRun/trimmed_L459_1501_S2_L001_Aligned.read_through.read.tsv";
+    //let clipped_fasta = "/lab/solexa_yamashita/people/Romain/Projets/OmniSplice/Jackie_MD6_OmniSplice/trimmed_L459_1501_S2_L001_Aligned.clipped.fna";
+    //let bw2_ref = "/lab/solexa_yamashita/people/Romain/Projets/OmniSplice/Jackie_MD6_OmniSplice/bwRef/dm6_bw2";
+    //let bw_bam = "/lab/solexa_yamashita/people/Romain/Projets/OmniSplice/Jackie_MD6_OmniSplice/trimmed_L459_1501_S2_L001_Aligned.clipped.bam";
+    //let gtf = "/lab/solexa_yamashita/people/Romain/References/MD6/gtf/dmel-all-r6.48.gtf";
+    //let clipped_size_min = 20;
+    //let output_file = "/lab/solexa_yamashita/people/Romain/Projets/OmniSplice/Jackie_MD6_OmniSplice/Backsplicing/trimmed_L459_1501_S2_L001.backspliced.tsv";
+
+    let map_read = clipped_to_fasta(&clipped_file, clipped_fasta.as_path().to_str().unwrap(), clipped_size_min);// read map -> HashMap<String, ReadInfo>
+    aln_bw( clipped_fasta.as_path().to_str().unwrap(), &bw2_ref, bw_bam.as_path().to_str().unwrap());
+    let mut point_cont = get_gtf_clipped(&gtf).expect("Failed to parse GTF"); // transcript is -> point container not optimal but I reuse what exist!
+
+    let file = File::create_new(output_file).expect("output clipped fasta file should not exist.");
+    let mut f_out = BufWriter::new(file);
+
+    let result= parse_bam(&bw_bam.as_path().to_str().unwrap(), point_cont, &map_read);
+    for (key, val) in result.iter().sorted_by_key( |x| Reverse(x.1.get_support())) {
+        f_out.write(&format!("{val}\n").as_bytes());
     }
 
-    //pub fn tid2name(&self, tid: u32) -> &[u8] 
-
-    //println!("{:?}", str::from_utf8(header.as_bytes()));
-    
-    //TODO also return the count of Read (clipped?)per junction 
 }
 
 
