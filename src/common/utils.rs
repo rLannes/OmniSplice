@@ -76,7 +76,7 @@ impl fmt::Display for ReadAssign {
             ReadAssign::FailPosFilter => {
                 write!(f, "FailPosFilter")
             }
-/*             ReadAssign::DoesNotMatchP1P => {
+            /*             ReadAssign::DoesNotMatchP1P => {
                 write!(f, "DoesNotMatchP1P")
             } */
             ReadAssign::WrongStrand => {
@@ -170,19 +170,24 @@ pub fn read_toassign(
     read_strand: &Strand,
     overhang: i64,
 ) -> Option<ReadAssign> {
+    // TODO Should I report it? no...
+    if !((aln_start <= feature_pos) & (aln_end >= feature_pos)) {
+        return None; //return Some(ReadAssign::FailPosFilter);
+    }
+
     if *read_strand != feature_strand {
         return Some(ReadAssign::WrongStrand);
     }
 
     let junction = cigar.get_skipped_pos_on_ref(&aln_start);
     if let Some(y) = junction {
-        if let Some(i) =  y
+        if let Some(i) = y
             .iter()
             .enumerate()
             .step_by(2)
             .find(|(i, &x)| (x < feature_pos) & (y[i + 1] > feature_pos))
         {
-            return Some(ReadAssign::Skipped(*i.1, y[i.0+1]));
+            return Some(ReadAssign::Skipped(*i.1, y[i.0 + 1]));
         }
     }
 
@@ -222,11 +227,6 @@ pub fn read_toassign(
             return None;
         }
     };
-    // TODO earlier
-
-    if !((aln_start < feature_pos) & (aln_end > feature_pos)) {
-        return Some(ReadAssign::FailPosFilter);
-    }
 
     match cigar.get_skipped_pos_on_ref(&aln_start) {
         Some(j) => {
@@ -257,7 +257,7 @@ pub fn read_toassign(
                         .step_by(2)
                         .find(|(i, &x)| (x < feature_pos) & (j[i + 1] > feature_pos))
                     {
-                        return Some(ReadAssign::Skipped(*i.1, j[i.0+1]));
+                        return Some(ReadAssign::Skipped(*i.1, j[i.0 + 1]));
                     } else {
                         //println!("Unexp: {:?} {:?} {:?} {:?} {:?}", j, aln_start ,aln_end, cigar, self);
                         return Some(ReadAssign::Unexpected);
@@ -270,4 +270,3 @@ pub fn read_toassign(
         }
     }
 }
-

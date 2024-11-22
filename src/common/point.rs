@@ -14,7 +14,6 @@ use std::io::{BufReader, BufWriter};
 use strand_specifier_lib::Strand;
 use CigarParser::cigar::Cigar;
 
-
 #[derive(Debug, Clone)]
 pub struct PointContainer {
     pub points: Vec<Point>,
@@ -39,7 +38,7 @@ pub struct PointContainerIterator<'a> {
             index: 0 }
     }
 } */
-/* 
+/*
 impl<'a, T> Iterator for PointContainerMutableIterator<'a, T> where T: Clone + Eq + Hash + PartialEq  {
     // We can refer to this type using Self::Item
     type Item = &'a mut Point<T>;
@@ -55,14 +54,14 @@ impl<'a, T> Iterator for PointContainerMutableIterator<'a, T> where T: Clone + E
         }
     }
 } */
-/* 
+/*
 impl<T> PointContainer<T> where T: Clone + Eq + Hash + PartialEq {
     pub fn iter_mut(&mut self) -> PointContainerMutableIterator<'_, T> {
         self.into_iter()
     }
 } */
 
-impl<'a> Iterator for PointContainerIterator<'a>   {
+impl<'a> Iterator for PointContainerIterator<'a> {
     // We can refer to this type using Self::Item
     type Item = &'a Point;
     fn next(&mut self) -> Option<Self::Item> {
@@ -93,8 +92,6 @@ where
         self.my_struct.points.cmp(F);
     }
 }*/
-
-
 
 impl PointContainer {
     pub fn parse_reads(
@@ -140,7 +137,7 @@ impl PointContainer {
                     let seq = record.seq().as_bytes();
                     let sequence = String::from_utf8(seq).expect("cannot parse sequence");
                     if clipped {
-                        if read_assign == ReadAssign::SoftClipped{
+                        if read_assign == ReadAssign::SoftClipped {
                             let _ = buf_writer.write(
                                 format!(
                                     "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
@@ -159,10 +156,8 @@ impl PointContainer {
                                 )
                                 .as_bytes(),
                             );
-
                         }
-                    }
-                    else{
+                    } else {
                         let _ = buf_writer.write(
                             format!(
                                 "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
@@ -181,17 +176,13 @@ impl PointContainer {
                             )
                             .as_bytes(),
                         );
-
                     }
-
-
                 }
             }
         }
         Ok(())
     }
 }
-
 
 impl PointContainer {
     pub fn iter(&self) -> PointContainerIterator {
@@ -340,7 +331,7 @@ impl PointContainer {
 }
 
 #[derive(Debug, Clone)]
-pub struct Point{
+pub struct Point {
     pub pos: i64,
     pub gene_name: String,
     pub transcript_id: String,
@@ -349,12 +340,11 @@ pub struct Point{
     pub exon_type: ExonType,
 }
 
-
-pub trait InsideCounter{
+pub trait InsideCounter {
     fn insert_in_counter(&mut self, item: ReadAssign) -> ();
 }
 
-impl InsideCounter for Point{
+impl InsideCounter for Point {
     fn insert_in_counter(self: &mut Self, item: ReadAssign) -> () {
         if let Some(val) = self.counter.get_mut(&item) {
             *val += 1;
@@ -368,7 +358,7 @@ impl InsideCounter for Point{
 
 } */
 
-impl PartialEq<i64> for Point  {
+impl PartialEq<i64> for Point {
     fn eq(&self, other: &i64) -> bool {
         self.pos == *other
     }
@@ -391,15 +381,13 @@ impl PartialOrd<Point> for Point {
         Some(self.pos.cmp(&other.pos))
     }
 }
-impl Eq for Point  {}
+impl Eq for Point {}
 
 impl Ord for Point {
     fn cmp(&self, other: &Point) -> Ordering {
         self.pos.cmp(&other.pos)
     }
 }
-
-
 
 pub fn get_attr_id(attr: &str, toget: &str) -> Option<String> {
     let mut result: String; // = "".to_string();
@@ -417,15 +405,15 @@ pub fn get_attr_id(attr: &str, toget: &str) -> Option<String> {
 pub fn read_gtf(file: &str) -> Result<HashMap<String, PointContainer>, Box<dyn Error>> {
     let f = File::open(file)?;
     let reader = BufReader::new(f);
-    let mut this_line: String;//::new();
+    let mut this_line: String; //::new();
 
     let mut chr_: String; // = "".to_string();
-    let mut start: i64;//; = 0;
-    let mut end: i64;// = 0;
+    let mut start: i64; //; = 0;
+    let mut end: i64; // = 0;
     let mut strand: Strand;
 
     let mut gene_name: String; // = "".to_string();
-    let mut transcript_id: String;// = "".to_string();
+    let mut transcript_id: String; // = "".to_string();
 
     // (gene_id, start, end)
     let mut been_seen: HashSet<(String, i64, ExonType)> = HashSet::new();
@@ -451,12 +439,12 @@ pub fn read_gtf(file: &str) -> Result<HashMap<String, PointContainer>, Box<dyn E
         {
             gene_name = gene_tmp;
             transcript_id = tr_tmp;
-        } else if  let Some((gene_tmp, tr_tmp)) = get_attr_id(spt[8], "gene_name")
-        .zip(get_attr_id(spt[8], "transcript_id")) {
+        } else if let Some((gene_tmp, tr_tmp)) =
+            get_attr_id(spt[8], "gene_name").zip(get_attr_id(spt[8], "transcript_id"))
+        {
             gene_name = gene_tmp;
             transcript_id = tr_tmp;
-        }
-        else{
+        } else {
             println!("warning gene id or transcript id not found: {:?}", spt);
             continue; // skip this gene
         }
@@ -547,147 +535,146 @@ pub fn my_bs(vec: &Vec<Point>, thr: &i64) -> Result<usize, usize> {
     return Err(i.max(0));
 }
 
-
 /*     fn insert_in_counter(self: &mut Self, key: ReadAssign) -> () {
-        if let Some(val) = self.counter.get_mut(&key) {
-            *val += 1;
-        } else {
-            self.counter.insert(key, 1);
-        }
+       if let Some(val) = self.counter.get_mut(&key) {
+           *val += 1;
+       } else {
+           self.counter.insert(key, 1);
+       }
+   }
+*/
+/*  pub fn parse_read(
+    self: &mut Self,
+    aln_start: i64,
+    aln_end: i64,
+    cigar: &Cigar,
+    flag: &u16,
+    read_strand: &Strand,
+    overhang: i64,
+) -> () {
+    if *read_strand != self.strand {
+        self.insert_in_counter(ReadAssign::WrongStrand);
+        return ();
     }
- */
-   /*  pub fn parse_read(
-        self: &mut Self,
-        aln_start: i64,
-        aln_end: i64,
-        cigar: &Cigar,
-        flag: &u16,
-        read_strand: &Strand,
-        overhang: i64,
-    ) -> () {
-        if *read_strand != self.strand {
-            self.insert_in_counter(ReadAssign::WrongStrand);
+
+    let junction = cigar.get_skipped_pos_on_ref(&aln_start);
+    if let Some(y) = junction {
+        if (y
+            .iter()
+            .enumerate()
+            .step_by(2)
+            .any(|(i, &x)| (x < self.pos) & (y[i + 1] > self.pos)))
+        {
+            self.insert_in_counter(ReadAssign::Skipped);
             return ();
         }
+    }
 
-        let junction = cigar.get_skipped_pos_on_ref(&aln_start);
-        if let Some(y) = junction {
-            if (y
-                .iter()
-                .enumerate()
-                .step_by(2)
-                .any(|(i, &x)| (x < self.pos) & (y[i + 1] > self.pos)))
-            {
-                self.insert_in_counter(ReadAssign::Skipped);
+    match (self.strand, self.exon_type) {
+        (Strand::Plus, ExonType::Donnor) | (Strand::Minus, ExonType::Acceptor) => {
+            if !cigar.does_it_match_an_intervall(&aln_start, self.pos - overhang, self.pos) {
+                self.insert_in_counter(ReadAssign::OverhangFail);
+                return ();
+            }
+
+            if cigar.does_it_match_an_intervall(&aln_start, self.pos - overhang, self.pos + 1) {
+                //overhang) {
+                self.insert_in_counter(ReadAssign::ReadThrough);
+                return ();
+            }
+
+            if cigar.soft_clipped_end(&Strand::Plus, 10) {
+                self.insert_in_counter(ReadAssign::SoftClipped);
                 return ();
             }
         }
-
-        match (self.strand, self.exon_type) {
-            (Strand::Plus, ExonType::Donnor) | (Strand::Minus, ExonType::Acceptor) => {
-                if !cigar.does_it_match_an_intervall(&aln_start, self.pos - overhang, self.pos) {
-                    self.insert_in_counter(ReadAssign::OverhangFail);
-                    return ();
-                }
-
-                if cigar.does_it_match_an_intervall(&aln_start, self.pos - overhang, self.pos + 1) {
-                    //overhang) {
-                    self.insert_in_counter(ReadAssign::ReadThrough);
-                    return ();
-                }
-
-                if cigar.soft_clipped_end(&Strand::Plus, 10) {
-                    self.insert_in_counter(ReadAssign::SoftClipped);
-                    return ();
-                }
-            }
-            (Strand::Plus, ExonType::Acceptor) | (Strand::Minus, ExonType::Donnor) => {
-                if !cigar.does_it_match_an_intervall(&aln_start, self.pos, self.pos + overhang) {
-                    //println!("{:?} {} {} {:?}", self, aln_start, aln_end, cigar);
-                    self.insert_in_counter(ReadAssign::OverhangFail);
-                    return ();
-                }
-
-                if cigar.does_it_match_an_intervall(&aln_start, self.pos - 1, self.pos + overhang) {
-                    //overhang) {
-                    self.insert_in_counter(ReadAssign::ReadThrough);
-                    return ();
-                }
-
-                if cigar.soft_clipped_end(&Strand::Minus, 10) {
-                    self.insert_in_counter(ReadAssign::SoftClipped);
-                    return ();
-                }
-            }
-            (Strand::NA, _) => {
+        (Strand::Plus, ExonType::Acceptor) | (Strand::Minus, ExonType::Donnor) => {
+            if !cigar.does_it_match_an_intervall(&aln_start, self.pos, self.pos + overhang) {
+                //println!("{:?} {} {} {:?}", self, aln_start, aln_end, cigar);
+                self.insert_in_counter(ReadAssign::OverhangFail);
                 return ();
             }
-        };
 
-        if !((aln_start < self.pos) & (aln_end > self.pos)) {
-            self.insert_in_counter(ReadAssign::FailPosFilter);
+            if cigar.does_it_match_an_intervall(&aln_start, self.pos - 1, self.pos + overhang) {
+                //overhang) {
+                self.insert_in_counter(ReadAssign::ReadThrough);
+                return ();
+            }
+
+            if cigar.soft_clipped_end(&Strand::Minus, 10) {
+                self.insert_in_counter(ReadAssign::SoftClipped);
+                return ();
+            }
+        }
+        (Strand::NA, _) => {
             return ();
         }
+    };
 
-        match cigar.get_skipped_pos_on_ref(&aln_start) {
-            Some(j) => {
-                match (
-                    j.iter().position(|&x| x == self.pos),
-                    self.strand,
-                    self.exon_type,
-                ) {
-                    (Some(p), Strand::Plus, ExonType::Donnor) => {
-                        self.insert_in_counter(ReadAssign::ReadJunction(j[p], j[p + 1]));
-                        return ();
-                    }
-                    (Some(p), Strand::Plus, ExonType::Acceptor) => {
-                        self.insert_in_counter(ReadAssign::ReadJunction(j[p - 1], j[p]));
-                        return ();
-                    }
-                    (Some(p), Strand::Minus, ExonType::Donnor) => {
-                        self.insert_in_counter(ReadAssign::ReadJunction(j[p - 1], j[p]));
-                        return ();
-                    }
-                    (Some(p), Strand::Minus, ExonType::Acceptor) => {
-                        self.insert_in_counter(ReadAssign::ReadJunction(j[p], j[p + 1]));
-                        return ();
-                    }
+    if !((aln_start < self.pos) & (aln_end > self.pos)) {
+        self.insert_in_counter(ReadAssign::FailPosFilter);
+        return ();
+    }
 
-                    (_, _, _) => {
-                        //TODO add skipped
+    match cigar.get_skipped_pos_on_ref(&aln_start) {
+        Some(j) => {
+            match (
+                j.iter().position(|&x| x == self.pos),
+                self.strand,
+                self.exon_type,
+            ) {
+                (Some(p), Strand::Plus, ExonType::Donnor) => {
+                    self.insert_in_counter(ReadAssign::ReadJunction(j[p], j[p + 1]));
+                    return ();
+                }
+                (Some(p), Strand::Plus, ExonType::Acceptor) => {
+                    self.insert_in_counter(ReadAssign::ReadJunction(j[p - 1], j[p]));
+                    return ();
+                }
+                (Some(p), Strand::Minus, ExonType::Donnor) => {
+                    self.insert_in_counter(ReadAssign::ReadJunction(j[p - 1], j[p]));
+                    return ();
+                }
+                (Some(p), Strand::Minus, ExonType::Acceptor) => {
+                    self.insert_in_counter(ReadAssign::ReadJunction(j[p], j[p + 1]));
+                    return ();
+                }
 
-                        if (j
-                            .iter()
-                            .enumerate()
-                            .step_by(2)
-                            .any(|(i, &x)| (x < self.pos) & (j[i + 1] > self.pos)))
-                        {
-                            self.insert_in_counter(ReadAssign::Skipped);
-                            return ();
-                        } else {
-                            //println!("Unexp: {:?} {:?} {:?} {:?} {:?}", j, aln_start ,aln_end, cigar, self);
-                            self.insert_in_counter(ReadAssign::Unexpected);
-                            return ();
-                        }
+                (_, _, _) => {
+                    //TODO add skipped
+
+                    if (j
+                        .iter()
+                        .enumerate()
+                        .step_by(2)
+                        .any(|(i, &x)| (x < self.pos) & (j[i + 1] > self.pos)))
+                    {
+                        self.insert_in_counter(ReadAssign::Skipped);
+                        return ();
+                    } else {
+                        //println!("Unexp: {:?} {:?} {:?} {:?} {:?}", j, aln_start ,aln_end, cigar, self);
+                        self.insert_in_counter(ReadAssign::Unexpected);
+                        return ();
                     }
                 }
             }
-            None => {
-                self.insert_in_counter(ReadAssign::Unexpected);
-                return ();
-            }
+        }
+        None => {
+            self.insert_in_counter(ReadAssign::Unexpected);
+            return ();
         }
     }
+}
 
-    */
+*/
 
-    /*fn get_gene_id(attr: &str) -> String {
-    let mut result = "".to_string();
-    let x = attr.split(';').collect::<Vec<&str>>();
-    for e in x {
-        let spl = e.trim().split(' ').collect::<Vec<&str>>();
-        if spl[0].trim() == "gene_id" {
-            result = spl[1].trim().trim_matches('\"').to_string()
-        }
+/*fn get_gene_id(attr: &str) -> String {
+let mut result = "".to_string();
+let x = attr.split(';').collect::<Vec<&str>>();
+for e in x {
+    let spl = e.trim().split(' ').collect::<Vec<&str>>();
+    if spl[0].trim() == "gene_id" {
+        result = spl[1].trim().trim_matches('\"').to_string()
     }
-    result*/
+}
+result*/

@@ -1,4 +1,3 @@
-
 #![allow(unused)]
 extern crate CigarParser;
 use clap::Parser;
@@ -11,20 +10,19 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::hash::Hash;
 use std::io::prelude::*;
-use std::io::{BufWriter};
+use std::io::BufWriter;
 
 use std::str::FromStr;
 mod common;
 use std::fs;
 use std::str;
 //use crate::common::utils::ReadAssign;
-use crate::common::point::{read_gtf, PointContainer, InsideCounter};
+use crate::common::point::{read_gtf, InsideCounter, PointContainer};
 use crate::common::read_record::file_to_table;
-use crate::common::utils::{ExonType, ReadAssign};
 use crate::common::utils;
+use crate::common::utils::{ExonType, ReadAssign};
 
-
-fn parse_bam  (
+fn parse_bam(
     // required parameter
     bam_file: &str,
     library_type: LibType,
@@ -39,7 +37,7 @@ fn parse_bam  (
     // mapq (must be) >=   default 13
     mapq: u8,
     out_file_read_buffer: &mut Option<BufWriter<File>>,
-    clipped: bool
+    clipped: bool,
 ) -> () {
     //let mut p_to_check: i64;
     let mut counter: i64;
@@ -97,7 +95,7 @@ fn parse_bam  (
                     overhang,
                     out_file_read_buffer,
                     &record,
-                    clipped
+                    clipped,
                 );
             }
             //read_strand = library_type.get_strand(flag).expect(&format!("LibType: {:?} {}", library_type,  flag) );
@@ -105,7 +103,6 @@ fn parse_bam  (
         }
     }
 }
-
 
 // TODO add specific subcommand to retrieve only specific reads;
 #[derive(Parser, Debug)]
@@ -140,9 +137,9 @@ struct Args {
     flag_out: u16,
     #[arg(long, default_value_t = 13)]
     mapq: u8,
-    /// only do something if --output-write-read is set 
+    /// only do something if --output-write-read is set
     #[clap(long, short, action)]
-    clipped: bool
+    clipped: bool,
 }
 // TODO add LibType
 
@@ -151,11 +148,11 @@ fn main_loop(
     gtf: String,
     bam_input: String,
     overhang: i64,
-    flag_in:u16,
-    flag_out:u16,
-    mapq:u8,
+    flag_in: u16,
+    flag_out: u16,
+    mapq: u8,
     output_write_read: Option<String>,
-    clipped: bool
+    clipped: bool,
 ) -> () {
     let file = File::create_new(output).expect("output file should not exist.");
     let mut stream = BufWriter::new(file);
@@ -164,7 +161,6 @@ fn main_loop(
 
     let gtf_file = gtf;
     let overhang = overhang;
-
 
     let mut results = read_gtf(&gtf_file).unwrap();
 
@@ -176,7 +172,6 @@ fn main_loop(
         output_read_stream = Some(BufWriter::new(file_));
     }
 
-
     parse_bam(
         &bam_file,
         LibType::frFirstStrand,
@@ -186,15 +181,15 @@ fn main_loop(
         flag_out,
         mapq,
         &mut output_read_stream,
-        clipped
+        clipped,
     );
 
     // Improovment better sort
-    for (contig, vec_point) in  results.iter_mut() {
+    for (contig, vec_point) in results.iter_mut() {
         let mut sorted_point = &mut vec_point.points;
         sorted_point.sort_unstable_by_key(|item| (item.transcript_id.clone(), item.pos));
-        for point in sorted_point.iter(){
-        //for point in vec_point.iter() {
+        for point in sorted_point.iter() {
+            //for point in vec_point.iter() {
             if point.counter.is_empty() {
                 let _ = stream.write(
                     format!(
@@ -242,10 +237,9 @@ fn main() {
 
     let output = args.output;
     let mut clipped = false;
-    if args.clipped{
+    if args.clipped {
         clipped = true;
     }
-
 
     main_loop(
         output.clone(),
@@ -256,11 +250,12 @@ fn main() {
         args.flag_out,
         args.mapq,
         args.output_write_read,
-        clipped
+        clipped,
     );
 
     if let Some(table) = args.table {
-        let file = File::create_new(table.clone()).expect(&format!("output file {} should not exist.", &table));
+        let file = File::create_new(table.clone())
+            .expect(&format!("output file {} should not exist.", &table));
         let mut stream = BufWriter::new(file);
         println!("table");
         let _ = stream.write("contig\tgene_name\ttranscript_name\texon_number\tstrand\tpos\texon_type\tspliced\tunspliced\tclipped\texon_intron\texon_other\tskipped\twrong_strand\te_isoform\n".as_bytes());
@@ -268,5 +263,5 @@ fn main() {
     }
 }
 //            skipped,
-//wrong_strand, 
+//wrong_strand,
 //e_isoform

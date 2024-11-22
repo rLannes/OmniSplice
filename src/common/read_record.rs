@@ -33,7 +33,11 @@ impl ReadtRecord {
         self.assigned.push((ass, value));
     }
 
-    fn dump_junction(&self, next_acceptor: Option<i64>, junction_set: &HashSet<(i64, i64)>) -> String {
+    fn dump_junction(
+        &self,
+        next_acceptor: Option<i64>,
+        junction_set: &HashSet<(i64, i64)>,
+    ) -> String {
         let mut unspliced = 0;
         let mut spliced = 0;
         let mut clipped = 0;
@@ -59,11 +63,10 @@ impl ReadtRecord {
                         | (Strand::Minus, ExonType::Acceptor, Some(next)) => {
                             if next == end {
                                 spliced = spliced + elem.1
-                            } else if  junction_set.contains(&(start, end)){
-                                e_isoform  = e_isoform + elem.1
-                            }
-                            else if end < next {
-                                    exon_intron = exon_intron + elem.1;
+                            } else if junction_set.contains(&(start, end)) {
+                                e_isoform = e_isoform + elem.1
+                            } else if end < next {
+                                exon_intron = exon_intron + elem.1;
                             } else {
                                 exon_other = exon_other + elem.1
                             }
@@ -73,19 +76,17 @@ impl ReadtRecord {
                             if next == start {
                                 spliced = spliced + elem.1;
                                 //println!("junction: {} {}; pos {}; next: {}; spliced", start, end, self.pos, next);
-                            } else if  junction_set.contains(&(start, end)){
-                                e_isoform  = e_isoform + elem.1
+                            } else if junction_set.contains(&(start, end)) {
+                                e_isoform = e_isoform + elem.1
+                            } else if start > next {
+                                exon_intron = exon_intron + elem.1;
                             }
-                            else if start > next {
-                                    exon_intron = exon_intron + elem.1;
-                            }
-                                //println!("junction: {} {}; pos {};; next: {}; exon_intron", start, end, self.pos, next);
+                            //println!("junction: {} {}; pos {};; next: {}; exon_intron", start, end, self.pos, next);
                             else {
                                 exon_other = exon_other + elem.1;
                                 //println!("junction: {} {}; pos {};; next: {}; exon_other", start, end, self.pos, next);
                             }
-                        }
-                        //(_, _, _) => (),
+                        } //(_, _, _) => (),
                     }
                 }
                 _ => (),
@@ -103,10 +104,8 @@ impl ReadtRecord {
             exon_intron,
             exon_other,
             skipped,
-            wrong_strand, 
+            wrong_strand,
             e_isoform
-            
-            
         )
     }
 }
@@ -115,8 +114,6 @@ struct ReadtRecordContainer {
     container: Vec<ReadtRecord>,
     strand: Strand,
 }
-
-
 
 impl ReadtRecordContainer {
     fn new(strand: Strand) -> Self {
@@ -133,17 +130,17 @@ impl ReadtRecordContainer {
         }
     }
 
-    fn get_junction(&self, gene_junction_set: &mut HashSet<(i64, i64)>) -> (){
+    fn get_junction(&self, gene_junction_set: &mut HashSet<(i64, i64)>) -> () {
         //let mut result: HashSet<(i64, i64)> = HashSet::new();
-        let ll  = self.container.len();
+        let ll = self.container.len();
         //let mut i = 1;
-        for i in (1..(ll - 1)).step_by(2){
+        for i in (1..(ll - 1)).step_by(2) {
             gene_junction_set.insert((self.container[i].pos, self.container[i + 1].pos));
         }
     }
 
     fn find(&mut self, exon_type: ExonType, pos: i64) -> Option<&mut ReadtRecord> {
-        for  record in &mut self.container {
+        for record in &mut self.container {
             if record.pos == pos && record.exon_type == exon_type {
                 return Some(record);
             }
@@ -203,27 +200,20 @@ impl ReadtRecordContainer {
     }
 }
 
-
 pub fn file_to_table(file: String, out_file: &mut BufWriter<File>) -> () {
     let mut mymap = parse_file(file);
 
     for (_gene_name, container) in &mut mymap {
-            let mut gene_junction_set : HashSet<(i64, i64)> =  HashSet::new();
-            for (_transcript_name, cont) in &mut *container{
-                cont.sort();
-                cont.get_junction(&mut gene_junction_set);
-            }
-            for (_transcript_name, cont) in container{
-                
-                let _ = out_file.write(cont.dump(&gene_junction_set).as_bytes());
+        let mut gene_junction_set: HashSet<(i64, i64)> = HashSet::new();
+        for (_transcript_name, cont) in &mut *container {
+            cont.sort();
+            cont.get_junction(&mut gene_junction_set);
+        }
+        for (_transcript_name, cont) in container {
+            let _ = out_file.write(cont.dump(&gene_junction_set).as_bytes());
         }
     }
-
-
 }
-
-
-
 
 fn parse_file(file: String) -> HashMap<String, HashMap<String, ReadtRecordContainer>> {
     // Refactor String -> String -> ReadtRecordContainer
@@ -245,7 +235,11 @@ fn parse_file(file: String) -> HashMap<String, HashMap<String, ReadtRecordContai
         gene_strand = Strand::from(spt[4]);
         resultamap
             .entry(gene_name.clone())
-            .or_insert_with(|| {let mut t = HashMap::new(); t.insert(tr_name.clone(),  ReadtRecordContainer::new(gene_strand)); t})
+            .or_insert_with(|| {
+                let mut t = HashMap::new();
+                t.insert(tr_name.clone(), ReadtRecordContainer::new(gene_strand));
+                t
+            })
             .entry(tr_name.clone())
             .or_insert_with(|| ReadtRecordContainer::new(gene_strand))
             .insert(spt);
