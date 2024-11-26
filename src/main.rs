@@ -243,7 +243,7 @@ fn main() {
 
     main_loop(
         output.clone(),
-        args.gtf,
+        args.gtf.clone(),
         args.input,
         args.overhang,
         args.flag_in,
@@ -258,8 +258,8 @@ fn main() {
             .expect(&format!("output file {} should not exist.", &table));
         let mut stream = BufWriter::new(file);
         println!("table");
-        let _ = stream.write("contig\tgene_name\ttranscript_name\texon_number\tstrand\tpos\texon_type\tspliced\tunspliced\tclipped\texon_intron\texon_other\tskipped\twrong_strand\te_isoform\n".as_bytes());
-        file_to_table(output.clone(), &mut stream);
+        let _ = stream.write("contig\tgene_name\ttranscript_name\texon_number\tambigous\tstrand\tpos\tnextPos\texon_type\tspliced\tunspliced\tclipped\texon_intron\texon_other\tskipped\twrong_strand\te_isoform\n".as_bytes());
+        file_to_table(output.clone(), &mut stream, args.gtf);
     }
 }
 //            skipped,
