@@ -1,6 +1,9 @@
+use crate::common::point::get_attr_id;
 use crate::common::utils::{ExonType, ReadAssign};
+use bio::data_structures::interval_tree::IntervalTree;
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
+use std::hash::Hash;
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use strand_specifier_lib::Strand;
 
@@ -200,8 +203,11 @@ impl ReadtRecordContainer {
     }
 }
 
-pub fn file_to_table(file: String, out_file: &mut BufWriter<File>) -> () {
-    let mut mymap = parse_file(file);
+pub fn file_to_table(file: String, out_file: &mut BufWriter<File>, gtf: &str) -> () {
+    let mut mymap = parse_file(file.as_str());
+
+    let invalid_pos = get_invalid_pos(gtf);
+    let gene_junction_set = get_junction_from_gtf(gtf);
 
     for (_gene_name, container) in &mut mymap {
         let mut gene_junction_set: HashSet<(i64, i64)> = HashSet::new();
@@ -215,7 +221,9 @@ pub fn file_to_table(file: String, out_file: &mut BufWriter<File>) -> () {
     }
 }
 
-fn parse_file(file: String) -> HashMap<String, HashMap<String, ReadtRecordContainer>> {
+
+
+fn parse_file(file: &str) -> HashMap<String, HashMap<String, ReadtRecordContainer>> {
     // Refactor String -> String -> ReadtRecordContainer
     let mut resultamap: HashMap<String, HashMap<String, ReadtRecordContainer>> = HashMap::new();
     // read the file
@@ -248,4 +256,293 @@ fn parse_file(file: String) -> HashMap<String, HashMap<String, ReadtRecordContai
             .insert(spt);
     }
     resultamap
+}
+
+
+
+#[derive(Eq, Hash, PartialEq, Clone, Copy)]
+struct Intervall<T: Ord + Copy + Eq + Hash + PartialEq> {
+    start: T,
+    end: T,
+}
+
+impl<T> Intervall<T>
+where
+    T: Ord + Copy + Eq + Hash + PartialEq,
+{
+    fn new(start: T, end: T) -> Self {
+        Intervall { start, end }
+    }
+
+    fn overlap(&self, other: &Intervall<T>) -> bool {
+        if (self.start > other.end) | (self.end < other.start) {
+            false
+        } else {
+            true
+        }
+    }
+}
+
+fn get_junction_from_gtf(file: &str) -> HashMap<String, HashSet<(i64, i64)>> {
+    //let file = "genomic.gtf";
+    let f = File::open(file).unwrap();
+    let reader = BufReader::new(f);
+    let mut this_line: String; //::new();
+
+    let mut start: i64; //; = 0;
+    let mut chr_: String; // = "".to_string();
+    let mut end: i64; // = 0;
+    let mut gene_name: String = "".to_string();
+    let mut transcript_id: String; // = "".to_string();
+
+    let mut result: HashMap<String, HashSet<(i64, i64)>> = HashMap::new();
+    let mut transcript_vec: Vec<(i64, i64)> = Vec::new();
+    let mut current_gene_id = "".to_string();
+    let mut current_transcript_id = "".to_string();
+    let mut myset: HashSet<(i64, i64)> = HashSet::new();
+
+    for line in reader.lines() {
+        this_line = line.unwrap();
+        let spt = this_line.trim().split('\t').collect::<Vec<&str>>();
+        if spt.len() < 8 {
+            continue;
+        }
+        if spt[2] != "exon" {
+            continue;
+        }
+
+        chr_ = spt[0].to_string();
+        start = spt[3].parse::<i64>().unwrap() - 1;
+        end = spt[4].parse::<i64>().unwrap();
+
+        if let Some((gene_tmp, tr_tmp)) =
+            get_attr_id(spt[8], "gene_id").zip(get_attr_id(spt[8], "transcript_id"))
+        {
+            gene_name = gene_tmp;
+            transcript_id = tr_tmp;
+        } else if let Some((gene_tmp, tr_tmp)) =
+            get_attr_id(spt[8], "gene_name").zip(get_attr_id(spt[8], "transcript_id"))
+        {
+            gene_name = gene_tmp;
+            transcript_id = tr_tmp;
+        } else {
+            println!("warning gene id or transcript id not found: {:?}", spt);
+            continue; // skip this gene
+        }
+
+        if gene_name != current_gene_id {
+            let ll = transcript_vec.len();
+            if ll > 1 {
+                for i in 0..(ll - 1) {
+                    myset.insert((transcript_vec[i].1, transcript_vec[i + 1].0));
+                }
+            }
+            transcript_vec.clear();
+
+            result.insert(gene_name.clone(), myset.clone());
+            myset.clear();
+            current_gene_id = gene_name.clone();
+            current_transcript_id = transcript_id;
+        } else if transcript_id != current_transcript_id {
+            let ll = transcript_vec.len();
+            if ll > 1 {
+                for i in 0..(ll - 1) {
+                    myset.insert((transcript_vec[i].1, transcript_vec[i + 1].0));
+                }
+            }
+            transcript_vec.clear();
+            current_transcript_id = transcript_id;
+        }
+
+        transcript_vec.push((start, end));
+    }
+    let ll = transcript_vec.len();
+    if ll > 1 {
+        for i in 0..(ll - 1) {
+            myset.insert((transcript_vec[i].1, transcript_vec[i + 1].0));
+        }
+    }
+    transcript_vec.clear();
+
+    result.insert(gene_name.clone(), myset.clone());
+    myset.clear();
+    result
+}
+
+fn gtf_toIT(file: &str) -> HashMap<String, IntervalTree<i64, String>> {
+    //let file = "genomic.gtf";
+    let f = File::open(file).unwrap();
+    let reader = BufReader::new(f);
+    let mut this_line: String; //::new();
+
+    let mut start: i64; //; = 0;
+    let mut chr_: String; // = "".to_string();
+    let mut end: i64; // = 0;
+    let mut gene_name: String = "".to_string();
+    let mut transcript_id: String; // = "".to_string();
+
+    let mut result: HashMap<String, IntervalTree<i64, String>> = HashMap::new();
+
+    for line in reader.lines() {
+        this_line = line.unwrap();
+        let spt = this_line.trim().split('\t').collect::<Vec<&str>>();
+        if spt.len() < 8 {
+            continue;
+        }
+        if spt[2] != "exon" {
+            continue;
+        }
+
+        chr_ = spt[0].to_string();
+        start = spt[3].parse::<i64>().unwrap() - 1;
+        end = spt[4].parse::<i64>().unwrap();
+
+        if let Some(gene_tmp) = get_attr_id(spt[8], "gene_id") {
+            gene_name = gene_tmp;
+        } else if let Some(gene_tmp) = get_attr_id(spt[8], "gene_name") {
+            gene_name = gene_tmp;
+        } else {
+            print!("WARNING Cannort find {:?}", this_line);
+            continue;
+        }
+        result
+            .entry(chr_)
+            .or_insert_with(|| IntervalTree::new())
+            .insert(start..end, gene_name);
+    }
+    result
+}
+
+fn graph_from_gtf(file: &str) -> HashMap<String, HashMap<Intervall<i64>, Vec<Intervall<i64>>>> {
+    //  TO remove clutter ca use a hashset to remove identical  exon
+    // from same genes
+
+    //let file = "genomic.gtf";
+    let mut it_dico: HashMap<String, IntervalTree<i64, String>> = gtf_toIT(file.clone());
+
+    let f = File::open(file).unwrap();
+    let reader = BufReader::new(f);
+    let mut this_line: String; //::new();
+
+    let mut start: i64; //; = 0;
+    let mut chr_: String; // = "".to_string();
+    let mut end: i64; // = 0;
+    let mut gene_name: String = "".to_string();
+    let mut transcript_id: String; // = "".to_string();
+
+    let mut seen: HashSet<(String, i64, i64, String)> = HashSet::new();
+
+    let mut g: HashMap<String, HashMap<Intervall<i64>, Vec<Intervall<i64>>>> = HashMap::new();
+
+    for line in reader.lines() {
+        this_line = line.unwrap();
+        let spt = this_line.trim().split('\t').collect::<Vec<&str>>();
+        if spt.len() < 8 {
+            continue;
+        }
+        if spt[2] != "exon" {
+            continue;
+        }
+
+        chr_ = spt[0].to_string();
+
+        start = spt[3].parse::<i64>().unwrap() - 1;
+        end = spt[4].parse::<i64>().unwrap();
+
+        if let Some(gene_tmp) = get_attr_id(spt[8], "gene_id") {
+            gene_name = gene_tmp;
+        } else if let Some(gene_tmp) = get_attr_id(spt[8], "gene_name") {
+            gene_name = gene_tmp;
+        } else {
+            print!("WARNING Cannort find {:?}", this_line);
+            continue;
+        }
+        if seen.contains(&(chr_.clone(), start, end, gene_name.clone())) {
+            continue;
+        } else {
+            seen.insert((chr_.clone(), start, end, gene_name.clone()));
+        }
+
+        if let Some(subtree) = it_dico.get(&chr_) {
+            for inter in subtree.find(start..end) {
+                // exactly same intervall.
+                if (inter.interval().start == start) & (inter.interval().end == end) {
+                    continue;
+                } else {
+                    g.entry(chr_.clone())
+                        .or_insert_with(|| HashMap::new())
+                        .entry(Intervall::new(start, end))
+                        .or_insert_with(|| Vec::new())
+                        .push(Intervall::new(inter.interval().start, inter.interval().end));
+                }
+            }
+        }
+    }
+    g
+}
+
+fn get_invalid_pos(file: &str) -> HashSet<(String, i64)> {
+    let g = graph_from_gtf(file.clone());
+    let mut seen = HashSet::new();
+
+    let mut inter_vec = Vec::new();
+    let mut e1 = 0;
+    let mut borne: &Intervall<i64>;
+    let mut results: HashSet<(String, i64)> = HashSet::new();
+    let mut file_: Vec<Intervall<i64>> = Vec::new();
+
+    for (chr_, subdict) in g.iter() {
+        for (current_node, neigbors) in subdict.iter() {
+            inter_vec.clear();
+            if seen.contains(current_node) {
+                continue;
+            }
+            // get the CC
+            file_.push(current_node.clone());
+            while let Some(bfs_node) = file_.pop() {
+                if seen.contains(&bfs_node) {
+                    continue;
+                }
+                seen.insert(bfs_node);
+                inter_vec.push(bfs_node);
+                for n in neigbors {
+                    if seen.contains(n) {
+                        continue;
+                    }
+                    file_.push(n.clone())
+                }
+            }
+
+            // here find "bad pos"
+            // here find "bad pos"
+            e1 = inter_vec[0].start;
+            if !(inter_vec.iter().all(|x| x.start == e1)) {
+                //println!("{} {:?}", chr_, inter_vec );
+                borne = inter_vec.iter().min_by_key(|x| x.start).unwrap();
+                for i in &inter_vec {
+                    if i == borne {
+                        continue;
+                    } else {
+                        results.insert((chr_.clone(), i.start));
+                    }
+                }
+            }
+
+            e1 = inter_vec[0].end;
+            if !(inter_vec.iter().all(|x| x.end == e1)) {
+                //println!("{} {:?}", chr_, inter_vec );
+                borne = inter_vec.iter().max_by_key(|x| x.end).unwrap();
+                for i in &inter_vec {
+                    if i == borne {
+                        continue;
+                    } else {
+                        results.insert((chr_.clone(), i.end));
+                    }
+                }
+            }
+            // limit
+            //inter_vec.clear();
+        }
+    }
+    results
 }
