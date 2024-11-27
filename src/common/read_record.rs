@@ -165,13 +165,15 @@ impl ReadtRecordContainer {
         }
     }
 
-    fn dump(&mut self, junction_set: &HashSet<(i64, i64)>) -> String {
+    fn dump(&mut self, junction_set: &HashSet<(i64, i64)>, invalid: &HashSet<(String, i64)>) -> String {
         self.sort();
+        let mut ambigous = false;
         let mut result: Vec<String> = Vec::new();
         let mut exon_number: usize; // = 0;
         let size = self.container.len();
         let mut next: Option<i64>; // = None;
         for (indice, junction) in self.container.iter().enumerate() {
+            ambigous = false;
             next = None;
             exon_number = indice / 2;
 
@@ -187,12 +189,20 @@ impl ReadtRecordContainer {
                     }
                 }
             }
+            
+            ambigous = if invalid.contains(&(junction.contig.clone(), junction.pos)) {
+                true
+            } else {
+                false
+            };
+
             result.push(format!(
-                "{}\t{}\t{}\texon_{}\t{}",
+                "{}\t{}\t{}\texon_{}\t{}\t{}",
                 junction.contig,
                 junction.gene_id,
                 junction.transcript_id,
                 exon_number + 1,
+                ambigous,
                 junction.dump_junction(next, &junction_set)
             ));
         }
@@ -213,10 +223,10 @@ pub fn file_to_table(file: String, out_file: &mut BufWriter<File>, gtf: &str) ->
         let mut gene_junction_set: HashSet<(i64, i64)> = HashSet::new();
         for (_transcript_name, cont) in &mut *container {
             cont.sort();
-            cont.get_junction(&mut gene_junction_set);
+            //cont.get_junction(&mut gene_junction_set);
         }
         for (_transcript_name, cont) in container {
-            let _ = out_file.write(cont.dump(&gene_junction_set).as_bytes());
+            let _ = out_file.write(cont.dump(&gene_junction_set, &invalid_pos).as_bytes());
         }
     }
 }
