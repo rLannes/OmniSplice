@@ -185,18 +185,32 @@ fn dump_counter(&self, end: bool) -> String{
 
     
         if end{         
-            for (assign, value) in &self.counter_end{
+            if self.counter_end.is_empty(){
                 for base in &base_vec{
-                    results.push(format!("{}\t{}\t{}", base, assign, value))
-                    //base.push_str(&format!("\t{}\t{}", assign, value))
+                    results.push(format!("{}\tempty\t0", base))
+                }
+            }
+            else{
+                for (assign, value) in &self.counter_end{
+                    for base in &base_vec{
+                        results.push(format!("{}\t{}\t{}", base, assign, value))
+                        //base.push_str(&format!("\t{}\t{}", assign, value))
+                    }
                 }
             }
         }
         else{         
-            for (assign, value) in &self.counter_start{
+            if self.counter_start.is_empty(){
                 for base in &base_vec{
-                    results.push(format!("{}\t{}\t{}", base, assign, value))
-                    //base.push_str(&format!("\t{}\t{}", assign, value))
+                    results.push(format!("{}\tempty\t0", base))
+                }
+            }
+            else{
+                for (assign, value) in &self.counter_start{
+                    for base in &base_vec{
+                        results.push(format!("{}\t{}\t{}", base, assign, value))
+                        //base.push_str(&format!("\t{}\t{}", assign, value))
+                    }
                 }
             }
         }
