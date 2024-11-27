@@ -17,6 +17,7 @@ mod common;
 use std::fs;
 use std::str;
 //use crate::common::utils::ReadAssign;
+use crate::common::it_approches;
 use crate::common::point::{read_gtf, InsideCounter, PointContainer};
 use crate::common::read_record::file_to_table;
 use crate::common::utils;
