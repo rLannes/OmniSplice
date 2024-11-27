@@ -187,7 +187,7 @@ fn dump_counter(&self, end: bool) -> String{
         if end{         
             for (assign, value) in &self.counter_end{
                 for base in &base_vec{
-                    results.push(format!("{} \t{}\t{}", base, assign, value))
+                    results.push(format!("{}\t{}\t{}", base, assign, value))
                     //base.push_str(&format!("\t{}\t{}", assign, value))
                 }
             }
@@ -195,7 +195,7 @@ fn dump_counter(&self, end: bool) -> String{
         else{         
             for (assign, value) in &self.counter_start{
                 for base in &base_vec{
-                    results.push(format!("{} \t{}\t{}", base, assign, value))
+                    results.push(format!("{}\t{}\t{}", base, assign, value))
                     //base.push_str(&format!("\t{}\t{}", assign, value))
                 }
             }
@@ -254,6 +254,11 @@ out_file: &str) -> (){
     .wait()
     .expect("sort command failed ");
     //stream.flush().unwrap();
+
+    let X = Command::new("rm")
+    .args(["-f", presorted.as_str()])
+    .output()
+    .expect("failed to remove presorted");
 }
 
 pub fn gtf_to_tree(
@@ -287,8 +292,8 @@ pub fn gtf_to_tree(
         }
 
         chr_ = spt[0].to_string();
-        start = spt[3].parse::<i64>()?-1;
-        end = spt[4].parse::<i64>()?-1;
+        start = spt[3].parse::<i64>()? - 1;
+        end = spt[4].parse::<i64>()? ;
         strand = Strand::from(spt[6]);
 
         if let Some((gene_tmp, tr_tmp)) =

@@ -230,6 +230,9 @@ fn parse_file(file: String) -> HashMap<String, HashMap<String, ReadtRecordContai
     for line in reader.lines() {
         this_line = line.expect("failed to read line in make_table");
         spt = this_line.trim().split('\t').collect::<Vec<&str>>();
+        if &spt.len() < &5 {
+            continue;
+        }
         gene_name = spt[2].to_string();
         tr_name = spt[3].to_string();
         gene_strand = Strand::from(spt[4]);
