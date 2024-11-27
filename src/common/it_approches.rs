@@ -15,6 +15,8 @@ use std::str::FromStr;
 use strand_specifier_lib::Strand;
 use strand_specifier_lib::{check_flag, LibType};
 use CigarParser::cigar::Cigar;
+use std::process::{Command, Stdio};
+
 
 #[derive(Debug)]
 pub struct TreeData {
@@ -177,22 +179,30 @@ fn dump_base(&self, end: bool) -> Vec<String> {
 
 
 fn dump_counter(&self, end: bool) -> String{
-    let mut base_vec =  self.dump_base(end);
+    let base_vec =  self.dump_base(end);
+    let mut results = Vec::new();
 
 
-    for base in &mut base_vec{
+    
         if end{         
             for (assign, value) in &self.counter_end{
-                base.push_str(&format!("\t{}\t{}", assign, value))
+                for base in &base_vec{
+                    results.push(format!("{} \t{}\t{}", base, assign, value))
+                    //base.push_str(&format!("\t{}\t{}", assign, value))
+                }
             }
         }
         else{         
             for (assign, value) in &self.counter_start{
-                base.push_str(&format!("\t{}\t{}", assign, value))
+                for base in &base_vec{
+                    results.push(format!("{} \t{}\t{}", base, assign, value))
+                    //base.push_str(&format!("\t{}\t{}", assign, value))
+                }
             }
         }
-    }
-    return base_vec.join("\n");
+    
+    
+        results.join("\n")
 
 }
 
@@ -216,18 +226,34 @@ fn dump_reads_seq(&self, sequence: &String, seqname: &String, end: bool) -> Stri
 
 pub fn dump_tree_to_cat_results(hash_tree: &HashMap<String, interval_tree::IntervalTree<i64, TreeData>>,
 out_file: &str) -> (){
-    let file = File::create_new(out_file).expect("output file should not exist.");
+    let presorted = format!("{}.presorted", out_file);
+    {
+    let file = File::create_new(presorted.clone()).expect("output file should not exist.");
     let mut stream = BufWriter::new(file);
 
     for (contig, subtree) in hash_tree{
         // get ALL entry
         for node in subtree.find(i64::MIN..i64::MAX){
             stream.write(node.data().dump_counter(false).as_bytes());
+            stream.write("\n".as_bytes());
             stream.write(node.data().dump_counter(true).as_bytes());
+            stream.write("\n".as_bytes());
         }
     }
     stream.flush().unwrap();
 
+    }
+
+    let file = File::create_new(out_file).expect("output file should not exist.");
+    //let mut stream = BufWriter::new(file);
+    let sort = Command::new("sort")
+    .args(["-k1,1", "-k3,3","-k4,4", "-k2,2n", "-k7,7", presorted.as_str()])
+    .stdout(file)
+    .spawn()
+    .expect("sort command failed ")
+    .wait()
+    .expect("sort command failed ");
+    //stream.flush().unwrap();
 }
 
 pub fn gtf_to_tree(
@@ -261,8 +287,8 @@ pub fn gtf_to_tree(
         }
 
         chr_ = spt[0].to_string();
-        start = spt[3].parse::<i64>()?;
-        end = spt[4].parse::<i64>()?;
+        start = spt[3].parse::<i64>()?-1;
+        end = spt[4].parse::<i64>()?-1;
         strand = Strand::from(spt[6]);
 
         if let Some((gene_tmp, tr_tmp)) =
