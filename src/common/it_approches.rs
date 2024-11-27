@@ -11,12 +11,11 @@ use std::fs::File;
 use std::io::BufRead;
 use std::io::Write;
 use std::io::{BufReader, BufWriter};
+use std::process::{Command, Stdio};
 use std::str::FromStr;
 use strand_specifier_lib::Strand;
 use strand_specifier_lib::{check_flag, LibType};
 use CigarParser::cigar::Cigar;
-use std::process::{Command, Stdio};
-
 
 #[derive(Debug)]
 pub struct TreeData {
@@ -90,8 +89,8 @@ impl TreeData {
         overhang: i64,
         out_file_read_buffer: &mut Option<BufWriter<File>>,
         clipped: bool,
-        read_name: Option<String>, 
-        sequence: Option<String>
+        read_name: Option<String>,
+        sequence: Option<String>,
     ) -> () {
         if let Some(start_map) = read_toassign(
             self.strand,
@@ -105,17 +104,16 @@ impl TreeData {
         ) {
             self.update_start_counter(start_map);
             if let Some(handle) = out_file_read_buffer {
-                match (clipped, start_map, &read_name, &sequence){
+                match (clipped, start_map, &read_name, &sequence) {
                     (true, ReadAssign::SoftClipped, Some(r_name), Some(seq)) => {
                         handle.write(self.dump_reads_seq(seq, r_name, false).as_bytes());
-                    },
+                    }
                     (false, _, Some(r_name), Some(seq)) => {
                         handle.write(self.dump_reads_seq(seq, r_name, false).as_bytes());
-                    },
-                    (_, _, _, _) => ()
+                    }
+                    (_, _, _, _) => (),
                 }
             }
-            
         }
 
         if let Some(end_map) = read_toassign(
@@ -131,148 +129,132 @@ impl TreeData {
             self.update_end_counter(end_map);
 
             if let Some(handle) = out_file_read_buffer {
-                match (clipped, end_map, &read_name, &sequence){
+                match (clipped, end_map, &read_name, &sequence) {
                     (true, ReadAssign::SoftClipped, Some(r_name), Some(seq)) => {
                         handle.write(self.dump_reads_seq(seq, r_name, true).as_bytes());
-                    },
+                    }
                     (false, _, Some(r_name), Some(seq)) => {
                         handle.write(self.dump_reads_seq(seq, r_name, true).as_bytes());
-                    },
-                    (_, _, _, _ ) => ()
+                    }
+                    (_, _, _, _) => (),
                 }
-
             }
-            
-            
         }
 
         ()
     }
 
-
-
-fn dump_base(&self, end: bool) -> Vec<String> {
-    let mut res = Vec::new();
-    let mut exontype = ExonType::Acceptor;
-    let mut pos = 0;
-    if end{
-        exontype = self.end_type;
-        pos =  self.end;
+    fn dump_base(&self, end: bool) -> Vec<String> {
+        let mut res = Vec::new();
+        let mut exontype = ExonType::Acceptor;
+        let mut pos = 0;
+        if end {
+            exontype = self.end_type;
+            pos = self.end;
+        } else {
+            exontype = self.start_type;
+            pos = self.start;
+        }
+        for tr in &self.transcript {
+            res.push(format!(
+                "{}\t{}\t{}\t{}\t{}\t{}",
+                self.contig, pos, self.gene_name, tr, self.strand, exontype
+            ));
+        }
+        res
     }
-    else {
-        exontype = self.start_type;
-        pos = self.start;
-        
-    }
-    for tr in &self.transcript{
-        res.push(format!(
-            "{}\t{}\t{}\t{}\t{}\t{}",
-            self.contig,
-            pos,
-            self.gene_name,
-            tr,
-            self.strand,
-            exontype));
-    }
-    res
-}
 
+    fn dump_counter(&self, end: bool) -> String {
+        let base_vec = self.dump_base(end);
+        let mut results = Vec::new();
 
-fn dump_counter(&self, end: bool) -> String{
-    let base_vec =  self.dump_base(end);
-    let mut results = Vec::new();
-
-
-    
-        if end{         
-            if self.counter_end.is_empty(){
-                for base in &base_vec{
+        if end {
+            if self.counter_end.is_empty() {
+                for base in &base_vec {
                     results.push(format!("{}\tempty\t0", base))
                 }
+            } else {
+                for (assign, value) in &self.counter_end {
+                    for base in &base_vec {
+                        results.push(format!("{}\t{}\t{}", base, assign, value))
+                        //base.push_str(&format!("\t{}\t{}", assign, value))
+                    }
+                }
             }
-            else{
-                for (assign, value) in &self.counter_end{
-                    for base in &base_vec{
+        } else {
+            if self.counter_start.is_empty() {
+                for base in &base_vec {
+                    results.push(format!("{}\tempty\t0", base))
+                }
+            } else {
+                for (assign, value) in &self.counter_start {
+                    for base in &base_vec {
                         results.push(format!("{}\t{}\t{}", base, assign, value))
                         //base.push_str(&format!("\t{}\t{}", assign, value))
                     }
                 }
             }
         }
-        else{         
-            if self.counter_start.is_empty(){
-                for base in &base_vec{
-                    results.push(format!("{}\tempty\t0", base))
-                }
-            }
-            else{
-                for (assign, value) in &self.counter_start{
-                    for base in &base_vec{
-                        results.push(format!("{}\t{}\t{}", base, assign, value))
-                        //base.push_str(&format!("\t{}\t{}", assign, value))
-                    }
-                }
-            }
-        }
-    
-    
+
         results.join("\n")
+    }
 
-}
+    fn dump_reads_seq(&self, sequence: &String, seqname: &String, end: bool) -> String {
+        ///
+        /// :param end: if set to true look at the end of the sequence (end > start)
+        let mut base_vec = self.dump_base(end);
 
-fn dump_reads_seq(&self, sequence: &String, seqname: &String, end: bool) -> String{
-    ///
-    /// :param end: if set to true look at the end of the sequence (end > start) 
-    
-    let mut base_vec =  self.dump_base(end);
-    
-            for e in &mut base_vec{
-
+        for e in &mut base_vec {
             e.push_str(&format!("\t{}\t{}", seqname, sequence))
         }
-    
-    return base_vec.join("\n");
 
+        return base_vec.join("\n");
     }
-
 }
 
-
-pub fn dump_tree_to_cat_results(hash_tree: &HashMap<String, interval_tree::IntervalTree<i64, TreeData>>,
-out_file: &str) -> (){
+pub fn dump_tree_to_cat_results(
+    hash_tree: &HashMap<String, interval_tree::IntervalTree<i64, TreeData>>,
+    out_file: &str,
+) -> () {
     let presorted = format!("{}.presorted", out_file);
     {
-    let file = File::create_new(presorted.clone()).expect("output file should not exist.");
-    let mut stream = BufWriter::new(file);
+        let file = File::create_new(presorted.clone()).expect("output file should not exist.");
+        let mut stream = BufWriter::new(file);
 
-    for (contig, subtree) in hash_tree{
-        // get ALL entry
-        for node in subtree.find(i64::MIN..i64::MAX){
-            stream.write(node.data().dump_counter(false).as_bytes());
-            stream.write("\n".as_bytes());
-            stream.write(node.data().dump_counter(true).as_bytes());
-            stream.write("\n".as_bytes());
+        for (contig, subtree) in hash_tree {
+            // get ALL entry
+            for node in subtree.find(i64::MIN..i64::MAX) {
+                stream.write(node.data().dump_counter(false).as_bytes());
+                stream.write("\n".as_bytes());
+                stream.write(node.data().dump_counter(true).as_bytes());
+                stream.write("\n".as_bytes());
+            }
         }
-    }
-    stream.flush().unwrap();
-
+        stream.flush().unwrap();
     }
 
     let file = File::create_new(out_file).expect("output file should not exist.");
     //let mut stream = BufWriter::new(file);
     let sort = Command::new("sort")
-    .args(["-k1,1", "-k3,3","-k4,4", "-k2,2n", "-k7,7", presorted.as_str()])
-    .stdout(file)
-    .spawn()
-    .expect("sort command failed ")
-    .wait()
-    .expect("sort command failed ");
+        .args([
+            "-k1,1",
+            "-k3,3",
+            "-k4,4",
+            "-k2,2n",
+            "-k7,7",
+            presorted.as_str(),
+        ])
+        .stdout(file)
+        .spawn()
+        .expect("sort command failed ")
+        .wait()
+        .expect("sort command failed ");
     //stream.flush().unwrap();
 
     let X = Command::new("rm")
-    .args(["-f", presorted.as_str()])
-    .output()
-    .expect("failed to remove presorted");
+        .args(["-f", presorted.as_str()])
+        .output()
+        .expect("failed to remove presorted");
 }
 
 pub fn gtf_to_tree(
@@ -307,7 +289,7 @@ pub fn gtf_to_tree(
 
         chr_ = spt[0].to_string();
         start = spt[3].parse::<i64>()? - 1;
-        end = spt[4].parse::<i64>()? ;
+        end = spt[4].parse::<i64>()?;
         strand = Strand::from(spt[6]);
 
         if let Some((gene_tmp, tr_tmp)) =
@@ -351,7 +333,6 @@ pub fn gtf_to_tree(
     }
     Ok(results)
 }
-
 
 pub fn update_tree_with_bamfile(
     hash_tree: &mut HashMap<String, interval_tree::IntervalTree<i64, TreeData>>,
@@ -409,9 +390,10 @@ pub fn update_tree_with_bamfile(
                 continue;
             }
 
-            if let Some(handle) = out_file_read_buffer{
-                read_name =
-                Some(String::from_utf8(record.qname().to_vec()).expect("cannot parse read name"));
+            if let Some(handle) = out_file_read_buffer {
+                read_name = Some(
+                    String::from_utf8(record.qname().to_vec()).expect("cannot parse read name"),
+                );
                 let seq = record.seq().as_bytes();
                 sequence = Some(String::from_utf8(seq).expect("cannot parse sequence"));
             }
@@ -426,20 +408,16 @@ pub fn update_tree_with_bamfile(
                         overhang,
                         out_file_read_buffer,
                         clipped,
-                        read_name.clone(), 
-                        sequence.clone()
+                        read_name.clone(),
+                        sequence.clone(),
                     );
                 }
-
             }
         }
     }
 
     Ok(())
 }
-
-
-
 
 #[cfg(test)]
 mod tests_it {
