@@ -214,7 +214,7 @@ fn dump_reads_seq(&self, sequence: &String, seqname: &String, end: bool) -> Stri
 }
 
 
-pub fn dump_tree_to_cat_results(hash_tree: HashMap<String, interval_tree::IntervalTree<i64, TreeData>>,
+pub fn dump_tree_to_cat_results(hash_tree: &HashMap<String, interval_tree::IntervalTree<i64, TreeData>>,
 out_file: &str) -> (){
     let file = File::create_new(out_file).expect("output file should not exist.");
     let mut stream = BufWriter::new(file);
@@ -231,7 +231,7 @@ out_file: &str) -> (){
 }
 
 pub fn gtf_to_tree(
-    file: String,
+    file: &str,
 ) -> Result<HashMap<String, interval_tree::IntervalTree<i64, TreeData>>, Box<dyn Error>> {
     let f = File::open(file)?;
     let reader = BufReader::new(f);

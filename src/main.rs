@@ -17,12 +17,12 @@ mod common;
 use std::fs;
 use std::str;
 //use crate::common::utils::ReadAssign;
-use crate::common::it_approches;
+use crate::common::it_approches::{update_tree_with_bamfile, gtf_to_tree, dump_tree_to_cat_results};
 use crate::common::point::{read_gtf, InsideCounter, PointContainer};
 use crate::common::read_record::file_to_table;
 use crate::common::utils;
 use crate::common::utils::{ExonType, ReadAssign};
-
+/*
 fn parse_bam(
     // required parameter
     bam_file: &str,
@@ -104,7 +104,7 @@ fn parse_bam(
         }
     }
 }
-
+*/
 // TODO add specific subcommand to retrieve only specific reads;
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -155,15 +155,15 @@ fn main_loop(
     output_write_read: Option<String>,
     clipped: bool,
 ) -> () {
-    let file = File::create_new(output).expect("output file should not exist.");
-    let mut stream = BufWriter::new(file);
+
+
+/*     let file = File::create_new(output).expect("output file should not exist.");
+    let mut stream = BufWriter::new(file); */
 
     let bam_file = bam_input;
 
     let gtf_file = gtf;
     let overhang = overhang;
-
-    let mut results = read_gtf(&gtf_file).unwrap();
 
     let mut output_read_stream: Option<BufWriter<File>> = None; // args.output_write_read;
     if let Some(file_path) = output_write_read {
@@ -173,6 +173,34 @@ fn main_loop(
         output_read_stream = Some(BufWriter::new(file_));
     }
 
+
+    let mut hash_tree = gtf_to_tree(gtf_file.as_str()).unwrap();
+    update_tree_with_bamfile(
+        &mut hash_tree, 
+        &bam_file,
+        LibType::frFirstStrand,
+        overhang, 
+        flag_in, 
+        flag_out, 
+        mapq,
+        &mut output_read_stream,
+        clipped
+    );
+
+    dump_tree_to_cat_results( &hash_tree, &output);
+    //stream.flush().unwrap();
+    if output_read_stream.is_some() {
+        output_read_stream
+            .expect("bufer does not exist")
+            .flush()
+            .unwrap();
+
+    /*
+    let mut results = read_gtf(&gtf_file).unwrap();
+*/
+
+
+/*
     parse_bam(
         &bam_file,
         LibType::frFirstStrand,
@@ -230,7 +258,8 @@ fn main_loop(
             .expect("bufer does not exist")
             .flush()
             .unwrap();
-    }
+    }*/
+}
 }
 
 fn main() {
