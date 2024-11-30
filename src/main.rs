@@ -17,7 +17,9 @@ mod common;
 use std::fs;
 use std::str;
 //use crate::common::utils::ReadAssign;
-use crate::common::it_approches::{update_tree_with_bamfile, gtf_to_tree, dump_tree_to_cat_results};
+use crate::common::it_approches::{
+    dump_tree_to_cat_results, gtf_to_tree, update_tree_with_bamfile,
+};
 use crate::common::point::{read_gtf, InsideCounter, PointContainer};
 use crate::common::read_record::file_to_table;
 use crate::common::utils;
@@ -155,9 +157,7 @@ fn main_loop(
     output_write_read: Option<String>,
     clipped: bool,
 ) -> () {
-
-
-/*     let file = File::create_new(output).expect("output file should not exist.");
+    /*     let file = File::create_new(output).expect("output file should not exist.");
     let mut stream = BufWriter::new(file); */
 
     let bam_file = bam_input;
@@ -169,43 +169,16 @@ fn main_loop(
     if let Some(file_path) = output_write_read {
         let file_ =
             File::create_new(file_path.clone()).expect("read output file should not exist.");
-        fs::write(file_path, "read_name\tcig\tflag\taln_start\tread_assign\tfeature.pos\tfeature.exon_type\tfeature.strand\tsequence\n".as_bytes()).expect("Unable to write file");
+        fs::write(file_path, "read_name\tcig\tflag\taln_start\tread_assign\tfeature.pos\tnext_exon\tfeature.exon_type\tfeature.strand\tsequence\n".as_bytes()).expect("Unable to write file");
         output_read_stream = Some(BufWriter::new(file_));
     }
 
-
     let mut hash_tree = gtf_to_tree(gtf_file.as_str()).unwrap();
     update_tree_with_bamfile(
-        &mut hash_tree, 
+        &mut hash_tree,
         &bam_file,
         LibType::frFirstStrand,
-        overhang, 
-        flag_in, 
-        flag_out, 
-        mapq,
-        &mut output_read_stream,
-        clipped
-    );
-
-    dump_tree_to_cat_results( &hash_tree, &output);
-    //stream.flush().unwrap();
-    if output_read_stream.is_some() {
-        output_read_stream
-            .expect("bufer does not exist")
-            .flush()
-            .unwrap();
-
-    /*
-    let mut results = read_gtf(&gtf_file).unwrap();
-*/
-
-
-/*
-    parse_bam(
-        &bam_file,
-        LibType::frFirstStrand,
-        &mut results,
-        overhang as i64,
+        overhang,
         flag_in,
         flag_out,
         mapq,
@@ -213,53 +186,78 @@ fn main_loop(
         clipped,
     );
 
-    // Improovment better sort
-    for (contig, vec_point) in results.iter_mut() {
-        let mut sorted_point = &mut vec_point.points;
-        sorted_point.sort_unstable_by_key(|item| (item.transcript_id.clone(), item.pos));
-        for point in sorted_point.iter() {
-            //for point in vec_point.iter() {
-            if point.counter.is_empty() {
-                let _ = stream.write(
-                    format!(
-                        "{}\t{}\t{}\t{}\t{}\t{}\tEmpty\t0\n",
-                        contig,
-                        point.pos,
-                        point.gene_name,
-                        point.transcript_id,
-                        point.strand,
-                        point.exon_type,
-                    )
-                    .as_bytes(),
-                );
-            } else {
-                for (k, v) in point.counter.iter() {
+    dump_tree_to_cat_results(&hash_tree, &output);
+    //stream.flush().unwrap();
+    if output_read_stream.is_some() {
+        output_read_stream
+            .expect("bufer does not exist")
+            .flush()
+            .unwrap();
+
+        /*
+            let mut results = read_gtf(&gtf_file).unwrap();
+        */
+
+        /*
+        parse_bam(
+            &bam_file,
+            LibType::frFirstStrand,
+            &mut results,
+            overhang as i64,
+            flag_in,
+            flag_out,
+            mapq,
+            &mut output_read_stream,
+            clipped,
+        );
+
+        // Improovment better sort
+        for (contig, vec_point) in results.iter_mut() {
+            let mut sorted_point = &mut vec_point.points;
+            sorted_point.sort_unstable_by_key(|item| (item.transcript_id.clone(), item.pos));
+            for point in sorted_point.iter() {
+                //for point in vec_point.iter() {
+                if point.counter.is_empty() {
                     let _ = stream.write(
                         format!(
-                            "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
+                            "{}\t{}\t{}\t{}\t{}\t{}\tEmpty\t0\n",
                             contig,
                             point.pos,
                             point.gene_name,
                             point.transcript_id,
                             point.strand,
                             point.exon_type,
-                            k,
-                            v
                         )
                         .as_bytes(),
                     );
+                } else {
+                    for (k, v) in point.counter.iter() {
+                        let _ = stream.write(
+                            format!(
+                                "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
+                                contig,
+                                point.pos,
+                                point.gene_name,
+                                point.transcript_id,
+                                point.strand,
+                                point.exon_type,
+                                k,
+                                v
+                            )
+                            .as_bytes(),
+                        );
+                    }
                 }
             }
         }
+        stream.flush().unwrap();
+        if output_read_stream.is_some() {
+            output_read_stream
+                .expect("bufer does not exist")
+                .flush()
+                .unwrap();
+        }*/
     }
-    stream.flush().unwrap();
-    if output_read_stream.is_some() {
-        output_read_stream
-            .expect("bufer does not exist")
-            .flush()
-            .unwrap();
-    }*/
-}
 }
 
 fn main() {
@@ -273,7 +271,7 @@ fn main() {
 
     main_loop(
         output.clone(),
-        args.gtf,
+        args.gtf.clone(),
         args.input,
         args.overhang,
         args.flag_in,
@@ -288,8 +286,8 @@ fn main() {
             .expect(&format!("output file {} should not exist.", &table));
         let mut stream = BufWriter::new(file);
         println!("table");
-        let _ = stream.write("contig\tgene_name\ttranscript_name\texon_number\tstrand\tpos\texon_type\tspliced\tunspliced\tclipped\texon_intron\texon_other\tskipped\twrong_strand\te_isoform\n".as_bytes());
-        file_to_table(output.clone(), &mut stream);
+        let _ = stream.write("contig\tgene_name\ttranscript_name\texon_number\tambiguous\tstrand\tpos\tnext\texon_type\tspliced\tunspliced\tclipped\texon_intron\texon_other\tskipped\twrong_strand\te_isoform\n".as_bytes());
+        file_to_table(output.clone(), &mut stream, args.gtf.as_str());
     }
 }
 //            skipped,
