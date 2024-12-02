@@ -163,7 +163,6 @@ fn main_loop(
     let bam_file = bam_input;
 
     let gtf_file = gtf;
-    let overhang = overhang;
 
     let mut output_read_stream: Option<BufWriter<File>> = None; // args.output_write_read;
     if let Some(file_path) = output_write_read {
@@ -188,75 +187,12 @@ fn main_loop(
 
     dump_tree_to_cat_results(&hash_tree, &output);
     //stream.flush().unwrap();
-    if output_read_stream.is_some() {
-        output_read_stream
-            .expect("bufer does not exist")
+    if let Some(ref mut out_stream)= output_read_stream {
+        out_stream
             .flush()
             .unwrap();
 
-        /*
-            let mut results = read_gtf(&gtf_file).unwrap();
-        */
-
-        /*
-        parse_bam(
-            &bam_file,
-            LibType::frFirstStrand,
-            &mut results,
-            overhang as i64,
-            flag_in,
-            flag_out,
-            mapq,
-            &mut output_read_stream,
-            clipped,
-        );
-
-        // Improovment better sort
-        for (contig, vec_point) in results.iter_mut() {
-            let mut sorted_point = &mut vec_point.points;
-            sorted_point.sort_unstable_by_key(|item| (item.transcript_id.clone(), item.pos));
-            for point in sorted_point.iter() {
-                //for point in vec_point.iter() {
-                if point.counter.is_empty() {
-                    let _ = stream.write(
-                        format!(
-                            "{}\t{}\t{}\t{}\t{}\t{}\tEmpty\t0\n",
-                            contig,
-                            point.pos,
-                            point.gene_name,
-                            point.transcript_id,
-                            point.strand,
-                            point.exon_type,
-                        )
-                        .as_bytes(),
-                    );
-                } else {
-                    for (k, v) in point.counter.iter() {
-                        let _ = stream.write(
-                            format!(
-                                "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
-                                contig,
-                                point.pos,
-                                point.gene_name,
-                                point.transcript_id,
-                                point.strand,
-                                point.exon_type,
-                                k,
-                                v
-                            )
-                            .as_bytes(),
-                        );
-                    }
-                }
-            }
-        }
-        stream.flush().unwrap();
-        if output_read_stream.is_some() {
-            output_read_stream
-                .expect("bufer does not exist")
-                .flush()
-                .unwrap();
-        }*/
+      
     }
 }
 
