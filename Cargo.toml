@@ -2,7 +2,7 @@
 name = "omni_splice"
 version = "0.2.1"
 edition = "2021"
-authors = ["Romain JSB Lannes"]
+authors = ["Romain JSB Lannes", "rlannes@wi.mit.edu"]
 
 [dependencies]
 bio = "1"
