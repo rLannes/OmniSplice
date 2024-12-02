@@ -60,7 +60,7 @@ impl PointContainer {
         //if (lower_bound == upper_bound) | (upper_bound <= 0) | (upper_bound >= self.points.len()) {
 
         //    return Err(());
-       // }
+        // }
 
         for p_indices in lower_bound..upper_bound {
             //feature_strand: Strand, feature_pos: i64, feature_exontype
@@ -166,15 +166,15 @@ impl PointContainer {
                 }
                 *i
             }
-            Err(ref mut i) =>   {
+            Err(ref mut i) => {
                 while (*i < length - 2) && (self.points[*i] <= thr) {
-                *i += 1;
+                    *i += 1;
                 }
                 *i
             }
         };
 
-        j.min(length-1)
+        j.min(length - 1)
     }
 
     pub fn push(self: &mut Self, point: Point) {
@@ -183,9 +183,7 @@ impl PointContainer {
 
     pub fn sort(self: &mut Self) {
         self.points.sort();
-        
     }
-
 }
 
 #[derive(Debug, Clone)]
@@ -198,15 +196,21 @@ pub struct Point {
     pub exon_type: ExonType,
 }
 
-impl Point{
-    fn new(pos: i64, gene_name: String, transcript_id: String, strand: Strand, exon_type: ExonType) -> Self{
+impl Point {
+    fn new(
+        pos: i64,
+        gene_name: String,
+        transcript_id: String,
+        strand: Strand,
+        exon_type: ExonType,
+    ) -> Self {
         Point {
-             pos,
-             gene_name,
-             transcript_id,
-             strand,
-             counter: HashMap::new(),
-             exon_type,
+            pos,
+            gene_name,
+            transcript_id,
+            strand,
+            counter: HashMap::new(),
+            exon_type,
         }
     }
 }
@@ -224,7 +228,6 @@ impl InsideCounter for Point {
         }
     }
 }
-
 
 impl PartialEq<i64> for Point {
     fn eq(&self, other: &i64) -> bool {
@@ -401,9 +404,8 @@ pub fn my_bs(vec: &Vec<Point>, thr: &i64) -> Result<usize, usize> {
     return Err(i.max(0));
 }
 
-
 #[cfg(test)]
-mod test_points{
+mod test_points {
     use clap::builder::Str;
 
     use super::*;
@@ -411,37 +413,144 @@ mod test_points{
     #[test]
     fn lower_bound() {
         let mut cont = PointContainer::new();
-        cont.push(Point::new(35, "ee".to_string(), "ee".to_string(), Strand::Plus, ExonType::Acceptor));
-        cont.push(Point::new(35, "ee".to_string(), "ee".to_string(), Strand::Plus, ExonType::Acceptor));
-        cont.push(Point::new(35, "ee".to_string(), "ee".to_string(), Strand::Plus, ExonType::Acceptor));
-        cont.push(Point::new(45, "ee".to_string(), "ee".to_string(), Strand::Plus, ExonType::Acceptor));
-        cont.push(Point::new(45, "ee".to_string(), "ee".to_string(), Strand::Plus, ExonType::Acceptor));
-        cont.push(Point::new(45, "ee".to_string(), "ee".to_string(), Strand::Plus, ExonType::Acceptor));
-        cont.push(Point::new(55, "ee".to_string(), "ee".to_string(), Strand::Plus, ExonType::Acceptor));
-        cont.push(Point::new(65, "ee".to_string(), "ee".to_string(), Strand::Plus, ExonType::Acceptor));
-        cont.push(Point::new(85, "ee".to_string(), "ee".to_string(), Strand::Plus, ExonType::Acceptor));
-        cont.push(Point::new(105, "ee".to_string(), "ee".to_string(), Strand::Plus, ExonType::Acceptor));
+        cont.push(Point::new(
+            35,
+            "ee".to_string(),
+            "ee".to_string(),
+            Strand::Plus,
+            ExonType::Acceptor,
+        ));
+        cont.push(Point::new(
+            35,
+            "ee".to_string(),
+            "ee".to_string(),
+            Strand::Plus,
+            ExonType::Acceptor,
+        ));
+        cont.push(Point::new(
+            35,
+            "ee".to_string(),
+            "ee".to_string(),
+            Strand::Plus,
+            ExonType::Acceptor,
+        ));
+        cont.push(Point::new(
+            45,
+            "ee".to_string(),
+            "ee".to_string(),
+            Strand::Plus,
+            ExonType::Acceptor,
+        ));
+        cont.push(Point::new(
+            45,
+            "ee".to_string(),
+            "ee".to_string(),
+            Strand::Plus,
+            ExonType::Acceptor,
+        ));
+        cont.push(Point::new(
+            45,
+            "ee".to_string(),
+            "ee".to_string(),
+            Strand::Plus,
+            ExonType::Acceptor,
+        ));
+        cont.push(Point::new(
+            55,
+            "ee".to_string(),
+            "ee".to_string(),
+            Strand::Plus,
+            ExonType::Acceptor,
+        ));
+        cont.push(Point::new(
+            65,
+            "ee".to_string(),
+            "ee".to_string(),
+            Strand::Plus,
+            ExonType::Acceptor,
+        ));
+        cont.push(Point::new(
+            85,
+            "ee".to_string(),
+            "ee".to_string(),
+            Strand::Plus,
+            ExonType::Acceptor,
+        ));
+        cont.push(Point::new(
+            105,
+            "ee".to_string(),
+            "ee".to_string(),
+            Strand::Plus,
+            ExonType::Acceptor,
+        ));
 
         assert_eq!(cont.lower_bound(34), 0);
         assert_eq!(cont.lower_bound(40), 3);
         assert_eq!(cont.lower_bound(45), 3);
         assert_eq!(cont.lower_bound(35), 0);
-        assert_eq!(cont.lower_bound(105),9);
-        
-        //println!("{}", cont.lower_bound(110));
+        assert_eq!(cont.lower_bound(105), 9);
 
+        //println!("{}", cont.lower_bound(110));
     }
     #[test]
     fn upper_bound() {
         let mut cont = PointContainer::new();
-        cont.push(Point::new(35, "ee".to_string(), "ee".to_string(), Strand::Plus, ExonType::Acceptor));
-        cont.push(Point::new(45, "ee".to_string(), "ee".to_string(), Strand::Plus, ExonType::Acceptor));
-        cont.push(Point::new(45, "ee".to_string(), "ee".to_string(), Strand::Plus, ExonType::Acceptor));
-        cont.push(Point::new(45, "ee".to_string(), "ee".to_string(), Strand::Plus, ExonType::Acceptor));
-        cont.push(Point::new(55, "ee".to_string(), "ee".to_string(), Strand::Plus, ExonType::Acceptor));
-        cont.push(Point::new(65, "ee".to_string(), "ee".to_string(), Strand::Plus, ExonType::Acceptor));
-        cont.push(Point::new(85, "ee".to_string(), "ee".to_string(), Strand::Plus, ExonType::Acceptor));
-        cont.push(Point::new(105, "ee".to_string(), "ee".to_string(), Strand::Plus, ExonType::Acceptor));
+        cont.push(Point::new(
+            35,
+            "ee".to_string(),
+            "ee".to_string(),
+            Strand::Plus,
+            ExonType::Acceptor,
+        ));
+        cont.push(Point::new(
+            45,
+            "ee".to_string(),
+            "ee".to_string(),
+            Strand::Plus,
+            ExonType::Acceptor,
+        ));
+        cont.push(Point::new(
+            45,
+            "ee".to_string(),
+            "ee".to_string(),
+            Strand::Plus,
+            ExonType::Acceptor,
+        ));
+        cont.push(Point::new(
+            45,
+            "ee".to_string(),
+            "ee".to_string(),
+            Strand::Plus,
+            ExonType::Acceptor,
+        ));
+        cont.push(Point::new(
+            55,
+            "ee".to_string(),
+            "ee".to_string(),
+            Strand::Plus,
+            ExonType::Acceptor,
+        ));
+        cont.push(Point::new(
+            65,
+            "ee".to_string(),
+            "ee".to_string(),
+            Strand::Plus,
+            ExonType::Acceptor,
+        ));
+        cont.push(Point::new(
+            85,
+            "ee".to_string(),
+            "ee".to_string(),
+            Strand::Plus,
+            ExonType::Acceptor,
+        ));
+        cont.push(Point::new(
+            105,
+            "ee".to_string(),
+            "ee".to_string(),
+            Strand::Plus,
+            ExonType::Acceptor,
+        ));
 
         println!("{:?}", my_bs(&cont.points, &115));
         assert_eq!(cont.upper_bound(34), 0);
@@ -449,7 +558,6 @@ mod test_points{
         assert_eq!(cont.upper_bound(45), 4);
         assert_eq!(cont.upper_bound(35), 1);
         assert_eq!(cont.upper_bound(105), 7);
-        assert_eq!(cont.upper_bound(115),7);
-
+        assert_eq!(cont.upper_bound(115), 7);
     }
 }

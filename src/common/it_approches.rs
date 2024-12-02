@@ -1,6 +1,5 @@
 #![allow(irrefutable_let_patterns)]
 
-
 use crate::common::point::{get_attr_id, InsideCounter};
 use crate::common::utils::{read_toassign, ExonType, ReadAssign};
 use bio::bio_types::annot::contig;
@@ -19,8 +18,6 @@ use std::str::FromStr;
 use strand_specifier_lib::Strand;
 use strand_specifier_lib::{check_flag, LibType};
 use CigarParser::cigar::Cigar;
-
-
 
 #[derive(Debug)]
 pub struct TreeData {
