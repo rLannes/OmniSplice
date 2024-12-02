@@ -283,7 +283,7 @@ fn main() {
 
     if let Some(table) = args.table {
         let file = File::create_new(table.clone())
-            .expect(&format!("output file {} should not exist.", &table));
+            .unwrap_or_else(|_| panic!("output file {} should not exist.", &table));//expect(&format!("output file {} should not exist.", &table));
         let mut stream = BufWriter::new(file);
         println!("table");
         let _ = stream.write("contig\tgene_name\ttranscript_name\texon_number\tambiguous\tstrand\tpos\tnext\texon_type\tspliced\tunspliced\tclipped\texon_intron\texon_other\tskipped\twrong_strand\te_isoform\n".as_bytes());

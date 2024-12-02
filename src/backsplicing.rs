@@ -388,13 +388,10 @@ pub fn parse_bam(
             println!("{:?} {:?}", original_map_info, read_name);
             let transcript_container = transcript_map.get(&original_map_info.gene).unwrap().clone();
             for (indice, tr_junction) in transcript_container.iter().enumerate() {
-                if tr_junction.exon_type == original_map_info.exon_type {
+                if (tr_junction.exon_type == original_map_info.exon_type) | (contig != original_map_info.chr_){
                     continue;
                 }
-                // TODO merge one? indicate many from Acceptor Donnor Site/ add Strand !
-                else if contig != original_map_info.chr_ {
-                    continue;
-                } else if (tr_junction.pos == pos_s) & (pos_s < original_map_info.pos) {
+                 else if (tr_junction.pos == pos_s) & (pos_s < original_map_info.pos) {
                     if (tr_junction.strand == Strand::Plus)
                         & (tr_junction.exon_type == ExonType::Acceptor)
                     {
@@ -546,8 +543,10 @@ fn main() {
     let file = File::create_new(output_file).expect("output clipped fasta file should not exist.");
     let mut f_out = BufWriter::new(file);
 
-    let result = parse_bam(&bw_bam.as_path().to_str().unwrap(), point_cont, &map_read);
+    let result = parse_bam(bw_bam.as_path().to_str().unwrap(), point_cont, &map_read);
     for (key, val) in result.iter().sorted_by_key(|x| Reverse(x.1.get_support())) {
-        f_out.write(&format!("{val}\n").as_bytes());
+        f_out.write_all(format!("{val}\n").as_bytes());
     }
+
+    f_out.flush();
 }
