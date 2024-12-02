@@ -34,7 +34,10 @@ impl From<&str> for ExonType {
         match item {
             "Donnor" => ExonType::Donnor,
             "Acceptor" => ExonType::Acceptor,
-            &_ => unreachable!(),
+            &_ => {
+                println!("{}", item);
+                unreachable!()
+            }
         }
     }
 }
