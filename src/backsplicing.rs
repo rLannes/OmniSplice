@@ -79,7 +79,7 @@ fn get_sofclipped_seq(
 }
 
 #[derive(Debug, Clone)]
-struct ReadInfo {
+pub struct ReadInfo {
     gene: String,
     transcript: String,
     pos: i64,
@@ -265,7 +265,7 @@ fn get_gtf_clipped(gtf: &str) -> Result<HashMap<String, PointContainer>, Box<dyn
 } */
 
 #[derive(Clone, Debug)]
-struct BackSplicingCounter {
+pub struct BackSplicingCounter {
     gene: String,
     support_donnor: i64, // should I use hashset read name?
     support_acceptor: i64,

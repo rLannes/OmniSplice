@@ -253,7 +253,7 @@ pub fn file_to_table(file: String, out_file: &mut BufWriter<File>, gtf: &str) ->
 
     let gene_junction_set = get_junction_from_gtf(gtf);
 
-    let gene_junction_set = get_junction_from_gtf(gtf.clone());
+    let gene_junction_set = get_junction_from_gtf(gtf);
 
     for (_gene_name, container) in &mut mymap {
         //if !gene_junction_set.contains_key(_gene_name){
@@ -444,7 +444,7 @@ fn get_junction_from_gtf(file: &str) -> HashMap<String, HashSet<(i64, i64)>> {
 }
 
 
-fn gtf_toIT(file: &str) -> HashMap<String, IntervalTree<i64, String>> {
+fn gtf_to_it(file: &str) -> HashMap<String, IntervalTree<i64, String>> {
     //let file = "genomic.gtf";
     let f = File::open(file).unwrap();
     let reader = BufReader::new(f);
@@ -493,7 +493,7 @@ fn graph_from_gtf(file: &str) -> HashMap<String, HashMap<Intervall<i64>, Vec<Int
     // from same genes
 
     //let file = "genomic.gtf";
-    let mut it_dico: HashMap<String, IntervalTree<i64, String>> = gtf_toIT(file.clone());
+    let mut it_dico: HashMap<String, IntervalTree<i64, String>> = gtf_to_it(file);
 
     let f = File::open(file).unwrap();
     let reader = BufReader::new(f);
@@ -557,7 +557,7 @@ fn graph_from_gtf(file: &str) -> HashMap<String, HashMap<Intervall<i64>, Vec<Int
 }
 
 fn get_invalid_pos(file: &str) -> HashSet<(String, i64)> {
-    let g = graph_from_gtf(file.clone());
+    let g = graph_from_gtf(file);
     let mut seen = HashSet::new();
 
     let mut inter_vec = Vec::new();
