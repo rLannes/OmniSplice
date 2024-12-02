@@ -1,0 +1,24 @@
+[package]
+name = "omni_splice"
+version = "0.2.1"
+edition = "2021"
+authors = ["Romain JSB Lannes"]
+
+[dependencies]
+bio = "1"
+rust-htslib = { version = "0.45.0"}
+CigarParser = { git = "https://github.com/rLannes/CigarParser" }
+clap = { version = "4.5.16", features = ["derive"] }
+strand_specifier = { git = "https://github.com/rLannes/BAMstrandSpecifier" }
+regex = "*"
+lazy_static = "1.5.0"
+itertools = "*"
+
+[[bin]]
+name = "omni_splice"
+path = "src/main.rs"
+
+[[bin]]
+name = "backsplicing"
+path = "src/backsplicing.rs"
+
