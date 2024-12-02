@@ -251,7 +251,7 @@ pub fn dump_tree_to_cat_results(
         .expect("sort command failed ");
     //stream.flush().unwrap();
 
-    let X = Command::new("rm")
+    let rm_out = Command::new("rm")
         .args(["-f", presorted.as_str()])
         .output()
         .expect("failed to remove presorted");
