@@ -259,7 +259,7 @@ pub fn file_to_table(file: String, out_file: &mut BufWriter<File>, gtf: &str) ->
 
     let gene_junction_set = get_junction_from_gtf(gtf);
 
-    let gene_junction_set = get_junction_from_gtf(gtf);
+    //let gene_junction_set = get_junction_from_gtf(gtf);
 
     for (_gene_name, container) in &mut mymap {
         //if !gene_junction_set.contains_key(_gene_name){
@@ -311,7 +311,7 @@ fn parse_file(file: &str) -> HashMap<String, HashMap<String, ReadtRecordContaine
     resultamap
 }
 
-#[derive(Eq, Hash, PartialEq, Clone, Copy)]
+#[derive(Eq, Hash, PartialEq, Clone, Copy, Debug)]
 struct Intervall<T: Ord + Copy + Eq + Hash + PartialEq> {
     start: T,
     end: T,
@@ -479,7 +479,7 @@ fn gtf_to_it(file: &str) -> HashMap<String, IntervalTree<i64, String>> {
     result
 }
 
-fn graph_from_gtf(file: &str) -> HashMap<String, HashMap<Intervall<i64>, Vec<Intervall<i64>>>> {
+fn graph_from_gtf(file: &str) -> HashMap<String, HashMap<Intervall<i64>, HashSet<Intervall<i64>>>> {
     //  TO remove clutter ca use a hashset to remove identical  exon
     // from same genes
 
@@ -498,7 +498,7 @@ fn graph_from_gtf(file: &str) -> HashMap<String, HashMap<Intervall<i64>, Vec<Int
 
     let mut seen: HashSet<(String, i64, i64, String)> = HashSet::new();
 
-    let mut g: HashMap<String, HashMap<Intervall<i64>, Vec<Intervall<i64>>>> = HashMap::new();
+    let mut g: HashMap<String, HashMap<Intervall<i64>, HashSet<Intervall<i64>>>> = HashMap::new();
 
     for line in reader.lines() {
         this_line = line.unwrap();
@@ -523,11 +523,11 @@ fn graph_from_gtf(file: &str) -> HashMap<String, HashMap<Intervall<i64>, Vec<Int
             print!("WARNING Cannort find {:?}", this_line);
             continue;
         }
-        if seen.contains(&(chr_.clone(), start, end, gene_name.clone())) {
+/*         if seen.contains(&(chr_.clone(), start, end, gene_name.clone())) {
             continue;
         } else {
             seen.insert((chr_.clone(), start, end, gene_name.clone()));
-        }
+        } */
 
         if let Some(subtree) = it_dico.get(&chr_) {
             for inter in subtree.find(start..end) {
@@ -538,8 +538,8 @@ fn graph_from_gtf(file: &str) -> HashMap<String, HashMap<Intervall<i64>, Vec<Int
                     g.entry(chr_.clone())
                         .or_insert_with(|| HashMap::new())
                         .entry(Intervall::new(start, end))
-                        .or_insert_with(|| Vec::new())
-                        .push(Intervall::new(inter.interval().start, inter.interval().end));
+                        .or_insert_with(|| HashSet::new())
+                        .insert(Intervall::new(inter.interval().start, inter.interval().end));
                 }
             }
         }
@@ -548,39 +548,44 @@ fn graph_from_gtf(file: &str) -> HashMap<String, HashMap<Intervall<i64>, Vec<Int
 }
 
 fn get_invalid_pos(file: &str) -> HashSet<(String, i64)> {
+
     let g = graph_from_gtf(file);
     let mut seen = HashSet::new();
-
     let mut inter_vec = Vec::new();
     let mut e1 = 0;
     let mut borne: &Intervall<i64>;
     let mut results: HashSet<(String, i64)> = HashSet::new();
     let mut file_: Vec<Intervall<i64>> = Vec::new();
 
+    let mut current_neihbors: Vec<&Intervall<i64>>;
     for (chr_, subdict) in g.iter() {
-        for (current_node, neigbors) in subdict.iter() {
+
+        for current_node in subdict.keys(){
             inter_vec.clear();
             if seen.contains(current_node) {
                 continue;
             }
-            // get the CC
+            
             file_.push(current_node.clone());
             while let Some(bfs_node) = file_.pop() {
                 if seen.contains(&bfs_node) {
                     continue;
                 }
+                inter_vec.push(bfs_node); 
                 seen.insert(bfs_node);
-                inter_vec.push(bfs_node);
-                for n in neigbors {
-                    if seen.contains(n) {
-                        continue;
+                if let Some(current_neihbors_hash) = subdict.get(&bfs_node){
+                    current_neihbors = current_neihbors_hash.iter().collect::<Vec<&Intervall<i64>>>();
+                    for n in current_neihbors {
+                        
+                        if seen.contains(n) {
+                            continue;
+                        }
+                        file_.push(n.clone())
                     }
-                    file_.push(n.clone())
                 }
             }
+        
 
-            // here find "bad pos"
-            // here find "bad pos"
             e1 = inter_vec[0].start;
             if !(inter_vec.iter().all(|x| x.start == e1)) {
                 //println!("{} {:?}", chr_, inter_vec );
@@ -608,11 +613,13 @@ fn get_invalid_pos(file: &str) -> HashSet<(String, i64)> {
             }
             // limit
             //inter_vec.clear();
-        }
+        //}
     }
-    results
-}
+    
+    }
 
+results
+}
 #[cfg(test)]
 mod tests_it {
     use super::*;
