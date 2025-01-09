@@ -108,10 +108,10 @@ impl TreeData {
             if let Some(handle) = out_file_read_buffer {
                 match (clipped, start_map, &read_name, &sequence) {
                     (true, ReadAssign::SoftClipped, Some(r_name), Some(seq)) => {
-                        handle.write(self.dump_reads_seq(seq, r_name, false).as_bytes());
+                        handle.write(self.dump_reads_seq(seq, r_name, false, cigar).as_bytes());
                     }
                     (false, _, Some(r_name), Some(seq)) => {
-                        handle.write(self.dump_reads_seq(seq, r_name, false).as_bytes());
+                        handle.write(self.dump_reads_seq(seq, r_name, false, cigar).as_bytes());
                     }
                     (_, _, _, _) => (),
                 }
@@ -133,10 +133,10 @@ impl TreeData {
             if let Some(handle) = out_file_read_buffer {
                 match (clipped, end_map, &read_name, &sequence) {
                     (true, ReadAssign::SoftClipped, Some(r_name), Some(seq)) => {
-                        handle.write(self.dump_reads_seq(seq, r_name, true).as_bytes());
+                        handle.write(self.dump_reads_seq(seq, r_name, true, cigar).as_bytes());
                     }
                     (false, _, Some(r_name), Some(seq)) => {
-                        handle.write(self.dump_reads_seq(seq, r_name, true).as_bytes());
+                        handle.write(self.dump_reads_seq(seq, r_name, true, cigar).as_bytes());
                     }
                     (_, _, _, _) => (),
                 }
@@ -201,16 +201,16 @@ impl TreeData {
         results.join("\n")
     }
 
-    fn dump_reads_seq(&self, sequence: &String, seqname: &String, end: bool) -> String {
+    fn dump_reads_seq(&self, sequence: &String, seqname: &String, end: bool, cigar: &Cigar) -> String {
         ///
         /// :param end: if set to true look at the end of the sequence (end > start)
         let mut base_vec = self.dump_base(end);
 
         for e in &mut base_vec {
-            e.push_str(&format!("\t{}\t{}", seqname, sequence))
+            e.push_str(&format!("\t{}\t{}\t{}", seqname, cigar, sequence))
         }
 
-        return base_vec.join("\n");
+        return format!("{}\n", base_vec.join("\n"));
     }
 }
 
@@ -259,6 +259,8 @@ pub fn dump_tree_to_cat_results(
         .expect("failed to remove presorted");
 }
 
+
+/// parse the gtf and return a hashmap<chromosome> -> intervalTree(exon(start, end), associated_data(gene_name...))
 pub fn gtf_to_tree(
     file: &str,
 ) -> Result<HashMap<String, interval_tree::IntervalTree<i64, TreeData>>, Box<dyn Error>> {

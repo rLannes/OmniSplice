@@ -115,19 +115,19 @@ fn clipped_to_fasta(
     for line in f_in.lines() {
         this_line = line.expect("cannot read line");
         spt = this_line.trim().split('\t').collect::<Vec<&str>>();
-        id_ = spt[0].to_string();
+        id_ = spt[6].to_string();
         if seen.contains(&id_) {
             continue;
         } else {
             seen.insert(id_.clone());
         }
 
-        cig = Cigar::from(spt[1]); //.expect(&format!("{}, invalid cigar", spt[1]));
-        exon_type = ExonType::from(spt[7]);
+        cig = Cigar::from(spt[7]); //.expect(&format!("{}, invalid cigar", spt[1]));
+        exon_type = ExonType::from(spt[5]);
 
-        strand = Strand::from(spt[8]);
+        strand = Strand::from(spt[4]);
 
-        clip_seq = get_sofclipped_seq(&cig, &exon_type, &strand, spt[11]).unwrap();
+        clip_seq = get_sofclipped_seq(&cig, &exon_type, &strand, spt[8]).unwrap();
 
         l = clip_seq.len();
         if l < min_size {
@@ -138,16 +138,16 @@ fn clipped_to_fasta(
         read_map.insert(
             id_.clone(),
             ReadInfo {
-                gene: spt[9].to_string(),
-                transcript: spt[10].to_string(),
-                pos: spt[6].parse::<i64>().unwrap(),
-                strand: spt[8].to_string(),
+                gene: spt[2].to_string(),
+                transcript: spt[3].to_string(),
+                pos: spt[1].parse::<i64>().unwrap(),
+                strand: spt[4].to_string(),
                 exon_type: exon_type,
-                chr_: spt[3].to_string(),
+                chr_: spt[0].to_string(),
             },
         );
 
-        let _ = f_out.write(format!(">{}\n{}\n", spt[0], clip_seq).as_bytes());
+        let _ = f_out.write(format!(">{}\n{}\n", id_, clip_seq).as_bytes());
     }
     read_map
 }

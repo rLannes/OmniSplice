@@ -10,6 +10,7 @@ def parse_rep(rep):
     for file in rep:
         with open(file) as fi:
             header = fi.readline().strip().split("\t")
+            spliced_i = header.index("spliced") 
             for l in fi:
                 spt = l.strip().split("\t")
                 if not spt:
@@ -30,13 +31,6 @@ def write_output(out, header, dico):
         raise AssertionError("outputfile exist {}".format(out))
     with open(out, "w") as fo:
         fo.write("\t".join(header) + "\n")
-        # for x, v in dico.items():
-        #     print(x)
-        #     print(x[1])
-        #     print(x[2])
-        #     print(int(x[3].split("_")[-1]))
-        #     print(x[6])
-        #     print()
 
         for k, v in sorted(dico.items(), key = lambda x : (x[0][1], x[0][2], int(x[0][3].split("_")[-1]), x[0][6] )):
             fo.write("\t".join(k) + "\t")
@@ -54,7 +48,7 @@ if __name__ == "__main__":
                        python3 merge_techincal.py --rep ctrl1_1,ctrl1_2 ctrl2_1,ctr2_2
                        will merge ctrl1_1 with ctrl1_2 and will merge ctrl2_1 with ctrl2_2 
                        """)
-    parse.add_argument("--out", nargs="+", help="""space separated list of output, number rmust match with the --rep argument,
+    parse.add_argument("--out", nargs="+", help="""space separated list of output, number must match with the --rep argument,
                        or be a directory if you use the match argument""")
     parse.add_argument("--match", help="use regexp")
     parse.add_argument("--dir", help="directory too look for match")

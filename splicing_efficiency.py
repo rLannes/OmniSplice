@@ -75,10 +75,14 @@ def write_result(out, dico_res):
 if __name__ == "__main__":
     parse = argparse.ArgumentParser()
     parse.add_argument("--input", help="comma separated list of file to parse")
-    parse.add_argument("--out", nargs="+", help="""space separated list of output, number rmust match with the --rep argument,
+    parse.add_argument("--out", nargs="+", help="""space separated list of output, number must match with the --input argument,
                        or be a directory if you use the match argument""")
     parse.add_argument("--match", help="use regexp")
     parse.add_argument("--dir", help="directory too look for match")
+    
+
+
+
     args = parse.parse_args()
 
 
