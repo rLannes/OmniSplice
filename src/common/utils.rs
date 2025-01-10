@@ -2,13 +2,14 @@ use lazy_static::lazy_static;
 use regex::Regex;
 //use std::collections::HashMap;
 use std::fmt;
-//use std::fs::File;
+use std::fs::File;
 //use std::io::BufRead;
-//use std::io::Write;
+use std::io::Write;
 //use std::io::{BufReader, BufWriter};
 //use std::str::FromStr;
 use strand_specifier_lib::Strand;
 use CigarParser::cigar::Cigar;
+use std::io::BufWriter;
 
 #[derive(Clone, Debug, Copy, Eq, Hash, PartialEq)]
 pub enum ExonType {
@@ -41,6 +42,93 @@ impl From<&str> for ExonType {
         }
     }
 }
+
+
+pub struct ReadToWriteHandle{
+    pub read_through: Option<BufWriter<File>>,
+    pub read_junction: Option<BufWriter<File>>,
+    pub unexpected: Option<BufWriter<File>>,
+    pub fail_pos_filter: Option<BufWriter<File>>,
+    pub wrong_strand: Option<BufWriter<File>>,
+    pub fail_qc: Option<BufWriter<File>>,
+    pub empty_pileup: Option<BufWriter<File>>,
+    pub skipped: Option<BufWriter<File>>,
+    pub soft_clipped: Option<BufWriter<File>>,
+    pub overhang_fail: Option<BufWriter<File>>,
+    pub empty: Option<BufWriter<File>>,
+    pub all: Option<BufWriter<File>>,
+}
+impl ReadToWriteHandle{
+    pub fn new() -> Self{
+        ReadToWriteHandle{
+            all: None,
+            read_through: None,
+            read_junction: None,
+            unexpected: None,
+            fail_pos_filter: None,
+            wrong_strand: None,
+            fail_qc: None,
+            empty_pileup: None,
+            skipped: None,
+            soft_clipped: None,
+            overhang_fail: None,
+            empty: None,
+        }
+    }
+    pub fn flush(&mut self) -> Result<(), std::io::Error>{
+        match self.read_through{
+            Some(ref mut handle) => handle.flush(),
+            _ => Ok(()),
+        };
+        match self.read_junction{
+            Some(ref mut handle) => handle.flush(),
+            _ => Ok(()),
+        };
+        match self.unexpected{
+            Some(ref mut handle) => handle.flush(),
+            _ => Ok(()),
+        };
+        match self.fail_pos_filter{
+            Some(ref mut handle) => handle.flush(),
+            _ => Ok(()),
+        };
+        match self.wrong_strand{
+            Some(ref mut handle) => handle.flush(),
+            _ => Ok(()),
+        };
+        match self.fail_qc{
+            Some(ref mut handle) => handle.flush(),
+            _ => Ok(()),
+        };
+        match self.empty_pileup{
+            Some(ref mut handle) => handle.flush(),
+            _ => Ok(()),
+        };
+        match self.skipped{
+            Some(ref mut handle) => handle.flush(),
+            _ => Ok(()),
+        };
+        match self.soft_clipped{
+            Some(ref mut handle) => handle.flush(),
+            _ => Ok(()),
+        };
+        match self.overhang_fail{
+            Some(ref mut handle) => handle.flush(),
+            _ => Ok(()),
+        };
+        match self.empty{
+            Some(ref mut handle) => handle.flush(),
+            _ => Ok(()),
+        };
+        match self.all{
+            Some(ref mut handle) => handle.flush(),
+            _ => Ok(()),
+        };
+        Ok(())
+    }
+
+}
+
 
 #[derive(Clone, Debug, Copy, Eq, Hash, PartialEq)]
 pub enum ReadAssign {

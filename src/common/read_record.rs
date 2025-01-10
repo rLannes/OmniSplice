@@ -87,9 +87,9 @@ impl ReadtRecord {
                         (Strand::Plus | Strand::NA, ExonType::Donnor, Some(next))
                         | (Strand::Minus, ExonType::Acceptor, Some(next)) => {
                             //if self.gene_id == "gene-LOC27208819"{
-                            println!("this: {}, next {:?}",  self.pos, next_acceptor);
+                            //println!("this: {}, next {:?}",  self.pos, next_acceptor);
                             //};
-                            println!("Acc junction: {} {}; pos {}; next: {}; n: {} all", start, end, self.pos, next, elem.1);
+                            //println!("Acc junction: {} {}; pos {}; next: {}; n: {} all", start, end, self.pos, next, elem.1);
                             if next == end {
                                 spliced = spliced + elem.1;
                                 //println!("spliced");
@@ -276,7 +276,7 @@ pub fn file_to_table(file: String, out_file: &mut BufWriter<File>, gtf: &str) ->
     let invalid_pos = get_invalid_pos(gtf);
 
     let gene_junction_set = get_junction_from_gtf(gtf);
-    println!("{:?}", gene_junction_set);
+    //println!("{:?}", gene_junction_set);
     //let gene_junction_set = get_junction_from_gtf(gtf);
 
     for (_gene_name, container) in &mut mymap {
