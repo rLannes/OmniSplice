@@ -11,6 +11,91 @@ use strand_specifier_lib::Strand;
 use CigarParser::cigar::Cigar;
 use std::io::BufWriter;
 
+
+#[derive(clap::ValueEnum, Clone, Debug)]
+pub enum ReadsToWrite {
+    ReadThrough,
+    ReadJunction,
+    Unexpected,
+    FailPosFilter,
+    WrongStrand,
+    FailQc,
+    EmptyPileup,
+    Skipped,
+    SoftClipped,
+    OverhangFail,
+    Empty,
+    All
+}
+
+pub fn update_ReadToWriteHandle(readouthandle: &mut ReadToWriteHandle, read_to_write: Vec<ReadsToWrite>, headerReadsHandle: &[u8], outputFilePrefix: &str){
+    for e in read_to_write{
+        match e{
+            ReadsToWrite::All => {
+                readouthandle.all = Some(BufWriter::new(File::create_new(format!("{}{}", outputFilePrefix, ".readAll"))
+                .unwrap_or_else(|_| panic!("readThrough file should not exist."))));
+                readouthandle.all.as_mut().unwrap().write(headerReadsHandle).expect("Unable to write file");
+            },
+            ReadsToWrite::ReadThrough => {
+                readouthandle.read_through = Some(BufWriter::new(File::create_new(format!("{}{}", outputFilePrefix, ".readThrough"))
+                .unwrap_or_else(|_| panic!("readThrough file should not exist."))));
+                readouthandle.read_through.as_mut().unwrap().write(headerReadsHandle).expect("Unable to write file");
+            },
+            ReadsToWrite::ReadJunction => {
+                readouthandle.read_junction = Some(BufWriter::new(File::create_new(format!("{}{}", outputFilePrefix, ".readJunction"))
+                .unwrap_or_else(|_| panic!("readThrough file should not exist."))));
+                readouthandle.read_junction.as_mut().unwrap().write(headerReadsHandle).expect("Unable to write file");
+            },
+            ReadsToWrite::Unexpected => {
+                readouthandle.unexpected = Some(BufWriter::new(File::create_new(format!("{}{}", outputFilePrefix, ".unexpected"))
+                .unwrap_or_else(|_| panic!("readThrough file should not exist."))));
+                readouthandle.unexpected.as_mut().unwrap().write(headerReadsHandle).expect("Unable to write file");
+            },
+            ReadsToWrite::FailPosFilter => {
+                readouthandle.fail_pos_filter =  Some(BufWriter::new(File::create_new(format!("{}{}", outputFilePrefix, ".FailPosFilter"))
+                .unwrap_or_else(|_| panic!("readThrough file should not exist."))));
+                readouthandle.fail_pos_filter.as_mut().unwrap().write(headerReadsHandle).expect("Unable to write file");
+            },
+            ReadsToWrite::WrongStrand=> {
+                readouthandle.wrong_strand = Some(BufWriter::new(File::create_new(format!("{}{}", outputFilePrefix, ".WrongStrand"))
+                .unwrap_or_else(|_| panic!("readThrough file should not exist."))));
+                readouthandle.wrong_strand.as_mut().unwrap().write(headerReadsHandle).expect("Unable to write file");
+            },
+            ReadsToWrite::FailQc=> {
+                readouthandle.fail_qc = Some(BufWriter::new(File::create_new(format!("{}{}", outputFilePrefix, ".FailQC"))
+                .unwrap_or_else(|_| panic!("readThrough file should not exist."))));
+                readouthandle.fail_qc.as_mut().unwrap().write(headerReadsHandle).expect("Unable to write file");
+            },
+            ReadsToWrite::EmptyPileup=> {
+                readouthandle.empty_pileup = Some(BufWriter::new(File::create_new(format!("{}{}", outputFilePrefix, ".EmptyPileup"))
+                .unwrap_or_else(|_| panic!("readThrough file should not exist."))));
+                readouthandle.empty_pileup.as_mut().unwrap().write(headerReadsHandle).expect("Unable to write file");
+            },
+            ReadsToWrite::Skipped => {
+                readouthandle.skipped =  Some(BufWriter::new(File::create_new(format!("{}{}", outputFilePrefix, ".Skipped"))
+                .unwrap_or_else(|_| panic!("readThrough file should not exist."))));
+                readouthandle.skipped.as_mut().unwrap().write(headerReadsHandle).expect("Unable to write file");
+            },
+            ReadsToWrite::SoftClipped => {
+                readouthandle.soft_clipped = Some(BufWriter::new(File::create_new(format!("{}{}", outputFilePrefix, ".SoftClipped"))
+                .unwrap_or_else(|_| panic!("readThrough file should not exist."))));
+                readouthandle.soft_clipped.as_mut().unwrap().write(headerReadsHandle).expect("Unable to write file");
+            },
+            ReadsToWrite::OverhangFail => {
+                readouthandle.overhang_fail = Some(BufWriter::new(File::create_new(format!("{}{}", outputFilePrefix, ".OverhangFail"))
+                .unwrap_or_else(|_| panic!("readThrough file should not exist."))));
+                readouthandle.overhang_fail.as_mut().unwrap().write(headerReadsHandle).expect("Unable to write file");
+            },
+            ReadsToWrite::Empty => {
+                readouthandle.empty = Some(BufWriter::new(File::create_new(format!("{}{}", outputFilePrefix, ".Empty"))
+                .unwrap_or_else(|_| panic!("readThrough file should not exist."))));
+                readouthandle.empty.as_mut().unwrap().write(headerReadsHandle).expect("Unable to write file");
+            },
+        }
+    };
+}
+
+
 #[derive(Clone, Debug, Copy, Eq, Hash, PartialEq)]
 pub enum ExonType {
     Donnor,

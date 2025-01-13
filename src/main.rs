@@ -1,7 +1,7 @@
 #![allow(unused)]
 extern crate CigarParser;
 use clap::Parser;
-use crate::common::utils::{ReadToWriteHandle};
+
 use rust_htslib::bam::{IndexedReader, Read};
 use strand_specifier_lib::{check_flag, LibType};
 use CigarParser::cigar::Cigar;
@@ -29,30 +29,12 @@ use crate::common::it_approches::{
 use crate::common::point::{read_gtf, InsideCounter, PointContainer};
 use crate::common::read_record::file_to_table;
 use crate::common::utils;
-use crate::common::utils::{ExonType, ReadAssign};
+use crate::common::utils::{ExonType, ReadAssign, update_ReadToWriteHandle, ReadToWriteHandle, ReadsToWrite};
 
 
-
-// TODO add specific subcommand to retrieve only specific reads;
 // TODO add LibType
-// TODO refactor to use a outFilePrefix and always output both .cat and .table file, and output read in the correspoding files.
 
 
-#[derive(clap::ValueEnum, Clone, Debug)]
-enum ReadsToWrite {
-    ReadThrough,
-    ReadJunction,
-    Unexpected,
-    FailPosFilter,
-    WrongStrand,
-    FailQc,
-    EmptyPileup,
-    Skipped,
-    SoftClipped,
-    OverhangFail,
-    Empty,
-    All
-}
 
 // impl From<ReadAssign> for ReadsToWrite{
 //     fn from(value: ReadAssign) -> Self {
@@ -89,7 +71,7 @@ struct Args {
     #[arg(short, long, required = true)]
     gtf: String,
     /// size of overhang
-    #[arg(short, long, default_value_t = 1)]
+    #[arg(long, default_value_t = 1)]
     overhang: i64,
     /// path to a file (must not exist) Uses if you want to output the reads with their category.
     /// by default output all reads, this behaviour can be change using flags: clipped...
@@ -149,14 +131,7 @@ fn main_loop(
 
     dump_tree_to_cat_results(&hash_tree, &output);
     output_write_read_handle.flush();
-    //stream.flush().unwrap();
-    /*if let Some(ref mut out_stream)= output_read_stream {
-        out_stream
-            .flush()
-            .unwrap();
 
-      
-    }*/
 }
 
 fn main() {
@@ -171,71 +146,7 @@ fn main() {
     // very verbose but this allow us to contains all those potential files handle in one struct to moove around
     let headerReadsHandle = "read_name\tcig\tflag\taln_start\tread_assign\tfeature.pos\tnext_exon\tfeature.exon_type\tfeature.strand\tsequence\n".as_bytes();//.expect("Unable to write file");
     let mut readouthandle = ReadToWriteHandle::new();
-    for e in args.readToWrite{
-        match e{
-            ReadsToWrite::All => {
-                readouthandle.all = Some(BufWriter::new(File::create_new(format!("{}{}", outputFilePrefix, ".readAll"))
-                .unwrap_or_else(|_| panic!("readThrough file should not exist."))));
-                readouthandle.all.as_mut().unwrap().write(headerReadsHandle).expect("Unable to write file");
-            },
-            ReadsToWrite::ReadThrough => {
-                readouthandle.read_through = Some(BufWriter::new(File::create_new(format!("{}{}", outputFilePrefix, ".readThrough"))
-                .unwrap_or_else(|_| panic!("readThrough file should not exist."))));
-                readouthandle.read_through.as_mut().unwrap().write(headerReadsHandle).expect("Unable to write file");
-            },
-            ReadsToWrite::ReadJunction => {
-                readouthandle.read_junction = Some(BufWriter::new(File::create_new(format!("{}{}", outputFilePrefix, ".readJunction"))
-                .unwrap_or_else(|_| panic!("readThrough file should not exist."))));
-                readouthandle.read_junction.as_mut().unwrap().write(headerReadsHandle).expect("Unable to write file");
-            },
-            ReadsToWrite::Unexpected => {
-                readouthandle.unexpected = Some(BufWriter::new(File::create_new(format!("{}{}", outputFilePrefix, ".unexpected"))
-                .unwrap_or_else(|_| panic!("readThrough file should not exist."))));
-                readouthandle.unexpected.as_mut().unwrap().write(headerReadsHandle).expect("Unable to write file");
-            },
-            ReadsToWrite::FailPosFilter => {
-                readouthandle.fail_pos_filter =  Some(BufWriter::new(File::create_new(format!("{}{}", outputFilePrefix, ".FailPosFilter"))
-                .unwrap_or_else(|_| panic!("readThrough file should not exist."))));
-                readouthandle.fail_pos_filter.as_mut().unwrap().write(headerReadsHandle).expect("Unable to write file");
-            },
-            ReadsToWrite::WrongStrand=> {
-                readouthandle.wrong_strand = Some(BufWriter::new(File::create_new(format!("{}{}", outputFilePrefix, ".WrongStrand"))
-                .unwrap_or_else(|_| panic!("readThrough file should not exist."))));
-                readouthandle.wrong_strand.as_mut().unwrap().write(headerReadsHandle).expect("Unable to write file");
-            },
-            ReadsToWrite::FailQc=> {
-                readouthandle.fail_qc = Some(BufWriter::new(File::create_new(format!("{}{}", outputFilePrefix, ".FailQC"))
-                .unwrap_or_else(|_| panic!("readThrough file should not exist."))));
-                readouthandle.fail_qc.as_mut().unwrap().write(headerReadsHandle).expect("Unable to write file");
-            },
-            ReadsToWrite::EmptyPileup=> {
-                readouthandle.empty_pileup = Some(BufWriter::new(File::create_new(format!("{}{}", outputFilePrefix, ".EmptyPileup"))
-                .unwrap_or_else(|_| panic!("readThrough file should not exist."))));
-                readouthandle.empty_pileup.as_mut().unwrap().write(headerReadsHandle).expect("Unable to write file");
-            },
-            ReadsToWrite::Skipped => {
-                readouthandle.skipped =  Some(BufWriter::new(File::create_new(format!("{}{}", outputFilePrefix, ".Skipped"))
-                .unwrap_or_else(|_| panic!("readThrough file should not exist."))));
-                readouthandle.skipped.as_mut().unwrap().write(headerReadsHandle).expect("Unable to write file");
-            },
-            ReadsToWrite::SoftClipped => {
-                readouthandle.soft_clipped = Some(BufWriter::new(File::create_new(format!("{}{}", outputFilePrefix, ".SoftClipped"))
-                .unwrap_or_else(|_| panic!("readThrough file should not exist."))));
-                readouthandle.soft_clipped.as_mut().unwrap().write(headerReadsHandle).expect("Unable to write file");
-            },
-            ReadsToWrite::OverhangFail => {
-                readouthandle.overhang_fail = Some(BufWriter::new(File::create_new(format!("{}{}", outputFilePrefix, ".OverhangFail"))
-                .unwrap_or_else(|_| panic!("readThrough file should not exist."))));
-                readouthandle.overhang_fail.as_mut().unwrap().write(headerReadsHandle).expect("Unable to write file");
-            },
-            ReadsToWrite::Empty => {
-                readouthandle.empty = Some(BufWriter::new(File::create_new(format!("{}{}", outputFilePrefix, ".Empty"))
-                .unwrap_or_else(|_| panic!("readThrough file should not exist."))));
-                readouthandle.empty.as_mut().unwrap().write(headerReadsHandle).expect("Unable to write file");
-            },
-        }
-    };
-    
+    update_ReadToWriteHandle(&mut readouthandle, args.readToWrite, headerReadsHandle, &outputFilePrefix);
 
     main_loop(
         output.clone(),
