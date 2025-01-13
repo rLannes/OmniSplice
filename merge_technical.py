@@ -2,7 +2,9 @@ import argparse
 from pathlib import Path
 import os
 import re 
+import sys
 
+raise AssertionError("bug found undereport value FIX before use")
 def parse_rep(rep):
 
     dico = {}
