@@ -22,3 +22,7 @@ path = "src/main.rs"
 name = "backsplicing"
 path = "src/backsplicing.rs"
 
+[[bin]]
+name = "splicing_efficiency"
+path = "src/splicing_efficiency.rs"
+

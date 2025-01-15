@@ -30,6 +30,7 @@ use crate::common::point::{read_gtf, InsideCounter, PointContainer};
 use crate::common::read_record::file_to_table;
 use crate::common::utils;
 use crate::common::utils::{ExonType, ReadAssign, update_ReadToWriteHandle, ReadToWriteHandle, ReadsToWrite};
+mod splicing_efficiency;
 
 
 // TODO add LibType
@@ -84,9 +85,19 @@ struct Args {
     flag_out: u16,
     #[arg(long, default_value_t = 13)]
     mapq: u8,
+    /// space separated list of the annotated read you xant to extract; i.e. all clipped read or all spliced read ...
     #[clap(long, value_parser, value_delimiter = ' ', num_args = 1..)]
     readToWrite: Vec<ReadsToWrite>,
-
+    /// space separated list the column to use for "unspliced" for the splicing defect table.
+    /// you can regenrate this using the splicing_efficiency exe
+    /// What to consider as unspliced? unspliced: 9, clipped: 10, exon_intron: 11, exon_other: 12, skipped: 13, wrong_strand:14\n
+    /// by default only use "-u 9" ->  unspliced (readthrough) reads \n
+    /// to use unspliced and clipped : "-u 9 10" 
+    #[clap(long, value_parser, default_value = "9", value_delimiter = ' ', num_args = 1..)]
+    unspliced_def: Vec<usize>,
+    /// splicing defect only: only consider donnor exons and not the acceptor exon
+    #[arg(long, default_value_t = false, action)]
+    one_side : bool,
 
 }
 
@@ -140,6 +151,7 @@ fn main() {
     let mut outputFilePrefix = args.outputFilePrefix;
     let table  = format!("{}{}", outputFilePrefix, ".table");
     let output = format!("{}{}", outputFilePrefix, ".cat");
+    let splicing_defect = format!("{}{}", outputFilePrefix, ".sd");
     let mut clipped = false;
 
 
@@ -166,6 +178,10 @@ fn main() {
     println!("table");
     let _ = stream.write("contig\tgene_name\ttranscript_name\texon_number\tambiguous\tstrand\tpos\tnext\texon_type\tspliced\tunspliced\tclipped\texon_intron\texon_other\tskipped\twrong_strand\te_isoform\n".as_bytes());
     file_to_table(output.clone(), &mut stream, args.gtf.as_str());
+
+    splicing_efficiency::to_se_from_table(&table, &splicing_defect, args.unspliced_def, ! args.one_side);
+
+
 
 }
 

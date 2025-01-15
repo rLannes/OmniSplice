@@ -407,10 +407,11 @@ pub fn gtf_to_tree(
     // (gene_id, start, end)
     let mut been_seen: HashSet<(String, i64, ExonType)> = HashSet::new();
     let mut results: HashMap<String, interval_tree::IntervalTree<i64, TreeData>> = HashMap::new();
+    let mut spt: Vec<&str> = Vec::new();
 
     for line in reader.lines() {
         this_line = line?;
-        let spt = this_line.trim().split('\t').collect::<Vec<&str>>();
+        spt = this_line.trim().split('\t').collect::<Vec<&str>>();
         if spt.len() < 8 {
             continue;
         }
