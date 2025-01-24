@@ -35,33 +35,12 @@ mod splicing_efficiency;
 
 // TODO add LibType
 
-
-
-// impl From<ReadAssign> for ReadsToWrite{
-//     fn from(value: ReadAssign) -> Self {
-//         match value {
-//             ReadAssign::Empty => ReadsToWrite::Empty,
-//             ReadAssign::FailPosFilter => ReadsToWrite::FailPosFilter,
-//             ReadAssign::FailQc => ReadsToWrite::FailQc,
-//             ReadAssign::ReadThrough => ReadsToWrite::ReadThrough,
-//             ReadAssign::ReadJunction(n, m) => ReadsToWrite::ReadJunction,
-//             ReadAssign::Unexpected => ReadsToWrite::Unexpected,
-//             ReadAssign::EmptyPileup => ReadsToWrite::EmptyPileup,
-//             ReadAssign::OverhangFail => ReadsToWrite::OverhangFail,
-//             ReadAssign::SoftClipped => ReadsToWrite::SoftClipped,
-//             ReadAssign::Skipped(n, m) => ReadsToWrite::Skipped,
-//             ReadAssign::WrongStrand => ReadsToWrite::WrongStrand            
-//         }
-//     }
-// }
-
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
     /// Name of Input file
     #[arg(short, long, required = true)]
     input: String,
-
     /// Prefix name  to be used for Output file
     #[arg(short, long, required = true)]
     outputFilePrefix: String,
@@ -90,15 +69,25 @@ struct Args {
     readToWrite: Vec<ReadsToWrite>,
     /// space separated list the column to use for "unspliced" for the splicing defect table.
     /// you can regenrate this using the splicing_efficiency exe
-    /// What to consider as unspliced? unspliced: 9, clipped: 10, exon_intron: 11, exon_other: 12, skipped: 13, wrong_strand:14\n
-    /// by default only use "-u 9" ->  unspliced (readthrough) reads \n
-    /// to use unspliced and clipped : "-u 9 10" 
-    #[clap(long, value_parser, default_value = "9", value_delimiter = ' ', num_args = 1..)]
+    /// What to consider as unspliced? unspliced: 10, clipped: 11, exon_intron: 12, exon_other: 13, skipped: 14,
+    /// wrong_strand:15, isoform:16\n
+    /// by default only use "-u 10" ->  unspliced (readthrough) reads \n
+    /// to use unspliced and clipped : "-u 10 11" 
+    #[clap(long, value_parser, default_value = "10", value_delimiter = ' ', num_args = 1..)]
     unspliced_def: Vec<usize>,
-    /// splicing defect only: only consider donnor exons and not the acceptor exon
-    #[arg(long, default_value_t = false, action)]
-    one_side : bool,
 
+    /// What to consider as unspliced? unspliced: 10, clipped: 11, exon_intron: 12,
+    /// exon_other: 13, skipped: 14, wrong_strand:15, isoform: 16\n
+    /// by default only use "-u 9" -> spliced (readthrough) reads \n
+    /// to use spliced and isform : "-u 9 16"
+    #[clap(long, value_parser, default_value = "9", value_delimiter = ' ', num_args = 1..)]
+    spliced_def: Vec<usize>,
+
+    /// Librairy types used for the RNAseq most modern stranded RNAseq are frFirstStrand which is the default value.
+    /// acceptable value: frFirstStrand, frSecondStrand, fFirstStrand, fSecondStrand, ffFirstStrand, ffSecondStrand, rfFirstStrand,
+    ///  rfSecondStrand, rFirstStrand, rSecondStrand, Unstranded, PairedUnstranded
+    #[clap(long, value_parser, default_value = "frFirstStrand")]
+    libtype: LibType,
 }
 
 /// This run the core of the program, will parse a gtf and a bam file and write a category file and if requested a read file.
@@ -110,7 +99,8 @@ fn main_loop(
     flag_in: u16,
     flag_out: u16,
     mapq: u8,
-    output_write_read_handle: &mut ReadToWriteHandle// Option<String>,
+    output_write_read_handle: &mut ReadToWriteHandle, 
+    librairy_type: LibType
     //clipped: bool,
 ) -> () {
 
@@ -118,21 +108,13 @@ fn main_loop(
 
     let gtf_file = gtf;
 
-    /*let mut output_read_stream: Option<BufWriter<File>> = None; 
-    if let Some(file_path) = output_write_read {
-        let file_ =
-            File::create_new(file_path.clone()).expect("read output file should not exist.");
-        fs::write(file_path, "read_name\tcig\tflag\taln_start\tread_assign\tfeature.pos\tnext_exon\tfeature.exon_type\tfeature.strand\tsequence\n".as_bytes()).expect("Unable to write file");
-        output_read_stream = Some(BufWriter::new(file_));
-    }*/
-
     // parse the gtf and return a hashmap<chromosome> -> intervalTree(exon(start, end), associated_data(gene_name...))
     let mut hash_tree = gtf_to_tree(gtf_file.as_str()).unwrap();
     
     update_tree_with_bamfile(
         &mut hash_tree,
         &bam_file,
-        LibType::frFirstStrand,
+        librairy_type, //LibType::frFirstStrand,
         overhang,
         flag_in,
         flag_out,
@@ -147,7 +129,11 @@ fn main_loop(
 
 fn main() {
     let args = Args::parse();
-    println!("{:#?}", args);
+
+    match args.libtype{
+        LibType::Invalid => panic!("invalid librairy type"),
+        _ => ()
+    }
     let mut outputFilePrefix = args.outputFilePrefix;
     let table  = format!("{}{}", outputFilePrefix, ".table");
     let output = format!("{}{}", outputFilePrefix, ".cat");
@@ -155,7 +141,6 @@ fn main() {
     let mut clipped = false;
 
 
-    // very verbose but this allow us to contains all those potential files handle in one struct to moove around
     let headerReadsHandle = "read_name\tcig\tflag\taln_start\tread_assign\tfeature.pos\tnext_exon\tfeature.exon_type\tfeature.strand\tsequence\n".as_bytes();//.expect("Unable to write file");
     let mut readouthandle = ReadToWriteHandle::new();
     update_ReadToWriteHandle(&mut readouthandle, args.readToWrite, headerReadsHandle, &outputFilePrefix);
@@ -169,19 +154,17 @@ fn main() {
         args.flag_out,
         args.mapq,
         &mut readouthandle,
+        args.libtype
     );
 
 
     let file = File::create_new(table.clone())
         .unwrap_or_else(|_| panic!("output file {} should not exist.", &table));//expect(&format!("output file {} should not exist.", &table));
     let mut stream = BufWriter::new(file);
-    println!("table");
     let _ = stream.write("contig\tgene_name\ttranscript_name\texon_number\tambiguous\tstrand\tpos\tnext\texon_type\tspliced\tunspliced\tclipped\texon_intron\texon_other\tskipped\twrong_strand\te_isoform\n".as_bytes());
     file_to_table(output.clone(), &mut stream, args.gtf.as_str());
 
-    splicing_efficiency::to_se_from_table(&table, &splicing_defect, args.unspliced_def, ! args.one_side);
-
-
+    splicing_efficiency::to_se_from_table(&table, &splicing_defect, args.spliced_def, args.unspliced_def);
 
 }
 

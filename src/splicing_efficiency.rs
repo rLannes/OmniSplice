@@ -7,6 +7,9 @@ use std::hash::Hash;
 use std::io::prelude::*;
 use std::io::{BufReader, BufWriter};
 use std::path::{Path, PathBuf};
+use std::process::{Command as Std_Command, Stdio};
+use std::io::Write;
+use std::fs::OpenOptions;
 
 /// This is a self contain file that parse the table file and output an splicing effiency table.
 /// i am unsure if I keep it separate or integrate it to the main software or both
@@ -40,17 +43,38 @@ impl Field_{
     pub const E_ISO: usize = 16;
 }
 
-pub fn to_se_from_table(table_file: &str, out_file: &str, unspliced_def: Vec<usize>, two_sided: bool) -> (){
 
-    let g2 = [Field_::UNSPLICED];
+
+
+pub fn to_se_from_table(table_file: &str,
+                        out_file: &str,
+                        spliced_def: Vec<usize>,
+                        unspliced_def: Vec<usize> ) -> (){
+
+
+    let mut hashid: HashMap<usize, &str> = HashMap::new();
+    hashid.insert(9, "spliced");
+    hashid.insert(10, "unspliced");
+    hashid.insert(11, "clipped");
+    hashid.insert(12, "E_intron");
+    hashid.insert(13, "E_other");
+    hashid.insert(14, "skipped");
+    hashid.insert(15, "wrongStrand");   
+    hashid.insert(16, "E_Isoform");    
+
+
+
+    let g1 = spliced_def;
+    let g2 = unspliced_def;
     let test_amb= true;
-    let two_sided = true;
 
     let mut line: String = "".to_string();
-    let file = "/lab/solexa_yamashita/people/Romain/Projets/OmniSplice/alzeihmer_madeleine/omnisplice/SRR22002266.table";
-    let out_file = "/lab/solexa_yamashita/people/Romain/Projets/OmniSplice/alzeihmer_madeleine/RR22002266.test.dev.se";
-    let out_file_open = File::create_new(out_file.clone())
-        .unwrap_or_else(|_| panic!("output file {} should not exist.", &out_file));//expect(&format!("output file {} should not exist.", &table));
+    let file = table_file;
+    //let out_file = "/lab/solexa_yamashita/people/Romain/Projets/OmniSplice/alzeihmer_madeleine/RR22002266.test.dev.se";
+    let presorted = format!("{}.presorted", &out_file.clone());
+    
+    let out_file_open = File::create_new(presorted.clone())//presorted out_file.clone()
+        .unwrap_or_else(|_| panic!("output file {} should not exist.", &presorted));//expect(&format!("output file {} should not exist.", &table));
     let mut out_stream = BufWriter::new(out_file_open);
 
     let f = File::open(file).unwrap();
@@ -64,9 +88,10 @@ pub fn to_se_from_table(table_file: &str, out_file: &str, unspliced_def: Vec<usi
     let gene_id = "".to_string();
     let mut spliced : u32;
     let mut unspliced: u32;
+    let mut unspliced_acceptor: u32;
 
 
-    let mut results: HashMap<(u32, u32), (String, u32, u32, String, Vec<String>, f32, u32, u32, String)> = HashMap::new();
+    let mut results: HashMap<(u32, u32), (String, u32, u32, String, Vec<String>, f32, u32, u32, u32, String)> = HashMap::new();
 
     let mut current_genes : Option<String> = None;
     let mut start :u32 = 0;
@@ -82,9 +107,8 @@ pub fn to_se_from_table(table_file: &str, out_file: &str, unspliced_def: Vec<usi
         // dumping the hashmap at each new genes;
         match current_genes{
             Some(ref gene_id)=> { if *gene_id != spt[Field_::GENE]{
-                
                 for value in results.values(){
-                    let _ = out_stream.write(format!("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n", value.0, value.1, value.2, value.3, value.5, value.6, value.7, value.4.join(";")).as_bytes());
+                    let _ = out_stream.write(format!("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n", value.0, value.1, value.2, value.9, value.3, value.5, value.6, value.7, value.8, value.4.join(";")).as_bytes());
                 }
 
                 results.clear();
@@ -104,22 +128,23 @@ pub fn to_se_from_table(table_file: &str, out_file: &str, unspliced_def: Vec<usi
                     continue;
                 }
                 // spliced value is the same in spt or previous line. we do not sum them.
-                spliced = spt[Field_::SPLICED].parse::<u32>().unwrap();
+                spliced = g1.iter()
+                        .map(|x| spt[*x].parse::<u32>().unwrap())       
+                        .fold(0, |acc, x| acc + x);
                 // this one liner will be helpfull in the future, as it can take any a list of fields.
                 unspliced = g2.iter()
                                     .map(|x| previous_line.as_ref().unwrap()[*x].parse::<u32>().unwrap())       
                                     .fold(0, |acc, x| acc + x);
-                if two_sided == true{
-                    unspliced += g2.iter()
+                unspliced_acceptor = g2.iter()
                         .map(|x|  spt[*x].parse::<u32>().unwrap())       
                         .fold(0, |acc, x| acc + x);
-                }
+
                 start = spt[Field_::NEXT].parse::<u32>().unwrap();
                 end = spt[Field_::POS].parse::<u32>().unwrap();
                 results.entry((start, end))
                        .or_insert((spt[Field_::CONTIG].to_owned(), start, end, spt[Field_::GENE].to_owned(),
                          Vec::new(), 
-                        spliced as f32/ (unspliced as f32 + spliced as f32), spliced, unspliced, spt[Field_::STRAND].to_owned()))
+                        spliced as f32/ (unspliced as f32 + spliced as f32 + unspliced_acceptor as f32), spliced, unspliced, unspliced_acceptor, spt[Field_::STRAND].to_owned()))
                         .4
                         .push(format!("{}_{}", spt[Field_::TRAN], previous_line.as_deref().unwrap()[Field_::EXON_N]));
 
@@ -132,9 +157,42 @@ pub fn to_se_from_table(table_file: &str, out_file: &str, unspliced_def: Vec<usi
             }
 
     for value in results.values(){
-                let _ = out_stream.write(format!("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n", value.0, value.1, value.2, value.3, value.4.join(";"), value.5, value.6, value.7 ).as_bytes());
+        let _ = out_stream.write(format!("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n", value.0, value.1, value.2, value.9, value.3, value.5, value.6, value.7, value.8, value.4.join(";")).as_bytes());
         }
     let _ = out_stream.flush();
+    drop(out_stream);
+
+    {
+        let mut out_final = File::create_new(out_file.clone())//presorted out_file.clone()
+        .unwrap_or_else(|_| panic!("output file {} should not exist.", &out_file));
+        let header=format!("# spliced definition: {};\n# unspliced definition: {};\nContig\tstart\tend\tstrand\tgeneID\tRatio\tspliced\tUnspliceDonnor\tUnsplicedAcceptor\ttranscriptID_exonN\n",
+          g1.iter().map(|x| hashid.get(x).unwrap().to_string()).collect::<Vec<String>>().join(" "),
+          g2.iter().map(|x| hashid.get(x).unwrap().to_string()).collect::<Vec<String>>().join(" "));
+
+        let _ = out_final.write_all(header.as_bytes()).unwrap();
+    }
+    {
+
+    let output_cmd = Std_Command::new("sort") 
+        .args(["-k", "1g", "-k", "5,5", "-k", "2n", &presorted])//, ">>", &out_file])
+        .output()
+        .expect(" sort command failed to start");
+
+    
+        let mut file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(out_file).unwrap();
+
+        // Write the output to file
+        file.write_all(&output_cmd.stdout).unwrap();
+
+    }
+
+    let _ = Std_Command::new("rm")
+        .args([&presorted.clone()])
+        .spawn()
+        .expect(" rm command failed to start").wait();
 
 }
 
@@ -142,35 +200,30 @@ pub fn to_se_from_table(table_file: &str, out_file: &str, unspliced_def: Vec<usi
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
-
     /// Name of the Input file
     #[arg(short, long, required = true)]
     input: String,
-
     /// Name of the Output file
     #[arg(short, long, required = true)]
     output: String,
-    
-
-    /// only consider donnor exons. and not the acceptor exon
-    #[arg(long, default_value_t = false, action)]
-    one_side : bool,
-
-    /// What to consider as unspliced? unspliced: 9, clipped: 10, exon_intron: 11, exon_other: 12, skipped: 13, wrong_strand:14\n
-    /// by default only use "-u 9" ->  unspliced (readthrough) reads \n
-    /// to use unspliced and clipped : "-u 9 10"
-    #[clap(long, value_parser, default_value = "9", value_delimiter = ' ', num_args = 1..)]
+    /// What to consider as unspliced? unspliced: 10, clipped: 11, exon_intron: 12,
+    /// exon_other: 13, skipped: 14, wrong_strand:15, isoform:16\n
+    /// by default only use "-u 10" ->  unspliced (readthrough) reads \n
+    /// to use unspliced and clipped : "-u 10 11"
+    #[clap(long, value_parser, default_value = "10", value_delimiter = ' ', num_args = 1..)]
     unspliced_def: Vec<usize>,
-
+    
+    /// What to consider as unspliced? unspliced: 10, clipped: 11, exon_intron: 12,
+    /// exon_other: 13, skipped: 14, wrong_strand:15, isoform: 16\n
+    /// by default only use "-u 9" -> spliced (readthrough) reads \n
+    /// to use spliced and isform : "-u 9 16"
+    #[clap(long, value_parser, default_value = "9", value_delimiter = ' ', num_args = 1..)]
+    spliced_def: Vec<usize>,
 }
 
 
 fn main(){
-
     let args = Args::parse();
-    let two_sided = !args.one_side;
-    
-    to_se_from_table(&args.input, &args.output, args.unspliced_def, two_sided);
-
+    to_se_from_table(&args.input, &args.output, args.spliced_def, args.unspliced_def);
 }
 

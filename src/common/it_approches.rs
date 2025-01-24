@@ -346,9 +346,12 @@ pub fn dump_tree_to_cat_results(
     out_file: &str,
 ) -> () {
     let presorted = format!("{}.presorted", out_file);
+    let header = "Contig\tPosition\tGeneID\tTranscriptID\tstrand\tExonEndType\tCategory\tReadCount\n".as_bytes();
     {
         let file = File::create_new(presorted.clone()).expect("output file should not exist.");
         let mut stream = BufWriter::new(file);
+
+        stream.write(header);
 
         for (contig, subtree) in hash_tree {
             // get ALL entry
@@ -495,8 +498,8 @@ pub fn update_tree_with_bamfile(
     let mut bam = IndexedReader::from_path(bam_file).unwrap();
 
     for (contig, subtree) in hash_tree.iter_mut() {
-        counter = 0;
-        println!("Contig: {}", contig);
+        //counter = 0;
+        //println!("Contig: {}", contig);
 
         match bam.fetch(&contig) {
             Ok(_) => (),
@@ -506,10 +509,10 @@ pub fn update_tree_with_bamfile(
             }
         }
         for r in bam.records() {
-            counter += 1;
-            if counter % 1_000_000 == 0 {
-                println!("Contig: {}; {} reads done", contig, counter);
-            }
+            //counter += 1;
+            //if counter % 1_000_000 == 0 {
+            //    println!("Contig: {}; {} reads done", contig, counter);
+            //}
             record = r.unwrap();
             pos_s = record.pos();
             cig = Cigar::from_str(&record.cigar().to_string()).unwrap();

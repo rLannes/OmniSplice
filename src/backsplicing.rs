@@ -1,5 +1,4 @@
 #![allow(unused)]
-
 use crate::common::point::InsideCounter;
 use clap::builder::Str;
 use clap::Parser;
@@ -249,20 +248,6 @@ fn get_gtf_clipped(gtf: &str) -> Result<HashMap<String, PointContainer>, Box<dyn
     }
     Ok(results)
 }
-
-/* fn get_contig_map(header: &mut Header) -> HashMap<String, String>{
-
-    let mut map: HashMap<String, String> = HashMap::new();
-    for (key, records) in header.to_hashmap() {
-        for record in records {
-            if record.contains_key("SN"){
-                map.insert(key, record["SN"].to_string());
-                //seq.push(record["SN"].to_string());
-            }
-        }
-    }
-    map
-} */
 
 #[derive(Clone, Debug)]
 pub struct BackSplicingCounter {
@@ -520,19 +505,11 @@ fn main() {
     let bw2_ref = args.bowtie2_ref;
     let clipped_file = args.input_clipped_read;
 
-    //let clipped_file = "/lab/solexa_yamashita/people/Romain/Projets/OmniSplice/Jackie_MD6_OmniSplice/omniRun/trimmed_L459_1501_S2_L001_Aligned.read_through.read.tsv";
-    //let clipped_fasta = "/lab/solexa_yamashita/people/Romain/Projets/OmniSplice/Jackie_MD6_OmniSplice/trimmed_L459_1501_S2_L001_Aligned.clipped.fna";
-    //let bw2_ref = "/lab/solexa_yamashita/people/Romain/Projets/OmniSplice/Jackie_MD6_OmniSplice/bwRef/dm6_bw2";
-    //let bw_bam = "/lab/solexa_yamashita/people/Romain/Projets/OmniSplice/Jackie_MD6_OmniSplice/trimmed_L459_1501_S2_L001_Aligned.clipped.bam";
-    //let gtf = "/lab/solexa_yamashita/people/Romain/References/MD6/gtf/dmel-all-r6.48.gtf";
-    //let clipped_size_min = 20;
-    //let output_file = "/lab/solexa_yamashita/people/Romain/Projets/OmniSplice/Jackie_MD6_OmniSplice/Backsplicing/trimmed_L459_1501_S2_L001.backspliced.tsv";
-
     let map_read = clipped_to_fasta(
         &clipped_file,
         clipped_fasta.as_path().to_str().unwrap(),
         clipped_size_min,
-    ); // read map -> HashMap<String, ReadInfo>
+    ); 
     aln_bw(
         clipped_fasta.as_path().to_str().unwrap(),
         &bw2_ref,
