@@ -3,9 +3,22 @@ from pathlib import Path
 import os
 import re 
 import sys
+import polars as pl
+
+#### TODO raise AssertionError("bug found undereport value FIX before use")
+def get_file_by_match(dir_path, reg):
+        dico = {}
+        for file in dir_path.iterdir():
+            
+            if m := reg.search(str(Path(file).name)):
+                key = m.group(1)
+                if key not in dico:
+                    dico[key] = []
+                dico[key].append(file)
+        return dico
 
 
-raise AssertionError("bug found undereport value FIX before use")
+## refactor using polars
 def parse_rep(rep):
 
     dico = {}
@@ -53,7 +66,7 @@ if __name__ == "__main__":
                        """)
     parse.add_argument("--out", nargs="+", help="""space separated list of output, number must match with the --rep argument,
                        or be a directory if you use the match argument""")
-    parse.add_argument("--match", help="use regexp")
+    parse.add_argument("--match", help="use regexp, usefull when multiple groups")
     parse.add_argument("--dir", help="directory too look for match")
     args = parse.parse_args()
 
@@ -71,8 +84,14 @@ if __name__ == "__main__":
         args.out = args.out[0]
         assert os.path.isdir(args.out) and os.path.isdir(args.dir)
         reg = re.compile(args.match)
+
+        
         dir_path = Path(args.dir)  
-        dico = {}
+        dico = get_file_by_match(dir_path, args.match)
+        print("match identified the following groups:")
+        for k, v in dico.items():
+            print("{} -> {}".format(k , '\t'.join(v)))
+
 
         for file in dir_path.iterdir():
             
@@ -87,3 +106,4 @@ if __name__ == "__main__":
             header, dico_ = parse_rep(reps)
             write_output(out=out_p / "{}.merged.table.tsv".format(k), header=header, dico=dico_)
 
+raise AssertionError("bug found undereport value FIX before use")

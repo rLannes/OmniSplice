@@ -306,7 +306,7 @@ fn parse_file(file: &str) -> HashMap<String, HashMap<String, ReadtRecordContaine
     let mut tr_name: String;
     let mut gene_strand: Strand;
 
-    for line in reader.lines() {
+    for line in reader.lines().skip(1) {
         this_line = line.expect("failed to read line in make_table");
         spt = this_line.trim().split('\t').collect::<Vec<&str>>();
         if &spt.len() < &5 {
