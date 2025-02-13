@@ -1,6 +1,6 @@
 [package]
 name = "omni_splice"
-version = "0.2.1"
+version = "0.2.2"
 edition = "2021"
 authors = ["Romain JSB Lannes", "rlannes@wi.mit.edu"]
 
