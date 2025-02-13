@@ -111,7 +111,7 @@ fn clipped_to_fasta(
     let mut id_: String = "".to_string();
     let mut l: usize = 0;
 
-    for line in f_in.lines() {
+    for line in f_in.lines().skip(1) {
         this_line = line.expect("cannot read line");
         spt = this_line.trim().split('\t').collect::<Vec<&str>>();
         id_ = spt[6].to_string();
@@ -121,7 +121,7 @@ fn clipped_to_fasta(
             seen.insert(id_.clone());
         }
 
-        cig = Cigar::from(spt[7]); //.expect(&format!("{}, invalid cigar", spt[1]));
+        cig = Cigar::from_str(spt[7]).expect(&format!("{:?}, invalid cigar", spt[7]));
         exon_type = ExonType::from(spt[5]);
 
         strand = Strand::from(spt[4]);

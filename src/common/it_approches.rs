@@ -8,7 +8,7 @@ use rust_htslib::bam::record::Record;
 use rust_htslib::bam::{IndexedReader, Read};
 use std::collections::{HashMap, HashSet};
 use std::error::Error;
-use std::fs::File;
+use std::fs::{File, OpenOptions};
 use std::io::BufRead;
 use std::io::Write;
 use std::io::{BufReader, BufWriter};
@@ -201,57 +201,58 @@ impl TreeData {
             
             match end_map {
                 ReadAssign::Empty =>  match &mut out_file_read_buffer.empty {
-                        Some(handle) => handle.write(self.dump_reads_seq(&seq, &r_name, false, cigar).as_bytes())
+                        Some(handle) => handle.write(self.dump_reads_seq(&seq, &r_name,
+                             true, cigar).as_bytes())
                         .unwrap_or_else(|_| panic!("cannot write reads")),
                         _ => 0
                 },
                 ReadAssign::ReadThrough => match &mut out_file_read_buffer.read_through {
-                    Some(handle) => handle.write(self.dump_reads_seq(&seq, &r_name, false, cigar).as_bytes())
+                    Some(handle) => handle.write(self.dump_reads_seq(&seq, &r_name, true, cigar).as_bytes())
                     .unwrap_or_else(|_| panic!("cannot write reads")),
                     _ => 0
                 },
                 ReadAssign::ReadJunction(_, _) => match &mut out_file_read_buffer.read_junction {
-                    Some(handle) => handle.write(self.dump_reads_seq(&seq, &r_name, false, cigar).as_bytes())
+                    Some(handle) => handle.write(self.dump_reads_seq(&seq, &r_name, true, cigar).as_bytes())
                     .unwrap_or_else(|_| panic!("cannot write reads")),
                     _ => 0
                 },
                 ReadAssign::Unexpected => match &mut out_file_read_buffer.unexpected {
-                    Some(handle) => handle.write(self.dump_reads_seq(&seq, &r_name, false, cigar).as_bytes())
+                    Some(handle) => handle.write(self.dump_reads_seq(&seq, &r_name, true, cigar).as_bytes())
                     .unwrap_or_else(|_| panic!("cannot write reads")),
                     _ => 0
                 },
                 ReadAssign::FailPosFilter => match &mut out_file_read_buffer.fail_pos_filter {
-                    Some(handle) => handle.write(self.dump_reads_seq(&seq, &r_name, false, cigar).as_bytes())
+                    Some(handle) => handle.write(self.dump_reads_seq(&seq, &r_name, true, cigar).as_bytes())
                     .unwrap_or_else(|_| panic!("cannot write reads")),
                     _ => 0
                 },
                 ReadAssign::WrongStrand => match &mut  out_file_read_buffer.wrong_strand {
-                    Some(handle) => handle.write(self.dump_reads_seq(&seq, &r_name, false, cigar).as_bytes())
+                    Some(handle) => handle.write(self.dump_reads_seq(&seq, &r_name, true, cigar).as_bytes())
                     .unwrap_or_else(|_| panic!("cannot write reads")),
                     _ => 0
                 },
                 ReadAssign::FailQc => match &mut out_file_read_buffer.fail_qc {
-                    Some(handle) => handle.write(self.dump_reads_seq(&seq, &r_name, false, cigar).as_bytes())
+                    Some(handle) => handle.write(self.dump_reads_seq(&seq, &r_name, true, cigar).as_bytes())
                     .unwrap_or_else(|_| panic!("cannot write reads")),
                     _ => 0
                 },
                 ReadAssign::EmptyPileup => match &mut out_file_read_buffer.empty_pileup {
-                    Some(handle) => handle.write(self.dump_reads_seq(&seq, &r_name, false, cigar).as_bytes())
+                    Some(handle) => handle.write(self.dump_reads_seq(&seq, &r_name, true, cigar).as_bytes())
                     .unwrap_or_else(|_| panic!("cannot write reads")),
                     _ => 0
                 },
                 ReadAssign::Skipped(_, _) => match &mut out_file_read_buffer.skipped {
-                    Some(handle) => handle.write(self.dump_reads_seq(&seq, &r_name, false, cigar).as_bytes())
+                    Some(handle) => handle.write(self.dump_reads_seq(&seq, &r_name, true, cigar).as_bytes())
                     .unwrap_or_else(|_| panic!("cannot write reads")),
                     _ => 0
                 },
                 ReadAssign::SoftClipped => match &mut out_file_read_buffer.soft_clipped {
-                    Some(handle) => handle.write(self.dump_reads_seq(&seq, &r_name, false, cigar).as_bytes())
+                    Some(handle) => handle.write(self.dump_reads_seq(&seq, &r_name, true, cigar).as_bytes())
                     .unwrap_or_else(|_| panic!("cannot write reads")),
                     _ => 0
                 },
                 ReadAssign::OverhangFail => match &mut out_file_read_buffer.overhang_fail {
-                    Some(handle) => handle.write(self.dump_reads_seq(&seq, &r_name, false, cigar).as_bytes())
+                    Some(handle) => handle.write(self.dump_reads_seq(&seq, &r_name, true, cigar).as_bytes())
                     .unwrap_or_else(|_| panic!("cannot write reads")),
                     _ => 0
                 },
@@ -351,7 +352,7 @@ pub fn dump_tree_to_cat_results(
         let file = File::create_new(presorted.clone()).expect("output file should not exist.");
         let mut stream = BufWriter::new(file);
 
-        stream.write(header);
+        //stream.write(header);
 
         for (contig, subtree) in hash_tree {
             // get ALL entry
@@ -366,7 +367,14 @@ pub fn dump_tree_to_cat_results(
     }
 
     let file = File::create_new(out_file).expect("output file should not exist.");
+
+    let mut file = OpenOptions::new()
+        .write(true)
+        .append(true)
+        .open(out_file).expect("could not open file");
+    file.write(header);
     //let mut stream = BufWriter::new(file);
+
     let sort = Command::new("sort")
         .args([
             "-k1,1",

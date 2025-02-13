@@ -5,7 +5,6 @@ import re
 import sys
 import polars as pl
 
-#### TODO raise AssertionError("bug found undereport value FIX before use")
 def get_file_by_match(dir_path, reg):
         dico = {}
         for file in dir_path.iterdir():
@@ -19,38 +18,52 @@ def get_file_by_match(dir_path, reg):
 
 
 ## refactor using polars
-def parse_rep(rep):
+def parse_rep(rep, out):
+    dfs = [pl.read_csv(f, separator='\t') for f in rep]
+    concat = pl.concat(dfs, how="diagonal")
+    concat.group_by(["contig", "gene_name", "transcript_name", "exon_number", "ambiguous", "strand", "pos", "next", "exon_type"])\
+        .agg(pl.col(["spliced", "unspliced", "clipped", "exon_intron", "exon_other", "skipped", "wrong_strand", "e_isoform"]).sum())\
+        .sort([
+                pl.col(["contig", "gene_name", "transcript_name"]),
+                pl.col("exon_number").str.split('_').list.get(1).cast(pl.Int64),
+                pl.col("exon_type")
+            ])\
+        .write_csv(out, separator="\t")
+    
+    #pl.col('name_value').map(lambda x: int(x.split('_')[1]))
 
-    dico = {}
+#     dico = {}
 
-    for file in rep:
-        with open(file) as fi:
-            header = fi.readline().strip().split("\t")
-            spliced_i = header.index("spliced") 
-            for l in fi:
-                spt = l.strip().split("\t")
-                if not spt:
-                    continue
-                key = tuple(spt[:-8])
-                value = list(map(int, spt[-8:]))
+#     for file in rep:
+#         with open(file) as fi:
+#             header = fi.readline().strip().split("\t")
+#             spliced_i = header.index("spliced") 
+#             for l in fi:
+#                 spt = l.strip().split("\t")
+#                 if not spt:
+#                     continue
+#                 key = tuple(spt[:-8])
+#                 value = list(map(int, spt[-8:]))
 
-                if key not in dico:
-                    dico[key] = [0]* len(value)
-                pr = dico[key]
-                dico[key] = [value[i] + v for i, v in enumerate(pr)]
-        return header, dico
+#                 if key not in dico:
+#                     dico[key] = [0]* len(value)
+#                 pr = dico[key]
+#                 dico[key] = [value[i] + v for i, v in enumerate(pr)]
+#         return header, dico
 
-def write_output(out, header, dico):
-    try:
-        assert not os.path.isfile(out)
-    except:
-        raise AssertionError("outputfile exist {}".format(out))
-    with open(out, "w") as fo:
-        fo.write("\t".join(header) + "\n")
+# def write_output(out, header, dico):
+#     try:
+#         assert not os.path.isfile(out)
+#     except:
+#         raise AssertionError("outputfile exist {}".format(out))
+#     with open(out, "w") as fo:
+#         fo.write("\t".join(header) + "\n")
 
-        for k, v in sorted(dico.items(), key = lambda x : (x[0][1], x[0][2], int(x[0][3].split("_")[-1]), x[0][6] )):
-            fo.write("\t".join(k) + "\t")
-            fo.write("\t".join(list(map(str, v))) + "\n")
+#         for k, v in sorted(dico.items(), key = lambda x : (x[0][1], x[0][2], int(x[0][3].split("_")[-1]), x[0][6] )):
+#             fo.write("\t".join(k) + "\t")
+#             fo.write("\t".join(list(map(str, v))) + "\n")
+
+
 
 
 
@@ -73,10 +86,12 @@ if __name__ == "__main__":
     if args.rep:
         print(args.rep)
         assert len(args.rep) == len(args.out)
+        
 
         for i, reps in enumerate(args.rep):
-            header, dico = parse_rep(reps)
-            write_output(out=args.out[i], header=header, dico=dico)
+            parse_rep(reps.split(','), args.out[i])
+            #header, dico = parse_rep(reps)
+            #write_output(out=args.out[i], header=header, dico=dico)
 
     elif args.match:
 
@@ -87,23 +102,13 @@ if __name__ == "__main__":
 
         
         dir_path = Path(args.dir)  
-        dico = get_file_by_match(dir_path, args.match)
+        dico = get_file_by_match(dir_path, reg)
         print("match identified the following groups:")
         for k, v in dico.items():
-            print("{} -> {}".format(k , '\t'.join(v)))
+            print("{} -> {}".format(str(k), '\t'.join(list(map(str, v)))))
 
-
-        for file in dir_path.iterdir():
-            
-            if m := reg.search(str(Path(file).name)):
-                key = m.group(1)
-                if key not in dico:
-                    dico[key] = []
-                dico[key].append(file)
         out_p = Path(args.out)
         
         for k, reps in dico.items():
-            header, dico_ = parse_rep(reps)
-            write_output(out=out_p / "{}.merged.table.tsv".format(k), header=header, dico=dico_)
-
-raise AssertionError("bug found undereport value FIX before use")
+            parse_rep(reps, out=out_p / "{}.merged.table.tsv".format(k))
+            #write_output(out=out_p / "{}.merged.table.tsv".format(k), header=header, dico=dico_)
