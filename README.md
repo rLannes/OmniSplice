@@ -124,8 +124,6 @@ Options:
           Print help
   -V, --version
           Print version
-
-
 ```
 
 ## Context and discussion.
@@ -157,15 +155,12 @@ Options:
     the table file (.tsv file):
         contig | gene_name | transcript_name exon_number | ambiguous | strand | pos | next | exon_type | spliced | unspliced | clipped | exon_intron | exon_other | skipped  | wrong_strand | e_isoform
 
-    the backsplicing file:
-    
 
 
 ## Algorithm overview
 
-
+```
 For each read find all exon extremity it does overlap.
-
 for each read R:
     for each extremity E:
         Test if fail pos filter.
@@ -175,3 +170,4 @@ for each read R:
         Test if the read is unspliced at the feature specifically.
         Test if the read is SoftClipped.
         Test if the read is a Junction read.
+```
