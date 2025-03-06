@@ -64,7 +64,7 @@ struct Args {
     flag_out: u16,
     #[arg(long, default_value_t = 13)]
     mapq: u8,
-    /// space separated list of the annotated read you xant to extract; i.e. all clipped read or all spliced read ...
+    /// space separated list of the annotated read you want to extract; i.e. all clipped read or all spliced read ...
     #[clap(long, value_parser, value_delimiter = ' ', num_args = 1..)]
     readToWrite: Vec<ReadsToWrite>,
     /// space separated list the column to use for "unspliced" for the splicing defect table.

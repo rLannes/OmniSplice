@@ -12,6 +12,8 @@ use CigarParser::cigar::Cigar;
 use std::io::BufWriter;
 
 
+
+/// Enum representing all the differents reads at a splicing junction
 #[derive(clap::ValueEnum, Clone, Debug)]
 pub enum ReadsToWrite {
     ReadThrough,
