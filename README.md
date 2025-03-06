@@ -77,7 +77,8 @@ or let us now by opening a new issue on this github.
 
 ```
 ❯ omni_splice -h
-Usage: omni_splice [OPTIONS] --input <INPUT> --output-file-prefix <OUTPUT_FILE_PREFIX> --gtf <GTF>
+Usage: 
+omni_splice [OPTIONS] --input <INPUT> --output-file-prefix <OUTPUT_FILE_PREFIX> --gtf <GTF>
 
 Options:
   -i, --input <INPUT>
@@ -85,11 +86,15 @@ Options:
   -o, --output-file-prefix <OUTPUT_FILE_PREFIX>
           Prefix name  to be used for Output file
   -g, --gtf <GTF>
-          Name of GTF Input file define the feature to look at (v1) only consider feature annotated as exon if you use output_write_read with the whole genome the output can be very large, you may want to subset genes / features you are interested in
+          Name of GTF Input file define the feature to look at (v1) only consider 
+          feature annotated as exon if you use output_write_read with the whole genome
+          the output can be very large, you may want to subset genes / features you are
+          interested in
       --overhang <OVERHANG>
           size of overhang [default: 1]
       --output-write-read <OUTPUT_WRITE_READ>
-          path to a file (must not exist) Uses if you want to output the reads with their category. by default output all reads, this behaviour can be change using flags: clipped...
+          path to a file (must not exist) Uses if you want to output the reads with their category.
+          by default output all reads, this behaviour can be change using flags: clipped...
       --flag-in <FLAG_IN>
           [default: 0]
       --flag-out <FLAG_OUT>
@@ -97,13 +102,24 @@ Options:
       --mapq <MAPQ>
           [default: 13]
       --read-to-write <READ_TO_WRITE>...
-          space separated list of the annotated read you want to extract; i.e. all clipped read or all spliced read ... [possible values: read-through, read-junction, unexpected, fail-pos-filter, wrong-strand, fail-qc, empty-pileup, skipped, soft-clipped, overhang-fail, empty, all]
+          space separated list of the annotated read you want to extract; i.e.
+          all clipped read or all spliced read ... [possible values: read-through,
+          read-junction, unexpected, fail-pos-filter, wrong-strand, fail-qc,
+          empty-pileup, skipped, soft-clipped, overhang-fail, empty, all]
       --unspliced-def <UNSPLICED_DEF>...
-          space separated list the column to use for "unspliced" for the splicing defect table. you can regenrate this using the splicing_efficiency exe What to consider as unspliced? unspliced: 10, clipped: 11, exon_intron: 12, exon_other: 13, skipped: 14, wrong_strand:15, isoform:16\n by default only use "-u 10" ->  unspliced (readthrough) reads \n to use unspliced and clipped : "-u 10 11" [default: 10]
+          space separated list the column to use for "unspliced" for the splicing defect table.
+          you can regenrate this using the splicing_efficiency exe What to consider as unspliced?
+          unspliced: 10, clipped: 11, exon_intron: 12, exon_other: 13, skipped: 14, wrong_strand:15,
+          isoform:16
+          by default only use "-u 10" ->  unspliced (readthrough) reads \n to use unspliced and clipped : "-u 10 11" [default: 10]
       --spliced-def <SPLICED_DEF>...
-          What to consider as unspliced? unspliced: 10, clipped: 11, exon_intron: 12, exon_other: 13, skipped: 14, wrong_strand:15, isoform: 16\n by default only use "-u 9" -> spliced (readthrough) reads \n to use spliced and isform : "-u 9 16" [default: 9]
+          What to consider as unspliced? unspliced: 10, clipped: 11, exon_intron: 12, exon_other: 13, skipped: 14,
+          wrong_strand:15, isoform: 16
+          by default only use "-u 9" -> spliced (readthrough) reads \n to use spliced and isform : "-u 9 16" [default: 9]
       --libtype <LIBTYPE>
-          Librairy types used for the RNAseq most modern stranded RNAseq are frFirstStrand which is the default value. acceptable value: frFirstStrand, frSecondStrand, fFirstStrand, fSecondStrand, ffFirstStrand, ffSecondStrand, rfFirstStrand, rfSecondStrand, rFirstStrand, rSecondStrand, Unstranded, PairedUnstranded [default: frFirstStrand]
+          Librairy types used for the RNAseq most modern stranded RNAseq are frFirstStrand which is the default value.
+          acceptable value: frFirstStrand, frSecondStrand, fFirstStrand, fSecondStrand, ffFirstStrand, ffSecondStrand,
+           rfFirstStrand, rfSecondStrand, rFirstStrand, rSecondStrand, Unstranded, PairedUnstranded [default: frFirstStrand]
   -h, --help
           Print help
   -V, --version
