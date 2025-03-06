@@ -7,11 +7,10 @@ This file follow the following organisation:
     - Quick uses
     - Installation
     - Input Files
-    - Output Files
     - Command details
-    - Algoritm overview
+    - Output Files
     - Context and discussion.
-
+    - Algorithm overview
 
 
 ## To keep in mind
@@ -58,34 +57,7 @@ or let us now by opening a new issue on this github.
     - gtf: The gtf must have a valid "gene_id" and "transcript_id" for every feature annotated as "exon".
     omnisplice will look at all the exon in this file. if you want to limit your search to subset of gene or exon.
     only include the one your are interested in. (this is particularly helpfull when using the "readToWrite" option as to limit the size of the output).
-    - input: a valid position sorted indexed bam file
-
-## Output Files
-    category file (tsv file): 
-        Chromosome | Position of the feature | gene ID | transcript ID | Strand | ExonType | ReadCategory | Read Support
-        for each feature they are as many line as ReadCategory
-
-    with:
-        ExonType:   [Donnor | Acceptor] indicate if the exon extremity is a junction donnor of acceptor.
-            Note: the start of the gene is Acceptor, the end of the gene is Donnor.
-        
-        ReadCategory:
-            * ReadJunction(n, m) -> junction read from n, m
-            * Unspliced -> read is unspliced
-            * Skipped(n, m) -> skipped , read has junction from  n to m that include the feature. 
-            * SoftClipped -> Read is clipped at the junction.
-            * Empty -> not read found at this junction
-            * WrongStrand -> The read come from a fragment which strand is different feom the feature
-            * FailPosFilter -> the way the algorithm works to reduce the number of comparison may give some false positive. 
-                you can discard it, no meaningfull biologicaly.
-            * OverhangFail -> The read fail the overhang test.
-            * Unexpected -> if you see this please open a bug report.
-
-    the table file:
-
-
-    the backsplicing file:
-    
+    - input: a valid position sorted indexed **bam file**
 
 
 ## Command details
@@ -103,27 +75,87 @@ or let us now by opening a new issue on this github.
         --unspliced_def <used for splicing efficiency default unspliced>
         --spliced_def <used for splicing efficiency default spliced>
 
+```
+❯ omni_splice -h
+Usage: omni_splice [OPTIONS] --input <INPUT> --output-file-prefix <OUTPUT_FILE_PREFIX> --gtf <GTF>
+
+Options:
+  -i, --input <INPUT>
+          Name of Input file
+  -o, --output-file-prefix <OUTPUT_FILE_PREFIX>
+          Prefix name  to be used for Output file
+  -g, --gtf <GTF>
+          Name of GTF Input file define the feature to look at (v1) only consider feature annotated as exon if you use output_write_read with the whole genome the output can be very large, you may want to subset genes / features you are interested in
+      --overhang <OVERHANG>
+          size of overhang [default: 1]
+      --output-write-read <OUTPUT_WRITE_READ>
+          path to a file (must not exist) Uses if you want to output the reads with their category. by default output all reads, this behaviour can be change using flags: clipped...
+      --flag-in <FLAG_IN>
+          [default: 0]
+      --flag-out <FLAG_OUT>
+          [default: 3840]
+      --mapq <MAPQ>
+          [default: 13]
+      --read-to-write <READ_TO_WRITE>...
+          space separated list of the annotated read you want to extract; i.e. all clipped read or all spliced read ... [possible values: read-through, read-junction, unexpected, fail-pos-filter, wrong-strand, fail-qc, empty-pileup, skipped, soft-clipped, overhang-fail, empty, all]
+      --unspliced-def <UNSPLICED_DEF>...
+          space separated list the column to use for "unspliced" for the splicing defect table. you can regenrate this using the splicing_efficiency exe What to consider as unspliced? unspliced: 10, clipped: 11, exon_intron: 12, exon_other: 13, skipped: 14, wrong_strand:15, isoform:16\n by default only use "-u 10" ->  unspliced (readthrough) reads \n to use unspliced and clipped : "-u 10 11" [default: 10]
+      --spliced-def <SPLICED_DEF>...
+          What to consider as unspliced? unspliced: 10, clipped: 11, exon_intron: 12, exon_other: 13, skipped: 14, wrong_strand:15, isoform: 16\n by default only use "-u 9" -> spliced (readthrough) reads \n to use spliced and isform : "-u 9 16" [default: 9]
+      --libtype <LIBTYPE>
+          Librairy types used for the RNAseq most modern stranded RNAseq are frFirstStrand which is the default value. acceptable value: frFirstStrand, frSecondStrand, fFirstStrand, fSecondStrand, ffFirstStrand, ffSecondStrand, rfFirstStrand, rfSecondStrand, rFirstStrand, rSecondStrand, Unstranded, PairedUnstranded [default: frFirstStrand]
+  -h, --help
+          Print help
+  -V, --version
+          Print version
+
+
+```
+
+## Context and discussion.
+    OmniSplice surprisingly does not consume much ressource. Execution time will depend on the size of the bam and memory consumption will depend on the number of "exon" Feature in the gtf .
+
+
+
+## Output Files
+    category file (.tsv file): 
+        Chromosome | Position of the feature | gene ID | transcript ID | Strand | ExonType | ReadCategory | Read Support
+        for each feature they are as many line as ReadCategory found for this specific feature
+
+    with:
+        ExonType:   [Donnor | Acceptor] indicate if the exon extremity is a junction donnor of acceptor.
+            Note: the start of the gene is Acceptor, the end of the gene is Donnor.
+        
+        ReadCategory:
+            * ReadJunction(n, m) -> junction read from n, m
+            * Unspliced -> read is unspliced
+            * Skipped(n, m) -> skipped , read has junction from  n to m that include the feature. 
+            * SoftClipped -> Read is clipped at the junction.
+            * Empty -> not read found at this junction
+            * WrongStrand -> The read come from a fragment which strand is different feom the feature
+            * FailPosFilter -> the way the algorithm works to reduce the number of comparison may give some false positive. 
+                you can discard it, no meaningfull biologicaly.
+            * OverhangFail -> The read fail the overhang test.
+            * Unexpected -> if you see this please open a bug report.
+
+    the table file (.tsv file):
+        contig | gene_name | transcript_name exon_number | ambiguous | strand | pos | next | exon_type | spliced | unspliced | clipped | exon_intron | exon_other | skipped  | wrong_strand | e_isoform
+
+    the backsplicing file:
     
 
-## Algoritm overview
+
+## Algorithm overview
 
 
 For each read find all exon extremity it does overlap.
 
 for each read R:
     for each extremity E:
-
+        Test if fail pos filter.
         Test if the strand match. -> if False Wrong Strand
         Test if the read skipped the junction.
         Tesf if the read fail the overhang.
         Test if the read is unspliced at the feature specifically.
         Test if the read is SoftClipped.
-        // changing put it first!
-        Test if fail pos filter.
         Test if the read is a Junction read.
-
-
-## Context and discussion.
-    OmniSplice surprisingly does not consume much ressource. Execution time will depend on the size of the bam and memory consumption will depend on the number of "exon" Feature in the gtf .
-
-
