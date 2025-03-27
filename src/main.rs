@@ -29,7 +29,8 @@ use crate::common::it_approches::{
 use crate::common::point::{read_gtf, InsideCounter, PointContainer};
 use crate::common::read_record::file_to_table;
 use crate::common::utils;
-use crate::common::utils::{ExonType, ReadAssign, update_ReadToWriteHandle, ReadToWriteHandle, ReadsToWrite};
+use crate::common::junction_file::junction_file_from_table;
+use crate::common::utils::{ExonType, ReadAssign, update_read_to_write_handle, ReadToWriteHandle, ReadsToWrite};
 mod splicing_efficiency;
 
 
@@ -43,7 +44,7 @@ struct Args {
     input: String,
     /// Prefix name  to be used for Output file
     #[arg(short, long, required = true)]
-    outputFilePrefix: String,
+    output_file_prefix: String,
     /// Name of GTF Input file define the feature to look at
     /// (v1) only consider feature annotated as exon
     /// if you use output_write_read with the whole genome the output can be very large,
@@ -134,16 +135,17 @@ fn main() {
         LibType::Invalid => panic!("invalid librairy type"),
         _ => ()
     }
-    let mut outputFilePrefix = args.outputFilePrefix;
-    let table  = format!("{}{}", outputFilePrefix, ".table");
-    let output = format!("{}{}", outputFilePrefix, ".cat");
-    let splicing_defect = format!("{}{}", outputFilePrefix, ".sd");
+    let mut output_file_prefix = args.output_file_prefix;
+    let table  = format!("{}{}", output_file_prefix, ".table");
+    let output = format!("{}{}", output_file_prefix, ".cat");
+    let splicing_defect = format!("{}{}", output_file_prefix, ".sd");
+    let junction_file = format!("{}{}", output_file_prefix, ".junction");
     let mut clipped = false;
 
 
-    let headerReadsHandle = "read_name\tcig\tflag\taln_start\tread_assign\tfeature.pos\tnext_exon\tfeature.exon_type\tfeature.strand\tsequence\n".as_bytes();//.expect("Unable to write file");
+    let header_reads_handle = "read_name\tcig\tflag\taln_start\tread_assign\tfeature.pos\tnext_exon\tfeature.exon_type\tfeature.strand\tsequence\n".as_bytes();//.expect("Unable to write file");
     let mut readouthandle = ReadToWriteHandle::new();
-    update_ReadToWriteHandle(&mut readouthandle, args.readToWrite, headerReadsHandle, &outputFilePrefix);
+    update_read_to_write_handle(&mut readouthandle, args.readToWrite, header_reads_handle, &output_file_prefix);
 
     main_loop(
         output.clone(),
@@ -163,9 +165,9 @@ fn main() {
     let mut stream = BufWriter::new(file);
     let _ = stream.write("contig\tgene_name\ttranscript_name\texon_number\tambiguous\tstrand\tpos\tnext\texon_type\tspliced\tunspliced\tclipped\texon_intron\texon_other\tskipped\twrong_strand\te_isoform\n".as_bytes());
     file_to_table(output.clone(), &mut stream, args.gtf.as_str());
-
+    junction_file_from_table(&table, &junction_file);
     splicing_efficiency::to_se_from_table(&table, &splicing_defect, args.spliced_def, args.unspliced_def);
-
+    
 }
 
 

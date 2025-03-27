@@ -370,7 +370,7 @@ pub fn parse_bam(
 
         //read_info = readmap.get(&read_name).unwrap().clone();
         if let Some(original_map_info) = readmap.get(&read_name) {
-            println!("{:?} {:?}", original_map_info, read_name);
+            //println!("{:?} {:?}", original_map_info, read_name);
             let transcript_container = transcript_map.get(&original_map_info.gene).unwrap().clone();
             for (indice, tr_junction) in transcript_container.iter().enumerate() {
                 if (tr_junction.exon_type == original_map_info.exon_type) | (contig != original_map_info.chr_){

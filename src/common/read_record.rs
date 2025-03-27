@@ -280,7 +280,7 @@ pub fn file_to_table(file: String, out_file: &mut BufWriter<File>, gtf: &str) ->
 
         for (_transcript_name, cont) in container {
             let sub_set: Option<&HashSet<(i64, i64, Strand)>> = gene_junction_set.get(&cont.container[0].contig);
-            println!("{:?}", sub_set);
+            //println!("{:?}", sub_set);
             let _ = out_file.write(cont.dump(sub_set, &invalid_pos).as_bytes());
         }
     }
@@ -485,7 +485,7 @@ fn gtf_to_it(file: &str) -> HashMap<String, IntervalTree<i64, String>> {
         } else if let Some(gene_tmp) = get_attr_id(spt[8], "gene_name") {
             gene_name = gene_tmp;
         } else {
-            print!("WARNING Cannort find {:?}", this_line);
+            print!("WARNING Cannot find {:?}", this_line);
             continue;
         }
         result
@@ -537,7 +537,7 @@ fn graph_from_gtf(file: &str) -> HashMap<String, HashMap<Intervall<i64>, HashSet
         } else if let Some(gene_tmp) = get_attr_id(spt[8], "gene_name") {
             gene_name = gene_tmp;
         } else {
-            print!("WARNING Cannort find {:?}", this_line);
+            print!("WARNING Cannot find {:?}", this_line);
             continue;
         }
 

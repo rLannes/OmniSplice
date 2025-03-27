@@ -357,10 +357,10 @@ pub fn dump_tree_to_cat_results(
         for (contig, subtree) in hash_tree {
             // get ALL entry
             for node in subtree.find(i64::MIN..i64::MAX) {
-                stream.write(node.data().dump_counter(false).as_bytes());
-                stream.write("\n".as_bytes());
-                stream.write(node.data().dump_counter(true).as_bytes());
-                stream.write("\n".as_bytes());
+                stream.write_all(node.data().dump_counter(false).as_bytes());
+                stream.write_all("\n".as_bytes());
+                stream.write_all(node.data().dump_counter(true).as_bytes());
+                stream.write_all("\n".as_bytes());
             }
         }
         stream.flush().unwrap();
@@ -372,7 +372,7 @@ pub fn dump_tree_to_cat_results(
         .write(true)
         .append(true)
         .open(out_file).expect("could not open file");
-    file.write(header);
+    file.write_all(header);
     //let mut stream = BufWriter::new(file);
 
     let sort = Command::new("sort")
