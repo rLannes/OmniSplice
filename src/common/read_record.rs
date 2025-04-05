@@ -283,6 +283,8 @@ pub fn file_to_table(file: String, out_file: &mut BufWriter<File>, gtf: &str) ->
             //println!("{:?}", sub_set);
             let _ = out_file.write(cont.dump(sub_set, &invalid_pos).as_bytes());
         }
+        out_file.write("\n".as_bytes());
+        out_file.flush();
     }
 }
 

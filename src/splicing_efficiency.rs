@@ -2,7 +2,7 @@ use clap::{command, Parser, arg, value_parser, ArgAction, Command};
 use std::collections::{HashMap, HashSet};
 use std::ffi::OsStr;
 use std::fmt::format;
-use std::fs::File;
+use std::fs::{self, File};
 use std::hash::Hash;
 use std::io::prelude::*;
 use std::io::{BufReader, BufWriter};
@@ -58,7 +58,7 @@ struct Intron{
 }
 
 impl Intron{
-    fn new(spt: &Vec<&str>, counter: Counter) -> Self{
+    fn new(spt: &Vec<String>, counter: &Counter) -> Self{
         let mut donnor = 0;
         let mut acceptor = 0;
         let mut intron_n = 0;
@@ -73,14 +73,14 @@ impl Intron{
         intron_n = spt[3].split("_").collect::<Vec<&str>>()[1].parse::<u16>().unwrap();
         if spt[8] == "Acceptor"{
             acceptor_uns = unspliced;
-            donnor = spt[6].parse::<u32>().unwrap();
-            acceptor = spt[7].parse::<u32>().unwrap();
+            donnor = spt[7].parse::<u32>().unwrap();
+            acceptor = spt[6].parse::<u32>().unwrap();
             intron_n -= 1;
         }
         else{
             donnor_uns = unspliced;
-            donnor = spt[7].parse::<u32>().unwrap();
-            acceptor = spt[6].parse::<u32>().unwrap();
+            donnor = spt[6].parse::<u32>().unwrap();
+            acceptor = spt[7].parse::<u32>().unwrap();
         }
 
         Intron { contig: spt[0].to_string(),
@@ -89,13 +89,13 @@ impl Intron{
             intron_number: intron_n,
             donnor: donnor.to_string(),
             acceptor: acceptor.to_string(),
-            strand: Strand::from(spt[5]),
+            strand: Strand::from(spt[5].as_str()),
             spliced: spliced,
             unspliced_donnor: donnor_uns,
             unspliced_acceptor: acceptor_uns }
     }
 
-    fn update(&mut self, spt: &Vec<&str>, counter: Counter){
+    fn update(&mut self, spt: &Vec<String>, counter: &Counter){
         let (_, unspliced)  = counter.count(spt);
 
         if spt[8] == "Acceptor"{
@@ -103,6 +103,25 @@ impl Intron{
         }
         else{
             self.unspliced_donnor = unspliced;
+        }
+    }
+
+    fn dump(&self) -> String{
+
+        if self.spliced + self.unspliced_acceptor + self.unspliced_donnor == 0{
+            format!("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n", 
+            self.contig, self.donnor, self.acceptor,
+            self.strand, self.gene, "NA", self.spliced,
+            self.unspliced_donnor, self.unspliced_acceptor, self.transcript,
+            self.intron_number)
+        }
+        else{
+        let ratio = (self.spliced) as f32 / (self.spliced + self.unspliced_acceptor + self.unspliced_donnor) as f32 ;
+        format!("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n", 
+                self.contig, self.donnor, self.acceptor,
+                self.strand, self.gene, ratio, self.spliced,
+                self.unspliced_donnor, self.unspliced_acceptor, self.transcript,
+                self.intron_number)
         }
     }
  }
@@ -121,7 +140,7 @@ impl Intron{
         }
     }
 
-    fn count(self, spt: &Vec<&str>) -> (u32, u32){
+    fn count(&self, spt: &Vec<String>) -> (u32, u32){
         let spliced = self.spliced.iter()
         .map(|x| spt[*x].parse::<u32>().unwrap())       
         .fold(0, |acc, x| acc + x);
@@ -138,7 +157,7 @@ pub fn to_se_from_table(table_file: &str,
                         spliced_def: Vec<usize>,
                         unspliced_def: Vec<usize> ) -> (){
 
-
+    println!("{}", table_file);
     let mut hashid: HashMap<usize, &str> = HashMap::new();
     hashid.insert(9, "spliced");
     hashid.insert(10, "unspliced");
@@ -154,7 +173,7 @@ pub fn to_se_from_table(table_file: &str,
     //let g1 = spliced_def;
     //let g2 = unspliced_def;
 
-    let counter = Counter::new(spliced_def, unspliced_def);
+    let counter = Counter::new(spliced_def.clone(), unspliced_def.clone());
     let test_amb= true;
 
     let mut line: String = "".to_string();
@@ -166,9 +185,7 @@ pub fn to_se_from_table(table_file: &str,
     //let mut out_stream = BufWriter::new(out_file_open);
 
     
-    let f = File::open(file).unwrap();
-    let mut reader = BufReader::new(f);
-    
+
 
     //let mut spt : Vec<String> = Vec::new();
     let mut previous_line: Option<Vec<String>> = None;
@@ -190,11 +207,71 @@ pub fn to_se_from_table(table_file: &str,
     //let _ = reader.read_line(&mut line);
     //let header = line;
     // may be an iterator over gene and transcript would make the code easier to follows.
+    let mut donnor = 0;
+    let mut acceptor = 0;
 
-    for l in reader.lines().skip(1){
+    let f = File::open(file).unwrap();
+    let reader =  BufReader::with_capacity(64 * 1024, f); 
+    //BufReader::new(f);
+
+
+    //let contents = fs::read_to_string(file)
+    //    .expect("Should have been able to read the file");
+    //let lines = contents.split("\n").map(|s| s.to_owned()).collect::<Vec<String>>();
+
+    /*let lines_split_n = contents.split('\n').count();
+    let lines_split_rn = contents.split("\r\n").count();
+    let lines_lines_method = contents.lines().count();
+
+    println!("Method 2a (split '\\n'): {} lines", lines_split_n);
+    println!("Method 2b (split '\\r\\n'): {} lines", lines_split_rn);
+    println!("Method 2c (lines() method): {} lines", lines_lines_method);*/
+
+    let mut key = "".to_string();
+    for (i,l) in reader.lines().enumerate().skip(1){
+    //println!("lines {}", lines.len());
+    //for (i, line ) in lines.iter().enumerate().skip(1){
         line = l.unwrap();
+       // println!("{}: {}", i,  line);
         let spt = line.trim().split('\t').map(|s| s.to_owned()).collect::<Vec<String>>();
-        
+        if spt.len() <=1{
+            continue
+        }
+        if spt[4] == "true"{
+            continue
+        }
+        if (spt[6] == ".") {
+            continue
+        }
+        if (spt[7] == "."){
+            continue
+        }
+        //println!("{} {}", spt[6], spt[7]);
+
+        if spt[8] == "Acceptor"{
+            
+            donnor = spt[7].parse::<u32>().unwrap();
+            acceptor = spt[6].parse::<u32>().unwrap();
+        }
+        else{
+            donnor = spt[6].parse::<u32>().unwrap();
+            acceptor = spt[7].parse::<u32>().unwrap();
+        }
+
+        key = format!("{}_{}_{}_{}_{}", spt[0], spt[1], spt[2], donnor, acceptor);
+        dict.entry(key)
+        .and_modify(|x| x.update(&spt, &counter))
+        .or_insert(Intron::new(&spt, &counter));
+
+    }
+
+    for value in dict.values(){
+        let _ = out_file_open.write_all(value.dump().as_bytes());
+
+    }
+    let _ = out_file_open.flush();
+
+/*
         // dumping the hashmap at each new genes;
         match current_genes{
             Some(ref gene_id)=> { if *gene_id != spt[Field_::GENE]{
@@ -253,17 +330,19 @@ pub fn to_se_from_table(table_file: &str,
     //out_stream.flush().unwrap();
     //out_stream.into_inner().unwrap().sync_all().unwrap();
 
-    //drop(out_stream);
+    //drop(out_stream);*/
 
     {
         let mut out_final = File::create_new(out_file)
         .unwrap_or_else(|_| panic!("output file {} should not exist.", &out_file));
-        let header=format!("# spliced definition: {};\n# unspliced definition: {};\nContig\tstart\tend\tstrand\tgeneID\tRatio\tspliced\tUnspliceDonnor\tUnsplicedAcceptor\ttranscriptID_exonN\n",
-          g1.iter().map(|x| hashid.get(x).unwrap().to_string()).collect::<Vec<String>>().join(" "),
-          g2.iter().map(|x| hashid.get(x).unwrap().to_string()).collect::<Vec<String>>().join(" "));
+        let header=format!("# spliced definition: {};\n# unspliced definition: {};\nContig\tstart\tend\tstrand\tgeneID\tRatio\tspliced\tUnspliceDonnor\tUnsplicedAcceptor\ttranscriptID\tintronN\n",
+          spliced_def.iter().map(|x| hashid.get(x).unwrap().to_string()).collect::<Vec<String>>().join(" "),
+          unspliced_def.iter().map(|x| hashid.get(x).unwrap().to_string()).collect::<Vec<String>>().join(" "));
 
         out_final.write_all(header.as_bytes()).unwrap();
+
     }
+
     {
 
     let output_cmd = Std_Command::new("sort") 
