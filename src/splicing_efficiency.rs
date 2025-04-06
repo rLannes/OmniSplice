@@ -59,9 +59,9 @@ struct Intron{
 
 impl Intron{
     fn new(spt: &Vec<String>, counter: &Counter) -> Self{
-        let mut donnor = 0;
-        let mut acceptor = 0;
-        let mut intron_n = 0;
+        let mut donnor: u32;// = 0;
+        let mut acceptor: u32;// = 0;
+        let mut intron_n: u16;// = 0;
 
 
         let (spliced, unspliced)  = counter.count(spt);
@@ -174,9 +174,9 @@ pub fn to_se_from_table(table_file: &str,
     //let g2 = unspliced_def;
 
     let counter = Counter::new(spliced_def.clone(), unspliced_def.clone());
-    let test_amb= true;
+    //let test_amb= true;
 
-    let mut line: String = "".to_string();
+    let mut line: String;// = "".to_string();
     let file = table_file;
     let presorted = format!("{}.presorted", &out_file);
     
@@ -188,27 +188,27 @@ pub fn to_se_from_table(table_file: &str,
 
 
     //let mut spt : Vec<String> = Vec::new();
-    let mut previous_line: Option<Vec<String>> = None;
+    //let mut previous_line: Option<Vec<String>> = None;
 
     let mut dict : HashMap<String, Intron> = HashMap::new();
     //let transcript_id = "".to_string();
     //let gene_id = "".to_string();
-    let mut spliced : u32;
-    let mut unspliced: u32;
-    let mut unspliced_acceptor: u32;
+    //slet mut spliced : u32;
+    //let mut unspliced: u32;
+    //let mut unspliced_acceptor: u32;
 
 
-    let mut results: HashMap<(u32, u32), (String, u32, u32, String, Vec<String>, f32, u32, u32, u32, String)> = HashMap::new();
+    //let mut results: HashMap<(u32, u32), (String, u32, u32, String, Vec<String>, f32, u32, u32, u32, String)> = HashMap::new();
 
-    let mut current_genes : Option<String> = None;
-    let mut start :u32 = 0;
-    let mut end: u32 = 0;
+    //let mut current_genes : Option<String> = None;
+    //let mut start :u32 = 0;
+    //let mut end: u32 = 0;
 
     //let _ = reader.read_line(&mut line);
     //let header = line;
     // may be an iterator over gene and transcript would make the code easier to follows.
-    let mut donnor = 0;
-    let mut acceptor = 0;
+    let mut donnor: u32;// = 0;
+    let mut acceptor: u32; // = 0;
 
     let f = File::open(file).unwrap();
     let reader =  BufReader::with_capacity(64 * 1024, f); 
@@ -227,8 +227,8 @@ pub fn to_se_from_table(table_file: &str,
     println!("Method 2b (split '\\r\\n'): {} lines", lines_split_rn);
     println!("Method 2c (lines() method): {} lines", lines_lines_method);*/
 
-    let mut key = "".to_string();
-    for (i,l) in reader.lines().enumerate().skip(1){
+    let mut key: String; //= "".to_string();
+    for (_i,l) in reader.lines().enumerate().skip(1){
     //println!("lines {}", lines.len());
     //for (i, line ) in lines.iter().enumerate().skip(1){
         line = l.unwrap();
@@ -240,10 +240,10 @@ pub fn to_se_from_table(table_file: &str,
         if spt[4] == "true"{
             continue
         }
-        if (spt[6] == ".") {
+        if spt[6] == "." {
             continue
         }
-        if (spt[7] == "."){
+        if spt[7] == "."{
             continue
         }
         //println!("{} {}", spt[6], spt[7]);
