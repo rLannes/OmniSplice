@@ -1,6 +1,7 @@
 Welcome to the omnisplice read me.
 
 Omnisplice is a tool to categorize all reads present at exon's extremity.
+get more info reading the paper: https://www.biorxiv.org/content/10.1101/2025.04.06.647416v1
 
 This file follow the following organisation:
 
