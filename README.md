@@ -21,7 +21,7 @@ even it is the same position (different transcript same gene).
 
 ## Quick uses
 ```
-omni_splice --gtf <gtf file> --input <indexBamFile> --output <outFilePrefix>
+omni_splice --gtf <gtf file> --input <indexBamFile> -o <outFilePrefix>
 ```
 
 
@@ -29,17 +29,29 @@ omni_splice --gtf <gtf file> --input <indexBamFile> --output <outFilePrefix>
 
 to use omni splice you need access to a linux machine (mac never tested).
 you need rust, to install rust go to (https://www.rust-lang.org/tools/install). 
+you also need cmake. (brew install cmake on mac.)
+
 ```
 # Clone this repository using git
-git clone <####>\
-cd omnisplice\
+> git clone <####>
+> cd omnisplice
+> cargo build --release
 # this is a compilation command it will output a bunch of text including some wanring
 # and should finish with: "Finished `release` profile [optimized] target(s) "
-cargo build --release
 ```
 
-omnisplice executables will then be at <path>/omnisplice/target/release/omni_splice\
-if you want to add it to your Path, you can add the realease directory to your ~/.bashrc.
+omnisplice executables will then be at <path>/omnisplice/target/release/omni_splice
+if you want to add it to your Path, you can add the release directory to your ~/.bashrc.
+
+to do so 
+```
+> cd target/release/
+> pwd
+# copy the results of the pwd command.
+> vim  ~/.bashrc # on mac vim ~/.zshrc
+
+# 
+```
 
 if you encouter any error, have any questions, want to propose improvment
 or let us now by opening a new issue on this github.
