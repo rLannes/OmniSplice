@@ -7,15 +7,15 @@ import matplotlib.patches as mpatches
 import numpy as np
 import pandas as pd
 from pathlib import Path
-import statsmodels.api as sm
-import statsmodels.formula.api as smf
+#import statsmodels.api as sm
+#import statsmodels.formula.api as smf
 import re
 
 
 mpl.rcParams["axes.spines.right"] = False
 mpl.rcParams["axes.spines.top"] = False
 
-
+"""
 def data_to_df_for_glm(control, treatment):
     df = pd.DataFrame(control + treatment)
     df["failures"] = df.apply(lambda x: sum(x[1:]), axis=1)
@@ -35,7 +35,7 @@ def gln_binomial_test(control, treatment):
     odds_p = math.exp( mod.params[0]) * math.exp(mod.params[1])
     treatment_p = (odds_p / (1 + odds_p))
     return (mod.pvalues[1], control_p , treatment_p)
-
+"""
 
 def get_attr(string):
     dico = {}
@@ -200,7 +200,7 @@ def plot(dico_result, color, out_base, format):
                 this = this.split('_')
                 this[1] = str(int(this[1]))
                 exon_order[i_exon] = " ".join(this)
-
+                """
                 try:
                     pval, control_p, treat_p = gln_binomial_test(control, treatment)
                     #exon_order[i_exon] += "_ctrlp={}_treatp={}".format(round(control_p,2), round(treat_p, 2))
@@ -211,6 +211,7 @@ def plot(dico_result, color, out_base, format):
                 except:
                     #print(control, treatment)
                     exon_order[i_exon] += "_na"
+                """
                 bottom = 0
                 #print(group1)
                 #print(group2)
