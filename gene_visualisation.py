@@ -10,6 +10,7 @@ from pathlib import Path
 #import statsmodels.api as sm
 #import statsmodels.formula.api as smf
 import re
+from common_python.junction_class import Junction
 
 
 mpl.rcParams["axes.spines.right"] = False
@@ -140,18 +141,26 @@ def collapse(values):
 def parse_cat_file(genotype, files, dico_result, gene_list):
 
     gene_set = set(gene_list)
+    
     for file in files:
+        base = Path(file).stem
         geno = genotype
         
         with open(file) as fi:
-            fi.readline()
+            
+            header = fi.readline()
+            header = dict((k, i) for i, k in enumerate(header.strip().split()))
+
             for l in fi:
                 l = l.strip()
                 if not l:
                     continue
                 spt = l.split('\t')
                 
-                value = list(map(int, spt[9: 9 +5]))
+                if spt[header["pos"]] == "." or spt[header["next"]] == ".":
+                    continue
+                
+                value = list(map(int, spt[9: 9+5 ]))
                 
                 gene = spt[1]
                 transcript = spt[2]
@@ -161,18 +170,66 @@ def parse_cat_file(genotype, files, dico_result, gene_list):
                     dico_result[gene] = {}
                 if transcript not in dico_result[gene]:
                     dico_result[gene][transcript] = {}
-                if spt[6] == "Acceptor":
-                    continue
-                exon_n = spt[3]
-                if exon_n not in dico_result[gene][transcript] :
-                    dico_result[gene][transcript][exon_n] = {}
+
+                exon_number = int(re.search("(\d+)", spt[header["exon_number"]]).group(1))
+                intron_number = exon_number if spt[header["exon_type"]] == "Donnor" else exon_number - 1
+
+
+                exon_type = spt[6] 
+                #if spt[6] == "Acceptor":
+                    #continue
                 
-                if geno not in dico_result[gene][transcript][exon_n]:
-                    dico_result[gene][transcript][exon_n][geno] = []
-                dico_result[gene][transcript][exon_n][geno].append(value)
+                #exon_n = spt[3]
+                if intron_number not in dico_result[gene][transcript] :
+                    dico_result[gene][transcript][intron_number] = {}
+                
+                if geno not in dico_result[gene][transcript][intron_number]:
+                    dico_result[gene][transcript][intron_number][geno] = {}
+                if base not in dico_result[gene][transcript][intron_number][geno]:
+                    dico_result[gene][transcript][intron_number][geno][base] = []
+                dico_result[gene][transcript][intron_number][geno][base].append(value)
+
+"""
+def parse_table_file(file, results, genotype, gene_list, ambigious=False ):
+
+    # result -> gene -> splicing_site
+    basename = Path(file).stem
+    with open(file) as fi:
+        header= fi.readline()
+        header = dict((k, i) for i, k in enumerate(header.strip().split()))
+
+        for l in fi:
+            l = l.strip()
+            if not l:
+                continue
+            spt = l.split('\t')
+            try:
+                if spt[header["pos"]] == "." or spt[header["next"]] == ".":
+                    continue
+            except:
+                print(spt)
+                raise
+            if spt[header["gene_name"]] not in gene_list:
+                continue
+
+            contig = spt[header["contig"]]
+            strand = spt[header["strand"]]
+            pos =  spt[header["pos"]] if spt[header["exon_type"]] == "Donnor" else spt[header["next"]] 
+            next = spt[header["next"]] if spt[header["exon_type"]] == "Donnor" else spt[header["pos"]]
+
+            hash_key = (contig, strand, pos, next)
+            if hash_key not in results:
+                results[hash_key] = Junction(spt=spt, header=header, genotype=genotype, basename=basename)
+            else:
+                results[hash_key].update_count(spt=spt, genotype=genotype, header=header, basename=basename)
+
+
+"""
+
 
 
 def plot(dico_result, color, out_base, format):
+    
     for gene, sub_gene in dico_result.items():
         #gene_name = dico_gtf.get(gene).get("symbol")
         gene_name = gene
@@ -180,26 +237,60 @@ def plot(dico_result, color, out_base, format):
 
             len_exon = len(dico_result[gene][transcript_id])
             z = 0
-            
-            exon_order = list(sorted(dico_result[gene][transcript_id].keys(), key=lambda x: x.split('_')[0], reverse=True))[:-1]
+
+            #print(dico_result[gene][transcript_id].keys())
+            exon_order = list(sorted(dico_result[gene][transcript_id].keys(), reverse=True))#[:-1]
+
             for i_exon, exon in enumerate(exon_order):
 
                 group1 = dico_result[gene][transcript_id][exon]["group1"]
+                # file -> [donnor, acceptor]
+                inter = []
+                for k, v in group1.items():
+                    sub = []
+                    acceptor = v[0]
+                    donnor = v[1]
+
+                    for i, v in enumerate(acceptor):
+                        if i == 0:
+                            sub.append(v)
+                        else:
+                            sub.append(v + donnor[i])
+                    inter.append(sub)
+                group1 = inter
+
                 control = group1
                 group1 = np.sum(np.array(group1), axis=0)
+                #print(group1)
                 s_group1 = sum(group1) 
                 group1 = group1 / s_group1
 
                 group2 = dico_result[gene][transcript_id][exon]["group2"]
+                
+                inter = []
+                for k, v in group2.items():
+                    sub = []
+                    acceptor = v[0]
+                    donnor = v[1]
+
+                    for i, v in enumerate(acceptor):
+                        if i == 0:
+                            sub.append(v)
+                        else:
+                            sub.append(v + donnor[i])
+                    inter.append(sub)
+                group2 = inter
+
                 treatment = group2
                 group2 = np.sum(np.array(group2), axis=0)
                 s_group2 = sum(group2) 
                 group2 = group2 / s_group2
 
-                this = exon_order[i_exon]
-                this = this.split('_')
-                this[1] = str(int(this[1]))
-                exon_order[i_exon] = " ".join(this)
+                #this = exon_order[i_exon]
+                #this = this.split('_')
+                #this[1] = str(int(this[1]))
+                exon_order[i_exon] = "intron: {}".format(i_exon + 1)
+
                 """
                 try:
                     pval, control_p, treat_p = gln_binomial_test(control, treatment)
@@ -212,9 +303,8 @@ def plot(dico_result, color, out_base, format):
                     #print(control, treatment)
                     exon_order[i_exon] += "_na"
                 """
+
                 bottom = 0
-                #print(group1)
-                #print(group2)
                 for i,e in enumerate(group1):
                     plt.barh(y=z, width=e,left=bottom, color = color[i])
                     bottom += e
@@ -262,12 +352,22 @@ if __name__ == "__main__":
 
     dico_gtf = gtf_to_dict(args.gtf, args.gtf_gene_id)
     dico_result = {}
+
+    #dico_result = {}
+    #for file in args.group1:
+    #    parse_table_file(file, dico_result, genotype=condition_1_Name, ambigious=True, gene_list=args.gene_list)
+    #for file in args.group2:
+    #    parse_table_file(file, dico_result, genotype=condition_2_Name, ambigious=True, gene_list=args.gene_list)
+
+
     parse_cat_file("group1", args.group1, dico_result, args.gene_list)
     parse_cat_file("group2", args.group2, dico_result, args.gene_list)
     color = ["#D3D3D385", "#214d4e",  "#cc655b", '#41bbc5', "#c6dbae", '#069668',  '#b3e61c',  '#d55e00', '#cc78bc',
          '#ca9161', '#fbafe4',  '#029e73']
     if args.color:
         color = args.color
+
+    
     plot(dico_result, color, args.outfile_prefix, args.format)
     
 
