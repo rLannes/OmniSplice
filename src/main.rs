@@ -70,19 +70,19 @@ struct Args {
     readToWrite: Vec<ReadsToWrite>,
     /// space separated list the column to use for "unspliced" for the splicing defect table.
     /// you can regenrate this using the splicing_efficiency exe
-    /// What to consider as unspliced? unspliced: 10, clipped: 11, exon_intron: 12, exon_other: 13, skipped: 14,
-    /// wrong_strand:15, isoform:16\n
-    /// by default only use "-u 10" ->  unspliced (readthrough) reads \n
-    /// to use unspliced and clipped : "-u 10 11" 
-    #[clap(long, value_parser, default_value = "10", value_delimiter = ' ', num_args = 1..)]
-    unspliced_def: Vec<usize>,
+    /// What to consider as unspliced? spliced, unspliced, clipped, exon_other, skipped,
+    /// wrong_strand, isoform\n
+    /// by default only use "-u unspliced" ->  unspliced (readthrough) reads \n
+    /// to use unspliced and clipped : "-u unspliced clipped" 
+    #[clap(long, value_parser, default_value = "unspliced", value_delimiter = ' ', num_args = 1..)]
+    unspliced_def: Vec<String>,
 
-    /// What to consider as unspliced? unspliced: 10, clipped: 11, exon_intron: 12,
-    /// exon_other: 13, skipped: 14, wrong_strand:15, isoform: 16\n
-    /// by default only use "-u 9" -> spliced (readthrough) reads \n
-    /// to use spliced and isform : "-u 9 16"
-    #[clap(long, value_parser, default_value = "9", value_delimiter = ' ', num_args = 1..)]
-    spliced_def: Vec<usize>,
+    /// What to consider as spliced? spliced, unspliced, clipped, exon_other, skipped,
+    /// wrong_strand, isoform\n
+    /// by default only use "-u spliced" -> spliced (readthrough) reads \n
+    /// to use spliced and isoform : "-u spliced isoform"
+    #[clap(long, value_parser, default_value = "spliced", value_delimiter = ' ', num_args = 1..)]
+    spliced_def: Vec<String>,
 
     /// Librairy types used for the RNAseq most modern stranded RNAseq are frFirstStrand which is the default value.
     /// acceptable value: frFirstStrand, frSecondStrand, fFirstStrand, fSecondStrand, ffFirstStrand, ffSecondStrand, rfFirstStrand,
@@ -102,7 +102,6 @@ fn main_loop(
     mapq: u8,
     output_write_read_handle: &mut ReadToWriteHandle, 
     librairy_type: LibType
-    //clipped: bool,
 ) -> () {
 
     let bam_file = bam_input;
@@ -163,7 +162,7 @@ fn main() {
     let file = File::create_new(table.clone())
         .unwrap_or_else(|_| panic!("output file {} should not exist.", &table));//expect(&format!("output file {} should not exist.", &table));
     let mut stream = BufWriter::new(file);
-    let _ = stream.write("contig\tgene_name\ttranscript_name\texon_number\tambiguous\tstrand\tpos\tnext\texon_type\tspliced\tunspliced\tclipped\texon_intron\texon_other\tskipped\twrong_strand\te_isoform\n".as_bytes());
+    let _ = stream.write("contig\tgene_name\ttranscript_name\texon_number\tambiguous\tstrand\tpos\tnext\texon_type\tspliced\tunspliced\tclipped\texon_other\tskipped\twrong_strand\te_isoform\n".as_bytes());
     file_to_table(output.clone(), &mut stream, args.gtf.as_str());
     junction_file_from_table(&table, &junction_file);
     splicing_efficiency::to_se_from_table(&table, &splicing_defect, args.spliced_def, args.unspliced_def);

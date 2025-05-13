@@ -16,7 +16,6 @@ struct Counts{
     spliced: u32,
     unspliced: u32,
     clipped: u32,
-    exon_intron: u32,
     exon_other: u32,
     skipped: u32,
     wrong_strand: u32,
@@ -31,11 +30,10 @@ impl Counts{
             spliced: c[0],
             unspliced: c[1],
             clipped: c[2],
-            exon_intron: c[3],
-            exon_other: c[4],
-            skipped: c[5],
-            wrong_strand: c[6],
-            e_isoform: c[7]
+            exon_other: c[3],
+            skipped: c[4],
+            wrong_strand: c[5],
+            e_isoform: c[6]
             }
 
     }
@@ -46,17 +44,15 @@ impl Counts{
         // no c[0] because spliced represents the same event on both side of the junctions
         self.unspliced += c[1];
         self.clipped += c[2];
-        self.exon_intron += c[3];
-        self.exon_other +=  c[4];
-        self.skipped +=  c[5];
-        self.wrong_strand +=  c[6];
-        self.e_isoform +=  c[7];
+        self.exon_other +=  c[3];
+        self.skipped +=  c[4];
+        self.wrong_strand +=  c[5];
+        self.e_isoform +=  c[6];
 
     }
 
     fn dump(&self) -> String{
-        format!("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}", self.spliced, self.unspliced, self.clipped,
-                     self.exon_intron, self.exon_other, self.skipped, 
+        format!("{}\t{}\t{}\t{}\t{}\t{}\t{}", self.spliced, self.unspliced, self.clipped,self.exon_other, self.skipped, 
                     self.wrong_strand, self.e_isoform)
     }
 }
@@ -173,7 +169,7 @@ pub fn junction_file_from_table(table_file: &str, junction_file: &str){
 
     junctions.sort_by_key(|x| (&x.gene, &x.transcript, x.intron_number));
 
-    out_file_open.write_all("Contig\tGene\tTranscript\tIntron\tDonnor\tAcceptor\tStrand\tAmbiguous\tspliced\tunspliced\tclipped\texon_intron\texon_other\tskipped\twrong_strand\te_isoform\n".as_bytes());
+    out_file_open.write_all("Contig\tGene\tTranscript\tIntron\tDonnor\tAcceptor\tStrand\tAmbiguous\tspliced\tunspliced\tclipped\texon_other\tskipped\twrong_strand\te_isoform\n".as_bytes());
     for j in junctions{
         out_file_open.write_all(format!("{}\n", j.dump()).as_bytes());
     }

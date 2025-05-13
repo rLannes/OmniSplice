@@ -11,6 +11,53 @@ use std::process::{Command as Std_Command, Stdio};
 use std::io::Write;
 use std::fs::OpenOptions;
 use strand_specifier_lib::Strand;
+use std::str::FromStr;
+
+
+pub enum SplicingChoice {
+    Spliced(usize),
+    Unspliced(usize),
+    Clipped(usize),
+    ExonOther(usize),
+    Skipped(usize),
+    WrongStrand(usize),
+    Isoform(usize)
+}
+
+    #[derive(Debug, PartialEq, Eq)]
+    pub struct SplicingChoiceError;
+
+    impl FromStr for SplicingChoice {
+    type Err = SplicingChoiceError;
+
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s{
+            "spliced" => Ok(SplicingChoice::Spliced(9)),
+            "unspliced" => Ok(SplicingChoice::Unspliced(10)),
+            "clipped" => Ok(SplicingChoice::Clipped(11)),
+            "exon_other" => Ok(SplicingChoice::ExonOther(12)),
+            "skipped" => Ok(SplicingChoice::Skipped(13)),
+            "wrong_strand" => Ok(SplicingChoice::WrongStrand(14)),
+            "isoform" => Ok(SplicingChoice::Isoform(15)),
+            _ => Err(SplicingChoiceError)
+        }
+    }
+}
+
+impl SplicingChoice{
+    pub fn index(&self) -> usize{
+        match self{
+            SplicingChoice::Spliced(n) => *n,
+            SplicingChoice::Unspliced(n) => *n,
+            SplicingChoice::Clipped(n) => *n,
+            SplicingChoice::ExonOther(n) => *n,
+            SplicingChoice::Skipped(n) => *n,
+            SplicingChoice::WrongStrand(n) => *n,
+            SplicingChoice::Isoform(n) => *n,
+        }
+    }
+}
 
 /// This is a self contain file that parse the table file and output an splicing effiency table.
 /// i am unsure if I keep it separate or integrate it to the main software or both
@@ -37,11 +84,10 @@ impl Field_{
     pub const SPLICED: usize = 9;
     pub const UNSPLICED: usize = 10;
     pub const CLIPPED: usize = 11;
-    pub const E_INT: usize = 12;
-    pub const E_OTH: usize = 13;
-    pub const SKIPPED: usize = 14;
-    pub const WRONG_STRAND: usize = 15;
-    pub const E_ISO: usize = 16;
+    pub const E_OTH: usize = 12;
+    pub const SKIPPED: usize = 13;
+    pub const WRONG_STRAND: usize = 14;
+    pub const E_ISO: usize = 15;
 }
 
 struct Intron{
@@ -154,26 +200,28 @@ impl Intron{
 
 pub fn to_se_from_table(table_file: &str,
                         out_file: &str,
-                        spliced_def: Vec<usize>,
-                        unspliced_def: Vec<usize> ) -> (){
+                        spliced_def: Vec<String>,
+                        unspliced_def: Vec<String> ) -> (){
 
     println!("{}", table_file);
     let mut hashid: HashMap<usize, &str> = HashMap::new();
     hashid.insert(9, "spliced");
     hashid.insert(10, "unspliced");
     hashid.insert(11, "clipped");
-    hashid.insert(12, "E_intron");
-    hashid.insert(13, "E_other");
-    hashid.insert(14, "skipped");
-    hashid.insert(15, "wrongStrand");   
-    hashid.insert(16, "E_Isoform");    
+    hashid.insert(12, "E_other");
+    hashid.insert(13, "skipped");
+    hashid.insert(14, "wrongStrand");   
+    hashid.insert(15, "E_Isoform");    
 
 
 
-    //let g1 = spliced_def;
-    //let g2 = unspliced_def;
 
-    let counter = Counter::new(spliced_def.clone(), unspliced_def.clone());
+    let g1: Vec<usize> = spliced_def.iter().map(|x| SplicingChoice::from_str(x).unwrap().index()).collect();
+    let g2: Vec<usize> = unspliced_def.iter().map(|x| SplicingChoice::from_str(x).unwrap().index()).collect();
+  
+
+    
+    let counter = Counter::new(g1.clone(), g2.clone());
     //let test_amb= true;
 
     let mut line: String;// = "".to_string();
@@ -182,55 +230,19 @@ pub fn to_se_from_table(table_file: &str,
     
     let mut out_file_open = File::create_new(presorted.clone()) 
         .unwrap_or_else(|_| panic!("output file {} should not exist.", &presorted)); 
-    //let mut out_stream = BufWriter::new(out_file_open);
-
-    
-
-
-    //let mut spt : Vec<String> = Vec::new();
-    //let mut previous_line: Option<Vec<String>> = None;
 
     let mut dict : HashMap<String, Intron> = HashMap::new();
-    //let transcript_id = "".to_string();
-    //let gene_id = "".to_string();
-    //slet mut spliced : u32;
-    //let mut unspliced: u32;
-    //let mut unspliced_acceptor: u32;
 
-
-    //let mut results: HashMap<(u32, u32), (String, u32, u32, String, Vec<String>, f32, u32, u32, u32, String)> = HashMap::new();
-
-    //let mut current_genes : Option<String> = None;
-    //let mut start :u32 = 0;
-    //let mut end: u32 = 0;
-
-    //let _ = reader.read_line(&mut line);
-    //let header = line;
-    // may be an iterator over gene and transcript would make the code easier to follows.
     let mut donnor: u32;// = 0;
     let mut acceptor: u32; // = 0;
 
     let f = File::open(file).unwrap();
     let reader =  BufReader::with_capacity(64 * 1024, f); 
-    //BufReader::new(f);
 
-
-    //let contents = fs::read_to_string(file)
-    //    .expect("Should have been able to read the file");
-    //let lines = contents.split("\n").map(|s| s.to_owned()).collect::<Vec<String>>();
-
-    /*let lines_split_n = contents.split('\n').count();
-    let lines_split_rn = contents.split("\r\n").count();
-    let lines_lines_method = contents.lines().count();
-
-    println!("Method 2a (split '\\n'): {} lines", lines_split_n);
-    println!("Method 2b (split '\\r\\n'): {} lines", lines_split_rn);
-    println!("Method 2c (lines() method): {} lines", lines_lines_method);*/
 
     let mut key: String; //= "".to_string();
     for (_i,l) in reader.lines().enumerate().skip(1){
-    //println!("lines {}", lines.len());
-    //for (i, line ) in lines.iter().enumerate().skip(1){
+
         line = l.unwrap();
        // println!("{}: {}", i,  line);
         let spt = line.trim().split('\t').map(|s| s.to_owned()).collect::<Vec<String>>();
@@ -246,7 +258,6 @@ pub fn to_se_from_table(table_file: &str,
         if spt[7] == "."{
             continue
         }
-        //println!("{} {}", spt[6], spt[7]);
 
         if spt[8] == "Acceptor"{
             
@@ -271,73 +282,14 @@ pub fn to_se_from_table(table_file: &str,
     }
     let _ = out_file_open.flush();
 
-/*
-        // dumping the hashmap at each new genes;
-        match current_genes{
-            Some(ref gene_id)=> { if *gene_id != spt[Field_::GENE]{
-                for value in results.values(){
-                    let _ = out_file_open.write_all(format!("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n", value.0, value.1, value.2, value.9, value.3, value.5, value.6, value.7, value.8, value.4.join(";")).as_bytes());
-                }
-
-                results.clear();
-                current_genes = Some(spt[Field_::GENE].to_string());
-            }},
-            _ => {current_genes = Some(spt[Field_::GENE].to_string());}
-        }
-
-
-        if previous_line.is_some(){
-                if (previous_line.as_ref().unwrap()[Field_::NEXT] == ".") | (spt[Field_::NEXT] == "."){
-                    previous_line = None;
-                    continue;
-                }
-                if test_amb & ( (previous_line.as_ref().unwrap()[Field_::AMBIG] == "true") | (spt[Field_::AMBIG] == "true") ){
-                    previous_line = None;
-                    continue;
-                }
-                // spliced value is the same in spt or previous line. we do not sum them.
-                spliced = g1.iter()
-                        .map(|x| spt[*x].parse::<u32>().unwrap())       
-                        .fold(0, |acc, x| acc + x);
-                // this one liner will be helpfull in the future, as it can take any a list of fields.
-                unspliced = g2.iter()
-                                    .map(|x| previous_line.as_ref().unwrap()[*x].parse::<u32>().unwrap())       
-                                    .fold(0, |acc, x| acc + x);
-                unspliced_acceptor = g2.iter()
-                        .map(|x|  spt[*x].parse::<u32>().unwrap())       
-                        .fold(0, |acc, x| acc + x);
-
-                start = spt[Field_::NEXT].parse::<u32>().unwrap();
-                end = spt[Field_::POS].parse::<u32>().unwrap();
-                results.entry((start, end))
-                       .or_insert((spt[Field_::CONTIG].to_owned(), start, end, spt[Field_::GENE].to_owned(),
-                         Vec::new(), 
-                        spliced as f32/ (unspliced as f32 + spliced as f32 + unspliced_acceptor as f32), spliced, unspliced, unspliced_acceptor, spt[Field_::STRAND].to_owned()))
-                        .4
-                        .push(format!("{}_{}", spt[Field_::TRAN], previous_line.as_deref().unwrap()[Field_::EXON_N]));
-
-                previous_line = None;
-            }
-            else{
-                    previous_line = Some(spt.clone());
-                }   
-            }
-
-    for value in results.values(){
-        let _ = out_file_open.write_all(format!("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n", value.0, value.1, value.2, value.9, value.3, value.5, value.6, value.7, value.8, value.4.join(";")).as_bytes());
-        //let _ = out_stream.flush().unwrap();
-        }
-    //out_stream.flush().unwrap();
-    //out_stream.into_inner().unwrap().sync_all().unwrap();
-
-    //drop(out_stream);*/
 
     {
         let mut out_final = File::create_new(out_file)
         .unwrap_or_else(|_| panic!("output file {} should not exist.", &out_file));
         let header=format!("# spliced definition: {};\n# unspliced definition: {};\nContig\tstart\tend\tstrand\tgeneID\tRatio\tspliced\tUnspliceDonnor\tUnsplicedAcceptor\ttranscriptID\tintronN\n",
-          spliced_def.iter().map(|x| hashid.get(x).unwrap().to_string()).collect::<Vec<String>>().join(" "),
-          unspliced_def.iter().map(|x| hashid.get(x).unwrap().to_string()).collect::<Vec<String>>().join(" "));
+          
+          g1.iter().map(|x| hashid.get(x).unwrap().to_string()).collect::<Vec<String>>().join(" "),
+          g2.iter().map(|x| hashid.get(x).unwrap().to_string()).collect::<Vec<String>>().join(" "));
 
         out_final.write_all(header.as_bytes()).unwrap();
 
@@ -382,19 +334,21 @@ struct Args {
     /// Name of the Output file
     #[arg(short, long, required = true)]
     output: String,
-    /// What to consider as unspliced? unspliced: 10, clipped: 11, exon_intron: 12,
-    /// exon_other: 13, skipped: 14, wrong_strand:15, isoform:16\n
-    /// by default only use "-u 10" ->  unspliced (readthrough) reads \n
-    /// to use unspliced and clipped : "-u 10 11"
-    #[clap(long, value_parser, default_value = "10", value_delimiter = ' ', num_args = 1..)]
-    unspliced_def: Vec<usize>,
+    /// space separated list the column to use for "unspliced" for the splicing defect table.
+    /// you can regenrate this using the splicing_efficiency exe
+    /// What to consider as unspliced? spliced, unspliced, clipped, exon_other, skipped,
+    /// wrong_strand, isoform\n
+    /// by default only use "-u unspliced" ->  unspliced (readthrough) reads \n
+    /// to use unspliced and clipped : "-u unspliced clipped" 
+    #[clap(long, value_parser, default_value = "unspliced", value_delimiter = ' ', num_args = 1..)]
+    unspliced_def: Vec<String>,
     
-    /// What to consider as unspliced? unspliced: 10, clipped: 11, exon_intron: 12,
-    /// exon_other: 13, skipped: 14, wrong_strand:15, isoform: 16\n
-    /// by default only use "-u 9" -> spliced (readthrough) reads \n
-    /// to use spliced and isform : "-u 9 16"
-    #[clap(long, value_parser, default_value = "9", value_delimiter = ' ', num_args = 1..)]
-    spliced_def: Vec<usize>,
+    /// What to consider as spliced? spliced, unspliced, clipped, exon_other, skipped,
+    /// wrong_strand, isoform\n
+    /// by default only use "-u spliced" -> spliced (readthrough) reads \n
+    /// to use spliced and isoform : "-u spliced isoform"
+    #[clap(long, value_parser, default_value = "spliced", value_delimiter = ' ', num_args = 1..)]
+    spliced_def: Vec<String>,
 }
 
 

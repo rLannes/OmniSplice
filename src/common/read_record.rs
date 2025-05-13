@@ -114,7 +114,13 @@ impl ReadtRecord {
                             {
                                 e_isoform = e_isoform + elem.1;
                                 //println!("iso");
-                            } else if start > next {
+                            } else
+                            {
+                                exon_other = exon_other + elem.1;
+                            } 
+                            
+                            
+                            /*else if start > next {
                                 //println!("intron");
                                 exon_intron = exon_intron + elem.1;
                                 //println!("intron");
@@ -125,7 +131,7 @@ impl ReadtRecord {
                                 exon_other = exon_other + elem.1;
                                 //println!("other");
                                 //println!("junction: {} {}; pos {};; next: {}; exon_other", start, end, self.pos, next);
-                            }
+                            }*/
                         } //(_, _, _) => (),
                     }
                 }
@@ -266,26 +272,21 @@ pub fn file_to_table(file: String, out_file: &mut BufWriter<File>, gtf: &str) ->
     let invalid_pos = get_invalid_pos(gtf);
 
     let gene_junction_set = get_junction_from_gtf(gtf);
-    //println!("{:?}", gene_junction_set);
-    //let gene_junction_set = get_junction_from_gtf(gtf);
 
     for (_gene_name, container) in &mut mymap {
-        //if !gene_junction_set.contains_key(_gene_name){
-        //    println!("{}", _gene_name);
-        //}
-        //let sub_set: Option<&HashSet<(i64, i64, Strand)>> = gene_junction_set.get(&container.contig);
         for (_transcript_name, cont) in &mut *container {
             cont.sort();
         }
 
         for (_transcript_name, cont) in container {
             let sub_set: Option<&HashSet<(i64, i64, Strand)>> = gene_junction_set.get(&cont.container[0].contig);
-            //println!("{:?}", sub_set);
             let _ = out_file.write(cont.dump(sub_set, &invalid_pos).as_bytes());
         }
-        out_file.write("\n".as_bytes());
-        out_file.flush();
+        
+        
     }
+    out_file.write("\n".as_bytes());
+    out_file.flush();
 }
 
 fn parse_file(file: &str) -> HashMap<String, HashMap<String, ReadtRecordContainer>> {

@@ -3,13 +3,11 @@ use regex::Regex;
 use std::collections::HashMap;
 use std::fmt;
 use std::fs::File;
-//use std::io::BufRead;
 use std::io::Write;
-//use std::io::{BufReader, BufWriter};
-//use std::str::FromStr;
 use strand_specifier_lib::Strand;
 use CigarParser::cigar::Cigar;
 use std::io::BufWriter;
+use std::str::FromStr;
 
 
 pub fn parse_header(header: &str) -> HashMap<String, usize>{
@@ -110,6 +108,7 @@ pub fn update_read_to_write_handle(readouthandle: &mut ReadToWriteHandle, read_t
         }
     };
 }
+
 
 
 #[derive(Clone, Debug, Copy, Eq, Hash, PartialEq)]
