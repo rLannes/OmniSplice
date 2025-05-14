@@ -88,10 +88,6 @@ impl ReadtRecord {
                             {
                                 e_isoform = e_isoform + elem.1;
                                 //println!("iso");
-                            } else if end < next {
-                                //println!("intron");
-                                exon_intron = exon_intron + elem.1;
-                                //println!("intron");
                             } else {
                                 exon_other = exon_other + elem.1;
                                 //println!("other");
@@ -143,7 +139,7 @@ impl ReadtRecord {
             _ => ".".to_string(),
         };
         format!(
-            "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+            "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
             self.strand,
             self.pos,
             next_id,
@@ -151,7 +147,6 @@ impl ReadtRecord {
             spliced,
             unspliced,
             clipped,
-            exon_intron,
             exon_other,
             skipped,
             wrong_strand,
