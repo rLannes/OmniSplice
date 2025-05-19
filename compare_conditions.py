@@ -51,6 +51,10 @@ class Stat_test(ABC):
     def get_prop(self, val, group):
         pass
 
+    @abstractmethod
+    def repr(self):
+        pass
+
     
 
 class Fischer_test(Stat_test):
@@ -58,17 +62,16 @@ class Fischer_test(Stat_test):
     def __init__(self): 
         super().__init__()
     
+    def repr(self):
+        return "FISCHER"
+    
     def test_sample(self, control, treatment):
         data = self.load_data(control, treatment)
-        #res = fisher_exact(data, alternative='two-sided')
-        #res = fast_fisher_exact_compatibility(data, alternative='two-sided')
         (odds_f, pval_f )= fast_fisher_exact_compatibility(data, alternative='two-sided')
         return (pval_f, "Fischer_statistic:{};".format(odds_f) + "\t" + self.get_prop(data[0], "control") + "\t" + self.get_prop(data[1], "treatment"))
 
    
     def load_data(self, control, treatment):
-        #dico_count[genotype]["failures"].append(failures)
-        #print(control)
         cc = [sum([x for x in control["successes"]]), sum([x for x in control["failures"]])]
         tt = [sum([x for x in treatment["successes"]]), sum([x for x in treatment["failures"]])]
         return [cc, tt]
@@ -88,6 +91,9 @@ class GLM_model(Stat_test):
     def __init__(self):
         super().__init__()
     
+    def repr(self):
+        return "GLM"
+    
     
     def test_sample(self, control, treatment):
         
@@ -98,16 +104,13 @@ class GLM_model(Stat_test):
         
         except:
             return ("NA", self.get_prop(data, "control") + ";" + self.get_prop(data, "treatment"))
-        
+
 
     def load_data(self, control, treatment):
 
-
-        control_flatten = list(zip(*control))
-        treatment_flatten = list(zip(*treatment))
         try:
-            df = pd.DataFrame({"successes":control_flatten[0] + treatment_flatten[0],
-                        "failures": control_flatten[1] + treatment_flatten[1],
+            df = pd.DataFrame({"successes":[x for x in control["successes"]] + [x for x in treatment["successes"]],
+                        "failures":[x for x in control["failures"]] + [x for x in treatment["failures"]],
                             "group":["control"]*len(control) + ["treatment"]*len(treatment)})
         except:
             print(control_flatten, treatment_flatten, control, treatment)
@@ -128,6 +131,9 @@ class GLM_model(Stat_test):
 
 
 class Chi2(Stat_test):
+
+    def repr(self):
+        return "Chi2"
     
     def test_sample(self, control, treatment):
         pass
@@ -281,15 +287,7 @@ def main(condition_1, condition_2, successes, failures, tester, out_file,
 
             (p_value, data) = tester.test_sample(counts["control"], counts['treatment'])
             dump_list = v.dump()
-            #   l = [self.contig, self.strand, ";".join(g),
-            #self.pos, self.next]
             key = "{}_{}_{}_{}".format(dump_list[0], dump_list[1], dump_list[3], dump_list[4])
-            #if key in dico_r:
-            #    current_value = dico_r[key][0]
-            #    current_value[1] = current_value[1] + "_" + dump_list[1]
-            #    current_value[2] = current_value[2] + "_" + dump_list[2]
-            #    current_value[4] = current_value[4] + "_" + dump_list[4].split(':')[-1]
-            #else:
             dico_r[key] = [dump_list, p_value, data]
     
     # I can avoid this loop by putting it in the previsou one
@@ -305,7 +303,14 @@ def main(condition_1, condition_2, successes, failures, tester, out_file,
 
 
     q_values = fdrcorrection(pvalues)
+    header = ["chr", "strand", "gene_transcrit_intron", "start", "end", "statistic",
+               "control_success_failures_prop", "treatment_control_success_failures", "p_value", "q_value\n"]
+    
     with open(out_file, "w") as fo:
+        fo.write("#successes: {}\n".format(','.join(successes)))
+        fo.write("#failures: {}\n".format(','.join(failures)))
+        fo.write("#test: {}\n".format(tester.repr()))
+        fo.write("\t".join(header))
         for i, k in enumerate(keys):
             v = dico_r[k]
             to_print = "\t".join(["\t".join(v[0]), v[2], str(v[1]), str(q_values[1][i])])
@@ -360,7 +365,7 @@ c2=["/lab/solexa_yamashita/people/Romain/Projets/OmniSplice/February_2025/with_j
 
 if __name__ == "__main__":
     parse = argparse.ArgumentParser(description="""
-    this program will compare two set of ".table" files and compare the proportion of 2 groups of splicing groups.
+    this program will compare two set of ".junction" files and compare the proportion of 2 groups of splicing groups.
     Allowing to identify splicing junction perturbed in one condition vs. the others.
     
     3 statistical test are available Fischer, [Chi2 not implement yet TODO] and GLM. 
@@ -368,15 +373,15 @@ if __name__ == "__main__":
     GLM is based on a binomial distribution and use this formula: 'successes + failures ~ group'
     GLM will take into account the varriance between sample from the same group.
                                     
-    usage: > python3 compare_conditions.py -c  control_1.table control_2.table -t treatment_1.table treatment_2.table --spliced SPLICED 
+    usage: > python3 compare_conditions.py -c  control_1.junction control_2.junction -t treatment_1.junction treatment_2.junction --spliced SPLICED 
             --defect UNSPLICED EXON_INTRON EXON_OTHER --stat FISCHER --out my_comparison_file.tsv
                                 
     """)
     parse.add_argument("--control", "-c", required=True,
-                        help="space separated list of control file. eg: --control control_1.table control_2.table",
+                        help="space separated list of control file. eg: --control control_1.junction control_2.junction",
                         nargs="+")
     parse.add_argument("--treatment", "-t", required=True,
-                        help="space separated list of treatment file. eg: --treatment treatment_1.table treatment_2.table",
+                        help="space separated list of treatment file. eg: --treatment treatment_1.junction treatment_2.junction",
                         nargs="+")
     
     parse.add_argument("--spliced", help="what category to count as 'normal' default spliced", default="spliced", nargs="+", choices=["SPLICED", 
@@ -425,6 +430,13 @@ if __name__ == "__main__":
 
     tester = None
     if args.stat == "GLM":
+        try:
+            assert(len(args.control) > 3 and len(args.treatment) > 3)
+        except AssertionError:
+            print("for glm you need at least tree replicates per conditions")
+            raise AssertionError
+        except:
+            raise
         tester = GLM_model()
     elif args.stat == "FISCHER":
         tester = Fischer_test()
