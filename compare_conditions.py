@@ -303,7 +303,7 @@ def main(condition_1, condition_2, successes, failures, tester, out_file,
 
 
     q_values = fdrcorrection(pvalues)
-    header = ["chr", "strand", "gene_transcrit_intron", "start", "end", "statistic",
+    header = ["chr", "strand", "gene_transcript_intron", "start", "end", "statistic",
                "control_success_failures_prop", "treatment_control_success_failures", "p_value", "q_value\n"]
     
     with open(out_file, "w") as fo:
