@@ -517,10 +517,6 @@ pub fn update_tree_with_bamfile(
             }
         }
         for r in bam.records() {
-            //counter += 1;
-            //if counter % 1_000_000 == 0 {
-            //    println!("Contig: {}; {} reads done", contig, counter);
-            //}
             record = r.unwrap();
             pos_s = record.pos();
             cig = Cigar::from_str(&record.cigar().to_string()).unwrap();

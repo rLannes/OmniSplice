@@ -388,7 +388,8 @@ pub fn read_toassign(
                 return Some(ReadAssign::OverhangFail);
             }
 
-            if cigar.does_it_match_an_intervall(&aln_start, feature_pos - overhang, feature_pos + 1)
+            //if cigar.does_it_match_an_intervall(&aln_start, feature_pos - overhang, feature_pos + 1)
+            if cigar.does_it_match_an_intervall(&aln_start, feature_pos - overhang, feature_pos + overhang)
             {
                 //overhang) {
                 return Some(ReadAssign::ReadThrough);
@@ -404,7 +405,8 @@ pub fn read_toassign(
                 return Some(ReadAssign::OverhangFail);
             }
 
-            if cigar.does_it_match_an_intervall(&aln_start, feature_pos - 1, feature_pos + overhang)
+            //if cigar.does_it_match_an_intervall(&aln_start, feature_pos - 1, feature_pos + overhang)
+            if cigar.does_it_match_an_intervall(&aln_start, feature_pos - overhang, feature_pos + overhang)
             {
                 //overhang) {
                 return Some(ReadAssign::ReadThrough);
