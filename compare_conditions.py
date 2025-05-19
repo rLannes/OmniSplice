@@ -270,7 +270,7 @@ def main(condition_1, condition_2, successes, failures, tester, out_file,
     
     dico_r = {}
     for e, v in sorted(results.items(), key=lambda x: (x[0][2], x[0][3])):
-        if not v.ambigious:
+        if ambigious or not v.ambigious:
             try:
                 counts = v.get_junction_count(counter)
             except:

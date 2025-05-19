@@ -28,7 +28,7 @@ class Junction():
 
     def update_count(self, spt, genotype, header, basename):
 
-        self.ambigious = True if spt[header["Ambiguous"]] == "true" else self.ambigious
+        self.ambigious = True if (spt[header["Ambiguous"]] == "true" or self.ambigious == True) else self.ambigious
         if genotype not in self.count:
             self.count[genotype] = {basename: list(map( int, spt[8:]))}
         elif basename not in self.count[genotype]:

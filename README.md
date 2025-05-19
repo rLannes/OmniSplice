@@ -26,6 +26,8 @@ omni_splice --gtf <gtf file> --input <indexBamFile> -o <outFilePrefix>
 # specify the lib type for unstranded data
 omni_splice --gtf <gtf file> --input <indexBamFile> -o <outFilePrefix> --Libtype Unstranded
 
+# extending the overhang to 5 pb
+omni_splice --gtf <gtf file> --input <indexBamFile> -o <outFilePrefix> --overhang 5 
 
 # for backsplicing you need to first extract the clipped reads
 omni_splice --gtf <gtf file> --input <indexBamFile> -o <outFilePrefix> --read-to-write soft-clipped
