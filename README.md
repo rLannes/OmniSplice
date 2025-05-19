@@ -22,7 +22,27 @@ even it is the same position (different transcript same gene).
 ## Quick uses
 ```
 omni_splice --gtf <gtf file> --input <indexBamFile> -o <outFilePrefix>
+
+# specify the lib type for unstranded data
+omni_splice --gtf <gtf file> --input <indexBamFile> -o <outFilePrefix> --Libtype Unstranded
+
+
+# for backsplicing you need to first extract the clipped reads
+omni_splice --gtf <gtf file> --input <indexBamFile> -o <outFilePrefix> --read-to-write soft-clipped
+
+# then you need bowtie 2 in your OS path, plus a bowtie 2 reference for your genome
+backsplicing -i <omnisplice_out.clipped> -o <outputPrefix>> -b <bowtie2 ref> -g <gtf> -m <min clipped size, default 20> 
+
+# for comparison (now only support FIscher test GLM comming soon)
+# select defect as appropriate for your study
+python omnisplice/compare_conditions.py --control control1.junction control2.junction --treatment treatment1.junction treatment2.junction --stat FISCHER --defect  SPLICED UNSPLICED CLIPPED EXON_OTHER SKIPPED  --out <out file>
+
+
+# quick plot of genes (same as in manuscript)
+coming out soon!
 ```
+
+
 
 
 ## Installation
@@ -165,8 +185,13 @@ Options:
             * OverhangFail -> The read fail the overhang test.
             * Unexpected -> if you see this please open a bug report.
 
+    both table and junction file describe events. But the table file give the detail by exon end whereas the junction file give the results per junction.
+
     the table file (.tsv file):
-        contig | gene_name | transcript_name exon_number | ambiguous | strand | pos | next | exon_type | spliced | unspliced | clipped | exon_intron | exon_other | skipped  | wrong_strand | e_isoform
+        contig | gene_name | transcript_name | exon_number | ambiguous | strand | pos | next | exon_type | spliced | unspliced | clipped | exon_other | skipped  | wrong_strand | e_isoform
+    
+    the junction file (.tsv file):
+        contig | gene_name | transcript_name | intron_number | strand | ambiguous | Donnor | Acceptor | spliced | unspliced | clipped | exon_other | skipped  | wrong_strand | e_isoform
 
 
 
@@ -184,3 +209,4 @@ for each read R:
         Test if the read is SoftClipped.
         Test if the read is a Junction read.
 ```
+
