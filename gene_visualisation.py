@@ -128,15 +128,12 @@ def collapse(values):
 
 
 def ax_plot_bar(ax, counts_, genotype, defect_index, defect_to_plot, colors, reverse=False):
-
-
+    
     counts = np.array(counts_)
     masks = [defect_index[defect] for defect in defect_to_plot]
-
     counts = counts[:, masks]
     sum_ = np.sum(np.array(counts), axis=1).reshape(counts.shape[0])
     prop = counts /  sum_[:, np.newaxis]  
-
 
     bottom = np.zeros(len(counts_))
     for i in range(len(masks)):
@@ -154,7 +151,7 @@ def ax_plot_bar(ax, counts_, genotype, defect_index, defect_to_plot, colors, rev
 
 def plot_1(out, defect_index, colors, counts_intron, order, defect_to_plot, width, height, title):
 
-    counts_intron.sort(key=lambda x: x[1])
+    counts_intron.sort(key=lambda x: int(x[1]))
     counts, intron = list(zip(*counts_intron))
     fig = plt.figure(figsize=(width, height))
     ax1 = fig.add_axes((0, 0, 1, 1))
@@ -164,13 +161,14 @@ def plot_1(out, defect_index, colors, counts_intron, order, defect_to_plot, widt
 
     custom_lines = [Line2D([0], [0], color=colors[indice], lw=4) for indice, labels in enumerate(defect_to_plot)]
     ax1.legend(custom_lines, defect_to_plot, bbox_to_anchor=(-0.18 , 0.9))
+    ax1.set_yticks(range(0, len(counts_intron) ), labels=list(map( str, range(1, len(counts_intron) + 1))))
 
     fig.suptitle(title, y = 1.02)
     plt.savefig(out, bbox_inches="tight")
 
 def plot_2(out, defect_index, colors, counts_intron, order, defect_to_plot, width, height, title):
 
-    counts_intron.sort(key=lambda x: x[1])
+    counts_intron.sort(key=lambda x: int(x[1]))
     counts, intron = list(zip(*counts_intron))
     
 
@@ -184,6 +182,7 @@ def plot_2(out, defect_index, colors, counts_intron, order, defect_to_plot, widt
     ax1.set(ylabel = "introns")
     ax1.set_xticks([])
     ax2.set_xticks([])
+    ax1.set_yticks(range(0, len(counts_intron) ), labels=list(map( str, range(1, len(counts_intron) + 1))))
     ax2.yaxis.set_tick_params(labelleft=False, width=0, length=0, left=False)
     ax2.spines['left'].set_visible(False)
 
@@ -198,7 +197,7 @@ def plot_3(out, defect_index, colors, counts_intron, order, defect_to_plot, widt
     
     fig = plt.figure(figsize=(width, height))
 
-    counts_intron.sort(key=lambda x: x[1])
+    counts_intron.sort(key=lambda x: int(x[1]))
     counts, intron = list(zip(*counts_intron))
     #(left, bottom, width, height)
     space = 0.05 * 2 
@@ -211,7 +210,7 @@ def plot_3(out, defect_index, colors, counts_intron, order, defect_to_plot, widt
     ax2 = fig.add_axes((left, 0, axes_h, 1), sharey=ax1)
     left += axes_h + 0.05
     ax3 = fig.add_axes((left, 0, axes_h, 1), sharey=ax1)
-
+    ax1.set_yticks(range(0, len(counts_intron) ), labels=list(map( str, range(1, len(counts_intron) + 1))))
     ax1 = ax_plot_bar(ax1, [x[order[0]] for x in counts], order[0], defect_index, defect_to_plot, colors, reverse=False)
     ax2 = ax_plot_bar(ax2, [x[order[1]] for x in counts], order[1], defect_index, defect_to_plot, colors, reverse=False)
     ax3 = ax_plot_bar(ax3, [x[order[2]] for x in counts], order[2], defect_index, defect_to_plot, colors, reverse=False)
@@ -220,7 +219,6 @@ def plot_3(out, defect_index, colors, counts_intron, order, defect_to_plot, widt
     ax1.set_xticks([])
     ax2.set_xticks([])
     ax3.set_xticks([])
-
 
     #ax2.spines['right'].set_visible(False)
     #ax2.spines['top'].set_visible(False)
@@ -262,8 +260,8 @@ def checkinput_args(args):
         raise
 
 
-file = "/lab/solexa_yamashita/people/Ryan/RNAseq_Analysis/Reference/genome_TE_nomod.gtf"
-dico = gtf_to_dict(file)
+# file = "/lab/solexa_yamashita/people/Ryan/RNAseq_Analysis/Reference/genome_TE_nomod.gtf"
+# dico = gtf_to_dict(file)
 
 
 if __name__ == "__main__":
@@ -315,6 +313,7 @@ if __name__ == "__main__":
                     "SKIPPED",
                     "WRONG_STRAND",
                     "E_ISOFORM"]
+    
 
     defect_index = dict((e, i) for (i, e) in enumerate(defect_index))
 
@@ -324,6 +323,7 @@ if __name__ == "__main__":
         logger.setLevel(logging.INFO)
     elif args.logging_level == "ERROR":
         logger.setLevel(logging.ERROR)
+
 
     checkinput_args(args)
 
