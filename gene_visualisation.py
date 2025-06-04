@@ -20,7 +20,7 @@ logger = logging.getLogger()
 
 def get_attr(string):
     dico = {}
-    spt = string.split(";")
+    spt = string.rstrip(";").split(";")
     
     for x in spt:
         if x:
