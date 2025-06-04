@@ -24,7 +24,10 @@ def get_attr(string):
     
     for x in spt:
         if x:
-            dico[x.split()[0].strip()] =  x.split()[1].replace('"', "").strip()
+            try:
+                dico[x.split()[0].strip()] =  x.split()[1].replace('"', "").strip()
+            except:
+                print(x, x.split())
     return dico
 
 
