@@ -370,5 +370,6 @@ if __name__ == "__main__":
                        counts_intron=counts_dico, order=order, defect_to_plot=args.splicing_defect, width=args.fig_width, height=args.fig_height, title='{} {}'.format( gene_id, tr_id))
             else:
                 pass
+            plt.close()
 
 
