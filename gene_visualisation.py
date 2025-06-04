@@ -28,6 +28,7 @@ def get_attr(string):
                 dico[x.split()[0].strip()] =  x.split()[1].replace('"', "").strip()
             except:
                 print(x, x.split())
+                raise
     return dico
 
 
