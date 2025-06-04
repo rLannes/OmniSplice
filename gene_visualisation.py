@@ -7,36 +7,16 @@ import matplotlib.patches as mpatches
 import numpy as np
 import pandas as pd
 from pathlib import Path
-#import statsmodels.api as sm
-#import statsmodels.formula.api as smf
 import re
-from common_python.junction_class import Junction
-
+from common_python.junction_class import Junction, parse_js_file
+import logging
 
 mpl.rcParams["axes.spines.right"] = False
 mpl.rcParams["axes.spines.top"] = False
 
-"""
-def data_to_df_for_glm(control, treatment):
-    df = pd.DataFrame(control + treatment)
-    df["failures"] = df.apply(lambda x: sum(x[1:]), axis=1)
-    df["successes"] = df[0]
-    df["group"] = ["control"] * len(control) + ["treatment"] * len(treatment)
-    return df
+logging.basicConfig(format='%(asctime)s %(levelname)s => %(message)s', level=logging.INFO, datefmt='%m/%d/%Y %I:%M:%S %p')
+logger = logging.getLogger()
 
-
-def gln_binomial_test(control, treatment):
-    df = data_to_df_for_glm(control, treatment)
-    mod = smf.glm('successes + failures ~ group', family=sm.families.Binomial(), data=df).fit()
-    # convert intercept to probability
-    odds_i = math.exp(mod.params[0])
-    control_p = odds_i / (1 + odds_i)
-
-    # convert stable="stable" to probability
-    odds_p = math.exp( mod.params[0]) * math.exp(mod.params[1])
-    treatment_p = (odds_p / (1 + odds_p))
-    return (mod.pvalues[1], control_p , treatment_p)
-"""
 
 def get_attr(string):
     dico = {}
@@ -138,236 +118,227 @@ def collapse(values):
     return res
 
 
-def parse_cat_file(genotype, files, dico_result, gene_list):
 
-    gene_set = set(gene_list)
+def ax_plot_bar(ax, counts_, genotype, defect_index, defect_to_plot, colors, reverse=False):
+
+
+    counts = np.array(counts_)
+    masks = [defect_index[defect] for defect in defect_to_plot]
+
+    counts = counts[:, masks]
+    sum_ = np.sum(np.array(counts), axis=1).reshape(counts.shape[0])
+    prop = counts /  sum_[:, np.newaxis]  
+
+
+    bottom = np.zeros(len(counts_))
+    for i in range(len(masks)):
+
+        ax.barh(y=range(len(counts_)), width=prop[:,i], left=bottom, color = colors[i])
+        bottom += prop[:,i]
     
-    for file in files:
-        base = Path(file).stem
-        geno = genotype
-        
-        with open(file) as fi:
-            
-            header = fi.readline()
-            header = dict((k, i) for i, k in enumerate(header.strip().split()))
+    ax.set_xlabel(genotype)
 
-            for l in fi:
-                l = l.strip()
-                if not l:
-                    continue
-                spt = l.split('\t')
-                
-                if spt[header["pos"]] == "." or spt[header["next"]] == ".":
-                    continue
-                
-                value = list(map(int, spt[9: 9+5 ]))
-                
-                gene = spt[1]
-                transcript = spt[2]
-                if gene not in gene_set:
-                    continue
-                if gene not in dico_result:
-                    dico_result[gene] = {}
-                if transcript not in dico_result[gene]:
-                    dico_result[gene][transcript] = {}
-
-                exon_number = int(re.search("(\d+)", spt[header["exon_number"]]).group(1))
-                intron_number = exon_number if spt[header["exon_type"]] == "Donnor" else exon_number - 1
-
-
-                exon_type = spt[6] 
-                #if spt[6] == "Acceptor":
-                    #continue
-                
-                #exon_n = spt[3]
-                if intron_number not in dico_result[gene][transcript] :
-                    dico_result[gene][transcript][intron_number] = {}
-                
-                if geno not in dico_result[gene][transcript][intron_number]:
-                    dico_result[gene][transcript][intron_number][geno] = {}
-                if base not in dico_result[gene][transcript][intron_number][geno]:
-                    dico_result[gene][transcript][intron_number][geno][base] = []
-                dico_result[gene][transcript][intron_number][geno][base].append(value)
-
-"""
-def parse_table_file(file, results, genotype, gene_list, ambigious=False ):
-
-    # result -> gene -> splicing_site
-    basename = Path(file).stem
-    with open(file) as fi:
-        header= fi.readline()
-        header = dict((k, i) for i, k in enumerate(header.strip().split()))
-
-        for l in fi:
-            l = l.strip()
-            if not l:
-                continue
-            spt = l.split('\t')
-            try:
-                if spt[header["pos"]] == "." or spt[header["next"]] == ".":
-                    continue
-            except:
-                print(spt)
-                raise
-            if spt[header["gene_name"]] not in gene_list:
-                continue
-
-            contig = spt[header["contig"]]
-            strand = spt[header["strand"]]
-            pos =  spt[header["pos"]] if spt[header["exon_type"]] == "Donnor" else spt[header["next"]] 
-            next = spt[header["next"]] if spt[header["exon_type"]] == "Donnor" else spt[header["pos"]]
-
-            hash_key = (contig, strand, pos, next)
-            if hash_key not in results:
-                results[hash_key] = Junction(spt=spt, header=header, genotype=genotype, basename=basename)
-            else:
-                results[hash_key].update_count(spt=spt, genotype=genotype, header=header, basename=basename)
-
-
-"""
-
-
-
-def plot(dico_result, color, out_base, format):
+    if reverse:
+        ax.xaxis.set_inverted(True)
     
-    for gene, sub_gene in dico_result.items():
-        #gene_name = dico_gtf.get(gene).get("symbol")
-        gene_name = gene
-        for transcript_id, tr_dico in sub_gene.items(): 
+    return ax
 
-            len_exon = len(dico_result[gene][transcript_id])
-            z = 0
 
-            #print(dico_result[gene][transcript_id].keys())
-            exon_order = list(sorted(dico_result[gene][transcript_id].keys(), reverse=True))#[:-1]
 
-            for i_exon, exon in enumerate(exon_order):
+def plot_2(out, defect_index, colors, counts_intron, order, defect_to_plot, width, height):
 
-                group1 = dico_result[gene][transcript_id][exon]["group1"]
-                # file -> [donnor, acceptor]
-                inter = []
-                for k, v in group1.items():
-                    sub = []
-                    acceptor = v[0]
-                    donnor = v[1]
+    counts_intron.sort(key=lambda x: x[1])
+    counts, intron = list(zip(*counts_intron))
+    
 
-                    for i, v in enumerate(acceptor):
-                        if i == 0:
-                            sub.append(v)
-                        else:
-                            sub.append(v + donnor[i])
-                    inter.append(sub)
-                group1 = inter
+    fig = plt.figure(figsize=(width, height))
+    ax1 = fig.add_axes((0, 0, 0.48, 1))
+    ax2 = fig.add_axes((0.52, 0, 0.48, 1), sharey=ax1)
 
-                control = group1
-                group1 = np.sum(np.array(group1), axis=0)
-                #print(group1)
-                s_group1 = sum(group1) 
-                group1 = group1 / s_group1
+    ax1 = ax_plot_bar(ax1, [x[order[0]] for x in counts], order[0], defect_index, defect_to_plot, colors, reverse=False)
+    ax2 = ax_plot_bar(ax2, [x[order[1]] for x in counts], order[1], defect_index, defect_to_plot, colors, reverse=True)
 
-                group2 = dico_result[gene][transcript_id][exon]["group2"]
-                
-                inter = []
-                for k, v in group2.items():
-                    sub = []
-                    acceptor = v[0]
-                    donnor = v[1]
+    ax1.set(ylabel = "introns")
+    ax1.set_xticks([])
+    ax2.set_xticks([])
+    ax2.yaxis.set_tick_params(labelleft=False, width=0, length=0, left=False)
+    ax2.spines['left'].set_visible(False)
 
-                    for i, v in enumerate(acceptor):
-                        if i == 0:
-                            sub.append(v)
-                        else:
-                            sub.append(v + donnor[i])
-                    inter.append(sub)
-                group2 = inter
+    custom_lines = [Line2D([0], [0], color=colors[indice], lw=4) for indice, labels in enumerate(defect_to_plot)]
+    ax1.legend(custom_lines, defect_to_plot, bbox_to_anchor=(-0.18 , 0.9))
 
-                treatment = group2
-                group2 = np.sum(np.array(group2), axis=0)
-                s_group2 = sum(group2) 
-                group2 = group2 / s_group2
+    plt.savefig(out, bbox_inches="tight")
 
-                #this = exon_order[i_exon]
-                #this = this.split('_')
-                #this[1] = str(int(this[1]))
-                exon_order[i_exon] = "intron: {}".format(i_exon + 1)
 
-                """
-                try:
-                    pval, control_p, treat_p = gln_binomial_test(control, treatment)
-                    #exon_order[i_exon] += "_ctrlp={}_treatp={}".format(round(control_p,2), round(treat_p, 2))
-                    if pval < 0.001:
-                        
-                        exon_order[i_exon] += " *"#.format(round(-math.log(pval, 10), 2))
-                    #print(i_exon, pval)    
-                except:
-                    #print(control, treatment)
-                    exon_order[i_exon] += "_na"
-                """
+def plot_3(out, defect_index, colors, counts_intron, order, defect_to_plot, width, height):
+    
+    fig = plt.figure(figsize=(width, height))
 
-                bottom = 0
-                for i,e in enumerate(group1):
-                    plt.barh(y=z, width=e,left=bottom, color = color[i])
-                    bottom += e
-                bottom += 0.05
-                for i,e in enumerate(group2[::-1]):
-                    plt.barh(y=z, width=e,left=bottom, color = color[4-i])
-                    bottom += e
-        
-                z += 1
-            plt.yticks(ticks=range(0,z), labels=exon_order)
-            handles, labels = plt.gca().get_legend_handles_labels()
-            line1 = Line2D([], [], label="Spliced",   color=color[0], linewidth=6)
-            line2 = Line2D([], [], label="Unspliced",  color=color[1], linewidth=6)
-            line3 = Line2D([], [], label="Clipped",   color=color[2], linewidth=6)
-            line4 = Line2D([], [], label="Exon_Intron",   color=color[3], linewidth=6)
-            line5 = Line2D([], [], label="Exon_other",   color=color[4], linewidth=6)
-            
-            handles.extend([ line1, line2, line3, line4, line5])
-            plt.gcf().legend(handles=handles, loc='outside right upper', bbox_to_anchor=(1.25, 0.8))
-            plt.gca().set_xticks([0.5, 1.5], labels=['group1', "group2"])
-            plt.title(gene_name,     fontsize=24)
-            plt.xlim(-0.1, 2.2)
+    counts_intron.sort(key=lambda x: x[1])
+    counts, intron = list(zip(*counts_intron))
+    #(left, bottom, width, height)
+    space = 0.05 * 2 
+    h = 1 - space
+    axes_h = h / 3
 
-            plt.gca().set_facecolor('aliceblue')
-            plt.tick_params(axis='x', labelsize=20)
-            plt.tick_params(axis='y', labelsize=12)
-            
-            plt.savefig("{}_{}_{}.{}".format(out_base, gene_name, transcript_id, format), bbox_inches="tight")
-            plt.close()
+    left = 0
+    ax1 = fig.add_axes((left, 0, axes_h, 1))
+    left += axes_h + 0.05
+    ax2 = fig.add_axes((left, 0, axes_h, 1), sharey=ax1)
+    left += axes_h + 0.05
+    ax3 = fig.add_axes((left, 0, axes_h, 1), sharey=ax1)
+
+    ax1 = ax_plot_bar(ax1, [x[order[0]] for x in counts], order[0], defect_index, defect_to_plot, colors, reverse=False)
+    ax2 = ax_plot_bar(ax2, [x[order[1]] for x in counts], order[1], defect_index, defect_to_plot, colors, reverse=False)
+    ax3 = ax_plot_bar(ax3, [x[order[2]] for x in counts], order[2], defect_index, defect_to_plot, colors, reverse=False)
+
+    ax1.set(ylabel = "introns")
+    ax1.set_xticks([])
+    ax2.set_xticks([])
+    ax3.set_xticks([])
+
+
+    #ax2.spines['right'].set_visible(False)
+    #ax2.spines['top'].set_visible(False)
+
+    ax3.yaxis.set_tick_params(labelleft=False, width=0, length=0, left=False)
+    ax2.yaxis.set_tick_params(labelleft=False, width=0, length=0, left=False)
+
+    ax2.spines['left'].set_visible(False)
+    ax3.spines['left'].set_visible(False)
+
+    custom_lines = [Line2D([0], [0], color=colors[indice], lw=4) for indice, labels in enumerate(defect_to_plot)]
+    ax1.legend(custom_lines, defect_to_plot, bbox_to_anchor=(-0.18 , 0.9))
+
+    plt.savefig(out, bbox_inches="tight")
+
+
+def checkinput_args(args):
+    try:
+        assert args.gene_list or args.transcript_list and not (args.gene_list and args.transcript_list)
+    except AssertionError:
+        logging.error("either one or the other but not both arguments [--gene_list] [--transcript_list] should be set")
+        raise
+
+    try:
+        assert not args.group3 or (args.group3 and (args.group1 and args.group2))
+    except AssertionError:
+        logging.error("group3 should only be set if group 1 and 2 are set")
+        raise
+
+    try:
+        assert len(args.color) >= len(args.splicing_defect)
+    except:
+        logging.error("you shoudl provides more color than splicing defect")
+        raise
 
 
 if __name__ == "__main__":
-    parse = argparse.ArgumentParser()
+    parse = argparse.ArgumentParser(description="to plot junction defect from Omnisplice junction file accept up to three  genotypes") # Can do more but will need a some works to make it able to handle X genotypes
     parse.add_argument("--gtf", required=True)
     parse.add_argument("--gtf_gene_id", default="gene_id")
-    parse.add_argument("--group1", nargs="+", required=True, help="table file for group 1")
-    parse.add_argument("--group2", nargs="+", required=True, help="table file for group 2")
-    parse.add_argument("--color", nargs="+")
     
-    parse.add_argument("--gene_list", nargs="+", required=True, help='gene list to plot')
+    parse.add_argument("--group1", nargs="+", required=True, help="junctions file for group 1")
+    parse.add_argument("--group2", nargs="+", required=True, help="junctions file for group 2")
+    parse.add_argument("--group3", nargs="+", required=False, help="Optional junctions file for group 3")
+
+    parse.add_argument("--group1_name", required=False, default='group1', help="name group 1")
+    parse.add_argument("--group2_name", required=False, default='group2', help="name for group 2")
+    parse.add_argument("--group3_name", required=False, default='group3', help="Optional name group 3")
+    parse.add_argument("--color", nargs="+", default=["#D3D3D385", "#214d4e",  "#cc655b", '#41bbc5',
+                                                      "#c6dbae", '#069668',  '#b3e61c',  '#d55e00', '#cc78bc',
+                                                      '#ca9161', '#fbafe4',  '#029e73'])
+    
+    parse.add_argument("--gene_list", nargs="+", required=False, help='gene list to plot')
+    parse.add_argument("--transcript_list", nargs="+", required=False, help='gene list to plot')
     parse.add_argument("--outfile_prefix", required=True, help='basename for output')
+
+    parse.add_argument("--splicing_defect", nargs="+", help="""default = SPLICED, UNSPLICED, CLIPPED, EXON_OTHER""", 
+                        default=["SPLICED" , "UNSPLICED",  "CLIPPED",  "EXON_OTHER"],
+                        choices=["SPLICED", 
+                                 "UNSPLICED", 
+                                 "CLIPPED", 
+                                 "EXON_OTHER",
+                                 "SKIPPED",
+                                 "WRONG_STRAND",
+                                 "E_ISOFORM"] )
+
     parse.add_argument("--format",  default='.pdf', help='output format default: ".pdf"')
-    
+    parse.add_argument("--fig_width",  default=6.4, help="")
+    parse.add_argument("--fig_height",  default=4.8, help='')
+    parse.add_argument("--logging_level", "-v", default="INFO",choices=["DEBUG", "INFO", "ERROR"])
+
     args = parse.parse_args()
+
+
+    defect_index = ["SPLICED",      
+                    "UNSPLICED", 
+                    "CLIPPED", 
+                    "EXON_OTHER",
+                    "SKIPPED",
+                    "WRONG_STRAND",
+                    "E_ISOFORM"]
+
+    defect_index = dict((e, i) for (i, e) in enumerate(defect_index))
+
+    if args.logging_level == "DEBUG":
+        logger.setLevel(logging.DEBUG)
+    elif args.logging_level == "INFO": 
+        logger.setLevel(logging.INFO)
+    elif args.logging_level == "ERROR":
+        logger.setLevel(logging.ERROR)
+
+    checkinput_args(args)
+
 
     dico_gtf = gtf_to_dict(args.gtf, args.gtf_gene_id)
     dico_result = {}
 
-    #dico_result = {}
-    #for file in args.group1:
-    #    parse_table_file(file, dico_result, genotype=condition_1_Name, ambigious=True, gene_list=args.gene_list)
-    #for file in args.group2:
-    #    parse_table_file(file, dico_result, genotype=condition_2_Name, ambigious=True, gene_list=args.gene_list)
+    for file in args.group1:
+        parse_js_file(file=file, results=dico_result, genotype=args.group1_name, ambigious=True, gene_list=args.gene_list, transcript_list=args.transcript_list)
+    for file in args.group2:
+        parse_js_file(file=file, results=dico_result, genotype=args.group2_name, ambigious=True, gene_list=args.gene_list, transcript_list=args.transcript_list)
+    if args.group3:
+            logging.debug("group3")
+            for file in args.group3:
+                parse_js_file(file=file, results=dico_result, genotype=args.group3_name, ambigious=True, gene_list=args.gene_list, transcript_list=args.transcript_list)
 
 
-    parse_cat_file("group1", args.group1, dico_result, args.gene_list)
-    parse_cat_file("group2", args.group2, dico_result, args.gene_list)
-    color = ["#D3D3D385", "#214d4e",  "#cc655b", '#41bbc5', "#c6dbae", '#069668',  '#b3e61c',  '#d55e00', '#cc78bc',
-         '#ca9161', '#fbafe4',  '#029e73']
-    if args.color:
-        color = args.color
+    dico_j = {}
 
+    for hashkey, junction in dico_result.items():
     
-    plot(dico_result, color, args.outfile_prefix, args.format)
-    
+        transcript_list = junction.transcript
+        gene_list = junction.gene
+        intron_list = junction.intron_number
+
+        zipped = zip(gene_list, transcript_list, intron_list)
+        for (gene, transcript, intron) in zipped:
+            if gene not in dico_j:
+                dico_j[gene] = {}
+            if transcript not in dico_j[gene]:
+                dico_j[gene][transcript] = []
+
+            dico_j[gene][transcript].append((junction.get_count_per_genotype_summed(), intron))
+     
+    # build legend
+
+
+
+    for gene_id, tr_dico in dico_j.items():
+        for tr_id, counts_dico in tr_dico.items():
+            if  not args.group3:
+                logging.debug(" 2 samples ")
+                order = [args.group1_name, args.group2_name]
+                plot_2(out="{}_{}_{}{}".format(args.outfile_prefix, gene_id, tr_id, args.format), defect_index=defect_index, colors=args.color, 
+                       counts_intron=counts_dico, order=order, defect_to_plot=args.splicing_defect, width=args.fig_width, height=args.fig_height)
+                # plot2
+            elif args.group3 :
+                logging.debug(" 3 samples ")
+                order = [args.group1_name, args.group2_name,  args.group3_name]
+                plot_3(out="{}_{}_{}{}".format(args.outfile_prefix, gene_id, tr_id, args.format), defect_index=defect_index, colors=args.color, 
+                       counts_intron=counts_dico, order=order, defect_to_plot=args.splicing_defect, width=args.fig_width, height=args.fig_height)
+            else:
+                pass
+
 

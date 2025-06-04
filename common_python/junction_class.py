@@ -2,8 +2,9 @@ import re
 from pathlib import Path
 from .counter_junction import Counter
 import unittest
+import logging
 
-
+logger = logging.getLogger("compare_conditions")
 class Junction():
 
     def __init__(self, spt, header, basename, genotype):
@@ -24,11 +25,30 @@ class Junction():
         
         self.count = {genotype:  {basename:{}}}
         self.count[genotype][basename] = list(map( int, spt[8:]))
+
+        self.p_value = -1
+        self.data_stats = None
+        self.q_value = None
+    
+
+    def get_count_per_genotype_summed(self):
+        res = {}
+        for genotype, basename_dict in self.count.items():
+            sub_res = []
+            for sample, counts in basename_dict.items():
+                if not sub_res:
+                    sub_res = counts[::]
+                else:
+                    sub_res = [sub_res[i] + v for i, v in enumerate(counts)]
+            res[genotype] = sub_res
+        return res
     
 
     def update_count(self, spt, genotype, header, basename):
 
-        self.ambigious = True if (spt[header["Ambiguous"]] == "true" or self.ambigious == True) else self.ambigious
+        self.ambigious = True if (spt[header["Ambiguous"]] == "true" or self.ambigious) else self.ambigious
+        if not self.ambigious  and spt[header["Ambiguous"]] == "true":
+            logger.debug("{}; {}".format(self.ambigious, spt[header["Ambiguous"]]))
         if genotype not in self.count:
             self.count[genotype] = {basename: list(map( int, spt[8:]))}
         elif basename not in self.count[genotype]:
@@ -72,12 +92,56 @@ class Junction():
                 dico_count[genotype]["failures"].append(failures)
     
         return dico_count
+    
+
+    def stat_test(self, counter, tester):
+        counts = self.get_junction_count(counter)
+        if counts == (-1, -1):
+            logging.warning(self.__dict__, (-1, -1))
+            return 
+        (self.p_value, self.data_stats) = tester.test_sample(counts["control"], counts['treatment'])
+
 
     def pass_threshold(self, ):
         """
             manage QC filtering!
         """
         pass
+
+
+
+def parse_js_file(file, results, genotype, ambigious=False, gene_list=None, transcript_list=None):
+    basename = Path(file).stem
+    with open(file) as fi:
+        header= fi.readline()
+        header = dict((k, i) for i, k in enumerate(header.strip().split()))
+
+        for l in fi:
+            l = l.strip()
+            if not l:
+                continue
+            spt = l.split('\t')
+            
+            if not ambigious and spt[header["Ambiguous"]] == "true":
+                continue
+
+            if gene_list and spt[header["Gene"]] not in gene_list:
+                continue
+
+            if transcript_list and spt[header["Transcript"]] not in transcript_list:
+                continue
+                        
+            contig = spt[header["Contig"]]
+            strand = spt[header["Strand"]]
+            pos =  spt[header["Donnor"]] if spt[header["Strand"]] == "+" else spt[header["Acceptor"]] 
+            next = spt[header["Acceptor"]] if spt[header["Strand"]] == "+" else spt[header["Donnor"]]
+            
+            hash_key = (contig, strand, pos, next)
+
+            if hash_key not in results:
+                results[hash_key] = Junction(spt=spt, header=header, genotype=genotype, basename=basename)
+            else:
+                results[hash_key].update_count(spt=spt, genotype=genotype, header=header, basename=basename)
 
 
 class TestCounter(unittest.TestCase):
