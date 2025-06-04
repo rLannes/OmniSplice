@@ -144,8 +144,23 @@ def ax_plot_bar(ax, counts_, genotype, defect_index, defect_to_plot, colors, rev
     return ax
 
 
+def plot_1(out, defect_index, colors, counts_intron, order, defect_to_plot, width, height, title):
 
-def plot_2(out, defect_index, colors, counts_intron, order, defect_to_plot, width, height):
+    counts_intron.sort(key=lambda x: x[1])
+    counts, intron = list(zip(*counts_intron))
+    fig = plt.figure(figsize=(width, height))
+    ax1 = fig.add_axes((0, 0, 1, 1))
+    ax1 = ax_plot_bar(ax1, [x[order[0]] for x in counts], order[0], defect_index, defect_to_plot, colors, reverse=False)
+    ax1.set(ylabel = "introns")
+    ax1.set_xticks([])
+
+    custom_lines = [Line2D([0], [0], color=colors[indice], lw=4) for indice, labels in enumerate(defect_to_plot)]
+    ax1.legend(custom_lines, defect_to_plot, bbox_to_anchor=(-0.18 , 0.9))
+
+    fig.suptitle(title, y = 1.02)
+    plt.savefig(out, bbox_inches="tight")
+
+def plot_2(out, defect_index, colors, counts_intron, order, defect_to_plot, width, height, title):
 
     counts_intron.sort(key=lambda x: x[1])
     counts, intron = list(zip(*counts_intron))
@@ -167,10 +182,11 @@ def plot_2(out, defect_index, colors, counts_intron, order, defect_to_plot, widt
     custom_lines = [Line2D([0], [0], color=colors[indice], lw=4) for indice, labels in enumerate(defect_to_plot)]
     ax1.legend(custom_lines, defect_to_plot, bbox_to_anchor=(-0.18 , 0.9))
 
+    fig.suptitle(title, y = 1.02)
     plt.savefig(out, bbox_inches="tight")
 
 
-def plot_3(out, defect_index, colors, counts_intron, order, defect_to_plot, width, height):
+def plot_3(out, defect_index, colors, counts_intron, order, defect_to_plot, width, height, title):
     
     fig = plt.figure(figsize=(width, height))
 
@@ -209,7 +225,7 @@ def plot_3(out, defect_index, colors, counts_intron, order, defect_to_plot, widt
 
     custom_lines = [Line2D([0], [0], color=colors[indice], lw=4) for indice, labels in enumerate(defect_to_plot)]
     ax1.legend(custom_lines, defect_to_plot, bbox_to_anchor=(-0.18 , 0.9))
-
+    fig.suptitle(title, y = 1.02)
     plt.savefig(out, bbox_inches="tight")
 
 
@@ -225,6 +241,11 @@ def checkinput_args(args):
     except AssertionError:
         logging.error("group3 should only be set if group 1 and 2 are set")
         raise
+    
+    try: 
+        assert not args.group2 or (args.group1 and args.group2)
+    except AssertionError:
+        logging.error("group2 should only be set if group 1 is set")
 
     try:
         assert len(args.color) >= len(args.splicing_defect)
@@ -234,12 +255,16 @@ def checkinput_args(args):
 
 
 if __name__ == "__main__":
-    parse = argparse.ArgumentParser(description="to plot junction defect from Omnisplice junction file accept up to three  genotypes") # Can do more but will need a some works to make it able to handle X genotypes
+    parse = argparse.ArgumentParser(description="to plot junction defect from Omnisplice junction file accept from one up to three genotypes." \
+    " it merge and sums file from the same genotype." \
+    " you can either submit file using glob or space seprate them."
+    "example usage:"
+    "python omnisplice/gene_visualisation.py --gtf <gtf file> --group1 genotype1*junctions --group1_name <genotype1 name> --gene_list FBgn0001313 --outfile_prefix my_plot") # Can do more but will need a some works to make it able to handle X genotypes
     parse.add_argument("--gtf", required=True)
     parse.add_argument("--gtf_gene_id", default="gene_id")
     
     parse.add_argument("--group1", nargs="+", required=True, help="junctions file for group 1")
-    parse.add_argument("--group2", nargs="+", required=True, help="junctions file for group 2")
+    parse.add_argument("--group2", nargs="+", required=False, help="junctions file for group 2")
     parse.add_argument("--group3", nargs="+", required=False, help="Optional junctions file for group 3")
 
     parse.add_argument("--group1_name", required=False, default='group1', help="name group 1")
@@ -327,17 +352,22 @@ if __name__ == "__main__":
 
     for gene_id, tr_dico in dico_j.items():
         for tr_id, counts_dico in tr_dico.items():
-            if  not args.group3:
+            if not args.group2:
+                logging.debug(" 1 samples ")
+                order = [args.group1_name]
+                plot_1(out="{}_{}_{}{}".format(args.outfile_prefix, gene_id, tr_id, args.format), defect_index=defect_index, colors=args.color, 
+                       counts_intron=counts_dico, order=order, defect_to_plot=args.splicing_defect, width=args.fig_width, height=args.fig_height, title='{} {}'.format( gene_id, tr_id))
+            elif  not args.group3:
                 logging.debug(" 2 samples ")
                 order = [args.group1_name, args.group2_name]
                 plot_2(out="{}_{}_{}{}".format(args.outfile_prefix, gene_id, tr_id, args.format), defect_index=defect_index, colors=args.color, 
-                       counts_intron=counts_dico, order=order, defect_to_plot=args.splicing_defect, width=args.fig_width, height=args.fig_height)
+                       counts_intron=counts_dico, order=order, defect_to_plot=args.splicing_defect, width=args.fig_width, height=args.fig_height, title='{} {}'.format( gene_id, tr_id))
                 # plot2
             elif args.group3 :
                 logging.debug(" 3 samples ")
                 order = [args.group1_name, args.group2_name,  args.group3_name]
                 plot_3(out="{}_{}_{}{}".format(args.outfile_prefix, gene_id, tr_id, args.format), defect_index=defect_index, colors=args.color, 
-                       counts_intron=counts_dico, order=order, defect_to_plot=args.splicing_defect, width=args.fig_width, height=args.fig_height)
+                       counts_intron=counts_dico, order=order, defect_to_plot=args.splicing_defect, width=args.fig_width, height=args.fig_height, title='{} {}'.format( gene_id, tr_id))
             else:
                 pass
 
