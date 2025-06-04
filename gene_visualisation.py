@@ -24,9 +24,13 @@ def get_attr(string):
     
     for x in spt:
         if x:
+            if len(x.split()) < 2:
+                continue
             try:
                 dico[x.split()[0].strip()] =  x.split()[1].replace('"', "").strip()
             except:
+                print(string)
+                print(spt)
                 print(x, x.split())
                 raise
     return dico
@@ -256,6 +260,10 @@ def checkinput_args(args):
     except:
         logging.error("you shoudl provides more color than splicing defect")
         raise
+
+
+file = "/lab/solexa_yamashita/people/Ryan/RNAseq_Analysis/Reference/genome_TE_nomod.gtf"
+dico = gtf_to_dict(file)
 
 
 if __name__ == "__main__":
