@@ -18,106 +18,6 @@ logging.basicConfig(format='%(asctime)s %(levelname)s => %(message)s', level=log
 logger = logging.getLogger()
 
 
-def get_attr(string):
-    dico = {}
-    spt = string.rstrip(";").split(";")
-    
-    for x in spt:
-        if x:
-            if len(x.split()) < 2:
-                continue
-            try:
-                dico[x.split()[0].strip()] =  x.split()[1].replace('"', "").strip()
-            except:
-                print(string)
-                print(spt)
-                print(x, x.split())
-                raise
-    return dico
-
-
-def gtf_to_dict(gtf_file, main_ = "gene_id"):
-    dico = {}
-    with open(gtf_file) as f_in:
-        """atm reads only genes"""
-        for line in f_in:
-            line = line.strip()
-            if not line:
-                continue
-            if line.startswith("#"):
-                continue
-            spt = line.strip().split("\t")
-            try:
-                chr_ = spt[0]
-                start = int(spt[3]) #- 1 # gtf are 1 based
-                end = int(spt[4]) #-1 
-                strand =  spt[6]
-                attr = get_attr(spt[-1])
-                """                 if main_ not in attr:
-                                    print(attr)
-                continue """
-                try:
-                    gene_id = attr[main_]
-                except:
-                    print("main not found")
-                    print(attr)
-                    raise
-
-                gene_symbol = attr.get("gene_symbol", None)
-                if not gene_symbol:
-                    gene_symbol = attr.get("gene_name", None)
-                if not gene_symbol:
-                    gene_symbol = "None"
-
-                type_ = spt[2]
-            except:
-                print(attr)
-                print(line)
-                print(spt)
-                raise
-            
-            if gene_id not in dico:
-                dico[gene_id] = {
-                    "chr": chr_,
-                    "symbol" :  gene_symbol,
-                    "strand" : strand,
-                    "transcript": {}
-                }
-                
-            if type_ == "gene":
-    
-                dico[gene_id]["start"] = start
-                dico[gene_id]["end"] = end
-            
-            else:
-                try:
-                    transcript_id  = attr.get("transcript_id", "None")
-                    transcript_symbol = attr.get("transcript_symbol", "None")
-
-                    # gene_id  = attr["gene_id"]
-                    # gene_symbol = attr.get("gene_symbol", "None")
-                    # strand =  spt[6]
-                    
-                    if transcript_id not in dico[gene_id]["transcript"]:
-                        dico[gene_id]["transcript"][transcript_id] = {
-                        "transcript_symbol" : transcript_symbol,
-                        "transcript_id" : transcript_id
-                        }
-                    
-                    if type_ not in dico[gene_id]["transcript"][transcript_id]: 
-                        dico[gene_id]["transcript"][transcript_id][type_] = []
-                        
-                    dico[gene_id]["transcript"][transcript_id][type_].append({
-                        "chr": chr_,
-                        "start": start, 
-                        "end" : end,
-                        "strand" : strand,
-                    })
-                except: 
-                    continue
-    return dico
-
-
 def collapse(values):
     res = []
     for i, v in enumerate(values):
@@ -265,13 +165,13 @@ def checkinput_args(args):
 
 
 if __name__ == "__main__":
-    parse = argparse.ArgumentParser(description="to plot junction defect from Omnisplice junction file accept from one up to three genotypes." \
-    " it merge and sums file from the same genotype." \
-    " you can either submit file using glob or space seprate them."
-    "example usage:"
-    "python omnisplice/gene_visualisation.py --gtf <gtf file> --group1 genotype1*junctions --group1_name <genotype1 name> --gene_list FBgn0001313 --outfile_prefix my_plot") # Can do more but will need a some works to make it able to handle X genotypes
-    parse.add_argument("--gtf", required=True)
-    parse.add_argument("--gtf_gene_id", default="gene_id")
+    parse = argparse.ArgumentParser(description="""to plot junction defect for gene and transcript, from Omnisplice junction file.
+    Accept from one up to three genotypes/groups simultaneous.
+    (it merge and sums file from the same genotype.)
+    you can either submit file using glob or space seprate them.
+    you can submit multiple gene or transcript at the moment you must use either but not both gene_list or transcript_list
+    example usage:
+    python omnisplice/gene_visualisation.py --gtf <gtf file> --group1 genotype1*junctions --group1_name <genotype1 name> --gene_list FBgn0001313 --outfile_prefix my_plot""") # Can do more but will need a some works to make it able to handle X genotypes  
     
     parse.add_argument("--group1", nargs="+", required=True, help="junctions file for group 1")
     parse.add_argument("--group2", nargs="+", required=False, help="junctions file for group 2")
@@ -328,7 +228,6 @@ if __name__ == "__main__":
     checkinput_args(args)
 
 
-    dico_gtf = gtf_to_dict(args.gtf, args.gtf_gene_id)
     dico_result = {}
 
     for file in args.group1:
