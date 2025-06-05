@@ -159,11 +159,6 @@ def checkinput_args(args):
         logging.error("you shoudl provides more color than splicing defect")
         raise
 
-
-# file = "/lab/solexa_yamashita/people/Ryan/RNAseq_Analysis/Reference/genome_TE_nomod.gtf"
-# dico = gtf_to_dict(file)
-
-
 if __name__ == "__main__":
     parse = argparse.ArgumentParser(description="""to plot junction defect for gene and transcript, from Omnisplice junction file.
     Accept from one up to three genotypes/groups simultaneous.
@@ -171,7 +166,8 @@ if __name__ == "__main__":
     you can either submit file using glob or space seprate them.
     you can submit multiple gene or transcript at the moment you must use either but not both gene_list or transcript_list
     example usage:
-    python omnisplice/gene_visualisation.py --gtf <gtf file> --group1 genotype1*junctions --group1_name <genotype1 name> --gene_list FBgn0001313 --outfile_prefix my_plot""") # Can do more but will need a some works to make it able to handle X genotypes  
+    python omnisplice/gene_visualisation.py 
+    -gtf <gtf file> --group1 genotype1*junctions --group1_name <genotype1 name> --gene_list FBgn0001313 --outfile_prefix my_plot""") # Can do more but will need a some works to make it able to handle X genotypes  
     
     parse.add_argument("--group1", nargs="+", required=True, help="junctions file for group 1")
     parse.add_argument("--group2", nargs="+", required=False, help="junctions file for group 2")
