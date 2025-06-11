@@ -30,6 +30,7 @@ pub struct TreeData {
     end_type: ExonType,
     counter_start: HashMap<ReadAssign, i32>,
     counter_end: HashMap<ReadAssign, i32>,
+    counter_intron: HashMap<ReadAssign, i32>,
 }
 
 impl TreeData {
@@ -62,6 +63,7 @@ impl TreeData {
             end_type: end_type,
             counter_start: HashMap::new(),
             counter_end: HashMap::new(),
+            counter_intron:HashMap::new(),
         }
     }
 
@@ -100,6 +102,28 @@ impl TreeData {
             Some(seq) => seq,
             _ => "NoSeq".to_string()
         };
+
+        let start_map= read_toassign(
+            self.strand,
+            self.start,
+            self.start_type,
+            aln_start,
+            aln_end,
+            cigar,
+            read_strand,
+            overhang,
+        );
+
+        let end_map = read_toassign(
+            self.strand,
+            self.end,
+            self.end_type,
+            aln_start,
+            aln_end,
+            cigar,
+            read_strand,
+            overhang,
+        );
 
         if let Some(start_map) = read_toassign(
             self.strand,
@@ -174,17 +198,7 @@ impl TreeData {
                 },
                 
             };
-            /*if let Some(handle) = out_file_read_buffer {
-                match (clipped, start_map, &read_name, &sequence) {
-                    (true, ReadAssign::SoftClipped, Some(r_name), Some(seq)) => {
-                        handle.write(self.dump_reads_seq(seq, r_name, false, cigar).as_bytes());
-                    }
-                    (false, _, Some(r_name), Some(seq)) => {
-                        handle.write(self.dump_reads_seq(seq, r_name, false, cigar).as_bytes());
-                    }
-                    (_, _, _, _) => (),
-                }
-            }*/
+
         }
 
         if let Some(end_map) = read_toassign(
@@ -258,22 +272,11 @@ impl TreeData {
                 },
                 
             };
-            /*if let Some(handle) = out_file_read_buffer {
-                match (clipped, end_map, &read_name, &sequence) {
-                    (true, ReadAssign::SoftClipped, Some(r_name), Some(seq)) => {
-                        handle.write(self.dump_reads_seq(seq, r_name, true, cigar).as_bytes());
-                    }
-                    (false, _, Some(r_name), Some(seq)) => {
-                        handle.write(self.dump_reads_seq(seq, r_name, true, cigar).as_bytes());
-                    }
-                    (_, _, _, _) => (),
-                }
-            }
-        }*/
-
         ()
         }
     }
+
+
     fn dump_base(&self, end: bool) -> Vec<String> {
         let mut res = Vec::new();
         let mut exontype = ExonType::Acceptor;
@@ -329,7 +332,69 @@ impl TreeData {
         results.join("\n")
     }
 
-    fn dump_reads_seq(&self, sequence: &String, seqname: &String, end: bool, cigar: &Cigar) -> String {
+    fn write_to_read_file(&self, read_assign:  Option<ReadAssign>, out_file_read_buffer: &mut ReadToWriteHandle, end: bool, seq: &str, r_name: &str, cigar: &Cigar){
+        match read_assign {
+                None => 0,
+                Some(ReadAssign::Empty) =>  match  &mut out_file_read_buffer.empty {
+                        Some(handle) => handle.write(self.dump_reads_seq(seq, r_name, false, cigar).as_bytes())
+                        .unwrap_or_else(|_| panic!("cannot write reads")),
+                        _ => 0
+                },
+                Some(ReadAssign::ReadThrough) => match &mut out_file_read_buffer.read_through {
+                    Some(handle) => handle.write(self.dump_reads_seq(seq, r_name, false, cigar).as_bytes())
+                    .unwrap_or_else(|_| panic!("cannot write reads")),
+                    _ => 0
+                },
+                Some(ReadAssign::ReadJunction(_, _)) => match &mut out_file_read_buffer.read_junction {
+                    Some(handle) => handle.write(self.dump_reads_seq(seq, r_name, false, cigar).as_bytes())
+                    .unwrap_or_else(|_| panic!("cannot write reads")),
+                    _ => 0
+                },
+                Some(ReadAssign::Unexpected) => match &mut out_file_read_buffer.unexpected {
+                    Some(handle) => handle.write(self.dump_reads_seq(seq, r_name, false, cigar).as_bytes())
+                    .unwrap_or_else(|_| panic!("cannot write reads")),
+                    _ => 0
+                },
+                Some(ReadAssign::FailPosFilter) => match &mut out_file_read_buffer.fail_pos_filter {
+                    Some(handle) => handle.write(self.dump_reads_seq(seq, r_name, false, cigar).as_bytes())
+                    .unwrap_or_else(|_| panic!("cannot write reads")),
+                    _ => 0
+                },
+                Some(ReadAssign::WrongStrand) => match &mut out_file_read_buffer.wrong_strand {
+                    Some(handle) => handle.write(self.dump_reads_seq(seq, r_name, false, cigar).as_bytes())
+                    .unwrap_or_else(|_| panic!("cannot write reads")),
+                    _ => 0
+                },
+                Some(ReadAssign::FailQc) => match &mut out_file_read_buffer.fail_qc {
+                    Some(handle) => handle.write(self.dump_reads_seq(seq, r_name, false, cigar).as_bytes())
+                    .unwrap_or_else(|_| panic!("cannot write reads")),
+                    _ => 0
+                },
+                Some(ReadAssign::EmptyPileup) => match &mut out_file_read_buffer.empty_pileup {
+                    Some(handle) => handle.write(self.dump_reads_seq(seq, r_name, false, cigar).as_bytes())
+                    .unwrap_or_else(|_| panic!("cannot write reads")),
+                    _ => 0
+                },
+                Some(ReadAssign::Skipped(_, _)) => match &mut out_file_read_buffer.skipped {
+                    Some(handle) => handle.write(self.dump_reads_seq(seq, r_name, false, cigar).as_bytes())
+                    .unwrap_or_else(|_| panic!("cannot write reads")),
+                    _ => 0
+                },
+                Some(ReadAssign::SoftClipped) => match &mut out_file_read_buffer.soft_clipped {
+                    Some(handle) => handle.write(self.dump_reads_seq(seq, r_name, false, cigar).as_bytes())
+                    .unwrap_or_else(|_| panic!("cannot write reads")),
+                    _ => 0
+                },
+                Some(ReadAssign::OverhangFail) => match &mut out_file_read_buffer.overhang_fail {
+                    Some(handle) => handle.write(self.dump_reads_seq(seq, r_name, false, cigar).as_bytes())
+                    .unwrap_or_else(|_| panic!("cannot write reads")),
+                    _ => 0
+                },
+                
+            };
+    }
+
+    fn dump_reads_seq(&self, sequence: &str, seqname: &str, end: bool, cigar: &Cigar) -> String {
         ///
         /// :param end: if set to true look at the end of the sequence (end > start)
         let mut base_vec = self.dump_base(end);

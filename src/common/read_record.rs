@@ -65,7 +65,20 @@ impl ReadtRecord {
                 ReadAssign::ReadThrough => unspliced = elem.1,
                 ReadAssign::SoftClipped => clipped = elem.1,
                 ReadAssign::WrongStrand => wrong_strand = elem.1,
-                ReadAssign::Skipped(start, end) => skipped = elem.1,
+                ReadAssign::Skipped(start, end) => {
+                    start_order = start;
+                    end_order = end;
+                    if junction_set.contains_key(&(self.contig.clone(), start_order, end_order))
+                            {
+                                if let Some(x) = junction_set.get(&(self.contig.clone(), start_order, end_order)){
+                                    if *x == current_strand{
+                                        e_isoform = e_isoform + elem.1;
+                                        continue
+                                    }
+                                }   
+                            }
+                    else{
+                    skipped = elem.1}},
                 ReadAssign::ReadJunction(start, end) => {
                     
                     start_order = start;
@@ -91,13 +104,9 @@ impl ReadtRecord {
                                         e_isoform = e_isoform + elem.1;
                                         continue
                                     }
-                                }
-                                
-                                //println!("iso");
+                                }   
                             } 
                                 exon_other = exon_other + elem.1;
-                                //println!("other");
-                            
                         }
                         (Strand::Minus, ExonType::Donnor, Some(next))
                         | (Strand::Plus | Strand::NA, ExonType::Acceptor, Some(next)) => {
