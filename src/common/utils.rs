@@ -1,3 +1,4 @@
+use clap::builder::Str;
 use lazy_static::lazy_static;
 use regex::Regex;
 use std::collections::HashMap;
@@ -357,26 +358,26 @@ impl From<&str> for ReadAssign {
     }
 }
 
-pub fn read_toassign(
-    feature_strand: Strand,
-    feature_pos: i64,
-    feature_exontype: ExonType,
-    aln_start: i64,
-    aln_end: i64,
-    cigar: &Cigar,
-    //flag: &u16,
-    read_strand: &Strand,
-    overhang: i64,
-) -> Option<ReadAssign> {
-    // TODO Should I report it? no...
-    if !((aln_start <= feature_pos) & (aln_end >= feature_pos)) {
-        return None; //return Some(ReadAssign::FailPosFilter);
-    }
 
-    if *read_strand != feature_strand {
+
+pub fn out_of_range(feature: i64, aln_start: i64, aln_end: i64, overhang: i64) -> bool{
+    if !((aln_start <= feature ) & (aln_end >= feature)){
+        return true
+    }
+    if (aln_end - feature < overhang) | (feature - aln_start < overhang){
+            return true
+        }
+    false
+}
+
+pub fn test_strand(read_strand: &Strand, feature_strand: &Strand) -> Option<ReadAssign>{
+    if (read_strand != feature_strand) & (read_strand != &Strand::NA){
         return Some(ReadAssign::WrongStrand);
     }
+    return None
+}
 
+fn test_skipped(cigar: &Cigar, aln_start: i64, feature_pos: i64) -> Option<ReadAssign>{
     let junction = cigar.get_skipped_pos_on_ref(&aln_start);
     if let Some(y) = junction {
         if let Some(i) = y
@@ -388,6 +389,61 @@ pub fn read_toassign(
             return Some(ReadAssign::Skipped(*i.1, y[i.0 + 1]));
         }
     }
+    return None
+}
+    
+    
+//pub fn overhang_fail(feature: i64, aln_start: i64, aln_end: i64, overhang: i64){
+//}
+
+pub fn read_toassign(
+    feature_strand: Strand,
+    feature_pos: i64,
+    feature_exontype: ExonType,
+    aln_start: i64,
+    aln_end: i64,
+    cigar: &Cigar,
+    //flag: &u16,
+    read_strand: &Strand,
+    overhang: i64,
+) -> Option<ReadAssign> {
+
+    // TODO Should I report it? no...
+    // does that can ever happen?
+    if out_of_range(feature_pos, aln_start, aln_end, overhang){
+        return None
+    }
+
+    //if !((aln_start <= feature_pos) & (aln_end >= feature_pos)) {
+    //    return None; //return Some(ReadAssign::FailPosFilter);
+    //}
+
+    // must be a better way this look a bit spagetthi don't like it
+    // if strand::NA => unstranded library
+    match test_strand(&read_strand, &feature_strand) {
+        Some(x) => {return Some(x)},
+        _ => ()
+    };
+
+    //if (*read_strand != feature_strand) & (*read_strand != Strand::NA){
+    //    return Some(ReadAssign::WrongStrand);
+    //}
+    match test_skipped(&cigar, aln_start, feature_pos){
+        Some(x) => return Some(x),
+        _ => ()
+    }
+
+    /*let junction = cigar.get_skipped_pos_on_ref(&aln_start);
+    if let Some(y) = junction {
+        if let Some(i) = y
+            .iter()
+            .enumerate()
+            .step_by(2)
+            .find(|(i, &x)| (x < feature_pos) & (y[i + 1] > feature_pos))
+        {
+            return Some(ReadAssign::Skipped(*i.1, y[i.0 + 1]));
+        }
+    }*/
 
     match (feature_strand, feature_exontype) {
         (Strand::Plus, ExonType::Donnor) | (Strand::Minus, ExonType::Acceptor) => {
@@ -395,10 +451,8 @@ pub fn read_toassign(
                 return Some(ReadAssign::OverhangFail);
             }
 
-            //if cigar.does_it_match_an_intervall(&aln_start, feature_pos - overhang, feature_pos + 1)
             if cigar.does_it_match_an_intervall(&aln_start, feature_pos - overhang, feature_pos + overhang)
             {
-                //overhang) {
                 return Some(ReadAssign::ReadThrough);
             }
 
@@ -415,7 +469,6 @@ pub fn read_toassign(
             //if cigar.does_it_match_an_intervall(&aln_start, feature_pos - 1, feature_pos + overhang)
             if cigar.does_it_match_an_intervall(&aln_start, feature_pos - overhang, feature_pos + overhang)
             {
-                //overhang) {
                 return Some(ReadAssign::ReadThrough);
             }
 
@@ -423,6 +476,7 @@ pub fn read_toassign(
                 return Some(ReadAssign::SoftClipped);
             }
         }
+        //feature strand!s
         (Strand::NA, _) => {
             return None;
         }
@@ -435,21 +489,30 @@ pub fn read_toassign(
                 feature_strand,
                 feature_exontype,
             ) {
-                (Some(p), Strand::Plus, ExonType::Donnor) => {
-                    return Some(ReadAssign::ReadJunction(j[p], j[p + 1]));
-                }
-                (Some(p), Strand::Plus, ExonType::Acceptor) => {
+                // TODO add overhang check!
+                (Some(p), Strand::Plus, ExonType::Donnor) | (Some(p), Strand::Minus, ExonType::Acceptor) => {
+                    if !((cigar.does_it_match_an_intervall(&aln_start, j[p] - overhang, j[p])) & 
+                     (cigar.does_it_match_an_intervall(&aln_start,  j[p + 1],  j[p + 1] + overhang))){
+                        return Some(ReadAssign::OverhangFail);
+                     }
+                 return Some(ReadAssign::ReadJunction(j[p], j[p + 1]));
+                },
+                
+                (Some(p), Strand::Plus, ExonType::Acceptor)  | (Some(p), Strand::Minus, ExonType::Donnor) => {
+                    if !((cigar.does_it_match_an_intervall(&aln_start, j[p - 1] - overhang, j[p - 1])) & 
+                     (cigar.does_it_match_an_intervall(&aln_start,  j[p],  j[p] + overhang))){
+                        return Some(ReadAssign::OverhangFail);
+                     }
                     return Some(ReadAssign::ReadJunction(j[p - 1], j[p]));
-                }
-                (Some(p), Strand::Minus, ExonType::Donnor) => {
-                    return Some(ReadAssign::ReadJunction(j[p - 1], j[p]));
-                }
-                (Some(p), Strand::Minus, ExonType::Acceptor) => {
-                    return Some(ReadAssign::ReadJunction(j[p], j[p + 1]));
-                }
+                },
+                //(Some(p), Strand::Minus, ExonType::Donnor) => {
+                //    return Some(ReadAssign::ReadJunction(j[p - 1], j[p]));
+                //}
+                //(Some(p), Strand::Minus, ExonType::Acceptor) => {
+                //    return Some(ReadAssign::ReadJunction(j[p], j[p + 1]));
+                //}
 
                 (_, _, _) => {
-                    //TODO add skipped
 
                     if let Some(i) = j
                         .iter()
@@ -457,9 +520,12 @@ pub fn read_toassign(
                         .step_by(2)
                         .find(|(i, &x)| (x < feature_pos) & (j[i + 1] > feature_pos))
                     {
+                        //println!("Skipped: {:?} {:?} {:?} {:?} {:?} {:?} {:?} {:?} {:?}",\
+                        // j, aln_start ,aln_end, cigar, read_strand, feature_strand, feature_pos, feature_exontype, overhang);
                         return Some(ReadAssign::Skipped(*i.1, j[i.0 + 1]));
                     } else {
-                        //println!("Unexp: {:?} {:?} {:?} {:?} {:?}", j, aln_start ,aln_end, cigar, self);
+                        //println!("Unexp: {:?} {:?} {:?} {:?} {:?} {:?} {:?} {:?} {:?}",\
+                        // j, aln_start ,aln_end, cigar, read_strand, feature_strand, feature_pos, feature_exontype, overhang);
                         return Some(ReadAssign::Unexpected);
                     }
                 }
@@ -470,3 +536,50 @@ pub fn read_toassign(
         }
     }
 }
+
+/*
+    feature_strand: Strand,
+    feature_pos: i64,
+    feature_exontype: ExonType,
+    aln_start: i64,
+    aln_end: i64,
+    cigar: &Cigar,
+    //flag: &u16,
+    read_strand: &Strand,
+    overhang: i64 */
+
+
+#[cfg(test)]
+mod tests_it {
+    use super::*;
+
+    #[test]
+    fn test_1() {
+        let aln_start = 21589327;
+        let feature_pos = 21589347;
+        let overhang = 5;
+        let cigar = Cigar::from("22M264N78M");
+
+         assert_eq!(cigar.does_it_match_an_intervall(&aln_start, feature_pos-overhang, feature_pos), true);
+    }
+     #[test]
+    fn test_2() {
+        let aln_start = 21589345;
+        let feature_pos = 21589347;
+        let overhang = 5;
+        let cigar = Cigar::from("22M264N78M");
+
+         assert_eq!(cigar.does_it_match_an_intervall(&aln_start, feature_pos-overhang, feature_pos), false);
+    }
+
+     #[test]
+    fn test_3() {
+        let aln_start = 21597482;
+        let feature_pos = 21611098;
+        let overhang = 5;
+        let cigar = Cigar::from("89M13524N11M");
+        println!("{:?}", cigar.get_skipped_pos_on_ref(&aln_start));
+        assert_eq!(true, true);
+    }
+
+}//21589349, 21589613

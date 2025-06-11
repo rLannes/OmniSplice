@@ -94,6 +94,7 @@ def plot_2(out, defect_index, colors, counts_intron, order, defect_to_plot, widt
 
 
 def plot_3(out, defect_index, colors, counts_intron, order, defect_to_plot, width, height, title):
+    print(out)
     
     fig = plt.figure(figsize=(width, height))
 
@@ -220,9 +221,7 @@ if __name__ == "__main__":
     elif args.logging_level == "ERROR":
         logger.setLevel(logging.ERROR)
 
-
     checkinput_args(args)
-
 
     dico_result = {}
 
@@ -234,7 +233,6 @@ if __name__ == "__main__":
             logging.debug("group3")
             for file in args.group3:
                 parse_js_file(file=file, results=dico_result, genotype=args.group3_name, ambigious=True, gene_list=args.gene_list, transcript_list=args.transcript_list)
-
 
     dico_j = {}
 
@@ -253,10 +251,8 @@ if __name__ == "__main__":
 
             dico_j[gene][transcript].append((junction.get_count_per_genotype_summed(), intron))
      
+
     # build legend
-
-
-
     for gene_id, tr_dico in dico_j.items():
         for tr_id, counts_dico in tr_dico.items():
             if not args.group2:

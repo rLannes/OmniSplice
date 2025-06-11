@@ -7,7 +7,7 @@ use std::fs::File;
 use std::hash::Hash;
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::sync::Arc;
-use strand_specifier_lib::Strand;
+use strand_specifier_lib::{LibType, Strand};
 use std::mem;
 
 struct ReadtRecord {
@@ -42,7 +42,7 @@ impl ReadtRecord {
     fn dump_junction(
         &self,
         next_acceptor: Option<i64>,
-        junction_set: Option<&HashSet<(i64, i64, Strand)>>,
+        junction_set: &HashMap<(String, i64, i64), Strand>,
     ) -> String {
 
         let mut current_strand = Strand::Plus;
@@ -82,53 +82,43 @@ impl ReadtRecord {
                             //println!("Acc junction: {} {}; pos {}; next: {}; n: {} all", start, end, self.pos, next, elem.1);
                             if next == end {
                                 spliced = spliced + elem.1;
+                                continue;
                                 //println!("spliced");
-                            } else if junction_set.is_some()
-                                && junction_set.unwrap().contains(&(start_order, end_order, current_strand))
+                            } if junction_set.contains_key(&(self.contig.clone(), start_order, end_order))
                             {
-                                e_isoform = e_isoform + elem.1;
+                                if let Some(x) = junction_set.get(&(self.contig.clone(), start_order, end_order)){
+                                    if *x == current_strand{
+                                        e_isoform = e_isoform + elem.1;
+                                        continue
+                                    }
+                                }
+                                
                                 //println!("iso");
-                            } else {
+                            } 
                                 exon_other = exon_other + elem.1;
                                 //println!("other");
-                            }
+                            
                         }
                         (Strand::Minus, ExonType::Donnor, Some(next))
                         | (Strand::Plus | Strand::NA, ExonType::Acceptor, Some(next)) => {
-                            //if self.gene_id == "gene-LOC27208819"{
-                            //    println!("js {:?}",  junction_set);
-                            //    println!("this: {}, next {:?}",  self.pos, next_acceptor);
-                            ///};
-                            //println!(" Doo junction: {} {}; pos {}; next: {}; n: {} all", start, end, self.pos, next, elem.1);
+
                             if next == start {
                                 //println!("spliced");
                                 spliced = spliced + elem.1;
-                                //println!("spliced");
-                                //println!("junction: {} {}; pos {}; next: {}; spliced", start, end, self.pos, next);
-                            } else if junction_set.is_some()
-                                && junction_set.unwrap().contains(&(start_order, end_order, current_strand))
-                            {
-                                e_isoform = e_isoform + elem.1;
-                                //println!("iso");
-                            } else
-                            {
-                                exon_other = exon_other + elem.1;
-                            } 
-                            
-                            
-                            /*else if start > next {
-                                //println!("intron");
-                                exon_intron = exon_intron + elem.1;
-                                //println!("intron");
+                                continue;
+
                             }
-                            //println!("junction: {} {}; pos {};; next: {}; exon_intron", start, end, self.pos, next);
-                            else {
-                                //println!("other");
+
+                            if let Some(x) = junction_set.get(&(self.contig.clone(), start_order, end_order)){
+                                    if *x == current_strand{
+                                        e_isoform = e_isoform + elem.1;
+                                        continue
+                                    }
+                                }
                                 exon_other = exon_other + elem.1;
-                                //println!("other");
-                                //println!("junction: {} {}; pos {};; next: {}; exon_other", start, end, self.pos, next);
-                            }*/
-                        } //(_, _, _) => (),
+                            
+
+                        }
                     }
                 }
                 _ => (),
@@ -209,7 +199,7 @@ impl ReadtRecordContainer {
 
     fn dump(
         &mut self,
-        junction_set: Option<&HashSet<(i64, i64, Strand)>>,
+        junction_set: &HashMap<(String, i64, i64),  Strand>,
         invalid: &HashSet<(String, i64)>,
     ) -> String {
         self.sort();
@@ -256,17 +246,18 @@ impl ReadtRecordContainer {
         }
 
         format!("{}\n", result.join("\n"))
-        //format!("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n", self.strand, self.pos, self.exon_type,
-        //unspliced, spliced, clipped, exon_intron, exon_other)
+
     }
 }
 
-pub fn file_to_table(file: String, out_file: &mut BufWriter<File>, gtf: &str) -> () {
+
+pub fn file_to_table(file: String, out_file: &mut BufWriter<File>, gtf: &str, libtype: LibType) -> () {
     let mut mymap = parse_file(file.as_str());
-
+    
+    // ambigious position
     let invalid_pos = get_invalid_pos(gtf);
-
-    let gene_junction_set = get_junction_from_gtf(gtf);
+    //isoform
+    let gene_junction_set = get_junction_from_gtf(gtf, &libtype);
 
     for (_gene_name, container) in &mut mymap {
         for (_transcript_name, cont) in &mut *container {
@@ -274,8 +265,8 @@ pub fn file_to_table(file: String, out_file: &mut BufWriter<File>, gtf: &str) ->
         }
 
         for (_transcript_name, cont) in container {
-            let sub_set: Option<&HashSet<(i64, i64, Strand)>> = gene_junction_set.get(&cont.container[0].contig);
-            let _ = out_file.write(cont.dump(sub_set, &invalid_pos).as_bytes());
+            //let sub_set: Option<&HashSet<(i64, i64, Strand)>> = gene_junction_set.get(&cont.container[0].contig);
+            let _ = out_file.write(cont.dump(&gene_junction_set, &invalid_pos).as_bytes());
         }
         
         
@@ -342,7 +333,7 @@ where
     }
 }
 
-fn get_junction_from_gtf(file: &str) -> HashMap<String, HashSet<(i64, i64, Strand)>> {
+fn get_junction_from_gtf(file: &str, libtype: &LibType) -> HashMap<(String, i64, i64),  Strand> {
 
     let f = File::open(file).unwrap();
     let reader = BufReader::new(f);
@@ -355,11 +346,15 @@ fn get_junction_from_gtf(file: &str) -> HashMap<String, HashSet<(i64, i64, Stran
     let mut gene_name: String = "".to_string();
     let mut transcript_id: String;
 
-    let mut result: HashMap<String, HashSet<(i64, i64, Strand)>> = HashMap::new();
+    
     let mut transcript_vec: Vec<(i64, i64)> = Vec::new();
     let mut current_gene_id = "".to_string();
     let mut current_transcript_id = "".to_string();
     let mut myset: HashSet<(i64, i64, Strand)> = HashSet::new();
+    
+    //let mut result: HashMap<String, HashMap<(String, i64, i64), Strand>> = HashMap::new();
+    let mut my_map: HashMap<(String, i64, i64), Strand> = HashMap::new();
+
 
     for line in reader.lines() {
 
@@ -375,8 +370,14 @@ fn get_junction_from_gtf(file: &str) -> HashMap<String, HashSet<(i64, i64, Stran
         chr_ = spt[0].to_string();
         start = spt[3].parse::<i64>().unwrap() - 1;
         end = spt[4].parse::<i64>().unwrap();
-        strand = Strand::from(spt[6]);
+        strand =  Strand::from(spt[6]);
 
+        strand = match libtype{
+            LibType::PairedUnstranded | LibType::Unstranded => Strand::NA,
+            _ => Strand::from(spt[6])
+        };
+       
+        
         if let Some((gene_tmp, tr_tmp)) =
             get_attr_id(spt[8], "gene_id").zip(get_attr_id(spt[8], "transcript_id"))
         {
@@ -392,28 +393,19 @@ fn get_junction_from_gtf(file: &str) -> HashMap<String, HashSet<(i64, i64, Stran
             continue; // skip this gene
         }
 
-
-
+        // another approach!
         if gene_name != current_gene_id {
             let ll = transcript_vec.len();
             transcript_vec.sort_by_key(|x| x.0);
             if ll > 1 {
                 for i in 0..(ll - 1) {
-                    myset.insert((transcript_vec[i].1, transcript_vec[i + 1].0, strand));
+                    my_map.insert((chr_.clone(), transcript_vec[i].1, transcript_vec[i + 1].0), strand);
+                    //myset.insert((transcript_vec[i].1, transcript_vec[i + 1].0, strand));
                 }
             }
 
             transcript_vec.clear();
 
-            if !myset.is_empty() {
-                result
-                .entry(chr_.to_string())
-                .or_insert_with(|| myset.clone())
-                .extend(&myset);
-
-                //result.insert(current_gene_id.clone(), myset.clone());
-                //myset.clear();
-            }
             current_gene_id = gene_name.clone();
             current_transcript_id = transcript_id;
         } else if transcript_id != current_transcript_id {
@@ -421,7 +413,8 @@ fn get_junction_from_gtf(file: &str) -> HashMap<String, HashSet<(i64, i64, Stran
             transcript_vec.sort_by_key(|x| x.0);
             if ll > 1 {
                 for i in 0..(ll - 1) {
-                    myset.insert((transcript_vec[i].1, transcript_vec[i + 1].0, strand));
+                    my_map.insert((chr_.clone(), transcript_vec[i].1, transcript_vec[i + 1].0,), strand);
+                    //myset.insert((transcript_vec[i].1, transcript_vec[i + 1].0, strand));
                 }
             }
 
@@ -436,18 +429,21 @@ fn get_junction_from_gtf(file: &str) -> HashMap<String, HashSet<(i64, i64, Stran
     transcript_vec.sort_by_key(|x| x.0);
     if ll > 1 {
         for i in 0..(ll - 1) {
-            myset.insert((transcript_vec[i].1, transcript_vec[i + 1].0, strand));
+            my_map.insert((chr_.clone(), transcript_vec[i].1, transcript_vec[i + 1].0,), strand);
+            //myset.insert((transcript_vec[i].1, transcript_vec[i + 1].0, strand));
         }
     }
+
+    my_map
     //transcript_vec.clear();
-    result
-    .entry(chr_.to_string())
-    .or_insert_with(|| myset.clone())
-    .extend(&myset);
+    //result
+    //.entry(chr_.to_string())
+    //.or_insert_with(|| myset.clone())
+    //.extend(&myset);
 
     //result.insert(gene_name.clone(), myset.clone());
     //myset.clear();
-    result
+    //result
 }
 
 fn gtf_to_it(file: &str) -> HashMap<String, IntervalTree<i64, String>> {
@@ -630,23 +626,4 @@ fn get_invalid_pos(file: &str) -> HashSet<(String, i64)> {
 
 results
 }
-#[cfg(test)]
-mod tests_it {
-    use super::*;
-
-    #[test]
-    fn test_1() {
-        let junction = get_junction_from_gtf(
-            "/lab/solexa_yamashita/people/Romain/Projets/Adrienne/OmniSplice/X_auto/gtr_test_1.gtf",
-        );
-        println!("{:?}", junction);
-        println!("{:?}", junction.get("gene-LOC27208819"));
-    }
-
-    #[test]
-    fn test_2() {
-        let junction =  get_junction_from_gtf("/lab/solexa_yamashita/people/Romain/Projets/Adrienne/Reference/refseq/Simulans_NCBI/data/GCF_016746395.2/genomic.gtf");
-        println!("{:?}", junction.get("gene-LOC27208819"));
-        println!("{:?}", junction.get("LOC27208819"));
-    }
-}
+ 

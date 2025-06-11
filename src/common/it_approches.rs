@@ -498,7 +498,7 @@ pub fn update_tree_with_bamfile(
     let mut sequence: Option<String> = None;
 
     let mut counter: i64;
-    let mut record: Record;
+    let mut record: Record = Record::new();
     let mut pos_s: i64;
     let mut pos_e: i64;
     let mut cig: Cigar;
@@ -516,8 +516,9 @@ pub fn update_tree_with_bamfile(
                 continue;
             }
         }
-        for r in bam.records() {
-            record = r.unwrap();
+        while let Some(r) = bam.read(&mut record){
+        //for r in bam.records() {
+            //record = r.unwrap();
             pos_s = record.pos();
             cig = Cigar::from_str(&record.cigar().to_string()).unwrap();
             pos_e = cig.get_end_of_aln(&pos_s);

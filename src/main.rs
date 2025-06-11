@@ -163,7 +163,7 @@ fn main() {
         .unwrap_or_else(|_| panic!("output file {} should not exist.", &table));//expect(&format!("output file {} should not exist.", &table));
     let mut stream = BufWriter::new(file);
     let _ = stream.write("contig\tgene_name\ttranscript_name\texon_number\tambiguous\tstrand\tpos\tnext\texon_type\tspliced\tunspliced\tclipped\texon_other\tskipped\twrong_strand\te_isoform\n".as_bytes());
-    file_to_table(output.clone(), &mut stream, args.gtf.as_str());
+    file_to_table(output.clone(), &mut stream, args.gtf.as_str(), args.libtype);
     junction_file_from_table(&table, &junction_file);
     splicing_efficiency::to_se_from_table(&table, &splicing_defect, args.spliced_def, args.unspliced_def);
     
