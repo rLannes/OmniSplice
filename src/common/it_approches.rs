@@ -1,6 +1,6 @@
 #![allow(irrefutable_let_patterns)]
 use crate::common::point::{get_attr_id, InsideCounter};
-use crate::common::utils::{read_toassign, ExonType, ReadAssign, ReadToWriteHandle};
+use crate::common::utils::{read_toassign, SplicingEvent, ExonType, ReadAssign, ReadToWriteHandle};
 use bio::bio_types::annot::contig;
 use bio::data_structures::interval_tree;
 use bio::utils::Interval;
@@ -30,7 +30,7 @@ pub struct TreeData {
     end_type: ExonType,
     counter_start: HashMap<ReadAssign, i32>,
     counter_end: HashMap<ReadAssign, i32>,
-    counter_intron: HashMap<ReadAssign, i32>,
+    counter_intron: HashMap<SplicingEvent, i32>,
 }
 
 impl TreeData {
@@ -67,19 +67,53 @@ impl TreeData {
         }
     }
 
-    fn update_start_counter(&mut self, item: ReadAssign) -> () {
-        if let Some(val) = self.counter_start.get_mut(&item) {
-            *val += 1;
-        } else {
-            self.counter_start.insert(item, 1);
+
+    /*fn update_start_counter(&mut self, item: Option<ReadAssign>) -> () {
+        match item{
+                Some(read_assign) => {if let Some(val) = self.counter_start.get_mut(&read_assign) {
+                    *val += 1;
+                } else {
+                    self.counter_start.insert(read_assign, 1);
+                }
+            },
+        _ => ()
         }
     }
 
-    fn update_end_counter(&mut self, item: ReadAssign) -> () {
-        if let Some(val) = self.counter_end.get_mut(&item) {
-            *val += 1;
-        } else {
-            self.counter_end.insert(item, 1);
+    fn update_end_counter(&mut self, item: Option<ReadAssign>) -> () {
+        match item{
+            Some(read_assign) => {if let Some(val) = self.counter_end.get_mut(&read_assign) {
+                        *val += 1;
+                    } else {
+                        self.counter_end.insert(read_assign, 1);
+                    }
+            },
+            _ => ()
+        }
+
+    }*/
+
+    fn update_counter(counter: &mut HashMap<ReadAssign, i32>, item: Option<ReadAssign>) -> () {
+        match item{
+            Some(read_assign) => {if let Some(val) = counter.get_mut(&read_assign) {
+                        *val += 1;
+                    } else {
+                        counter.insert(read_assign, 1);
+                    }
+            },
+            _ => ()
+        }
+    }
+
+    fn update_splicing_counter(counter: &mut HashMap<SplicingEvent, i32>, item: Option<SplicingEvent>) -> () {
+        match item{
+            Some(read_assign) => {if let Some(val) = counter.get_mut(&read_assign) {
+                        *val += 1;
+                    } else {
+                        counter.insert(read_assign, 1);
+                    }
+            },
+            _ => ()
         }
     }
 
@@ -93,6 +127,7 @@ impl TreeData {
         out_file_read_buffer: &mut ReadToWriteHandle,
         read_name: Option<String>,
         sequence: Option<String>,
+        valid_junction: &HashMap<(String, i64, i64),  Strand>
     ) -> () {
         let seq = match sequence {
             Some(seq) => seq,
@@ -124,156 +159,26 @@ impl TreeData {
             read_strand,
             overhang,
         );
+        //get_junction_from_gtf(file: &str, libtype: &LibType) -> HashMap<(String, i64, i64),  Strand>
+        //&self, read_assign:  Option<ReadAssign>, out_file_read_buffer: &mut ReadToWriteHandle, end: bool, seq: &str, r_name: &str, cigar: &Cigar
+        self.write_to_read_file(start_map, out_file_read_buffer, false, &seq, &r_name, cigar);
+        self.write_to_read_file(end_map, out_file_read_buffer, true, &seq, &r_name, cigar);
+        TreeData::update_counter(&mut self.counter_start, start_map);
+        TreeData::update_counter(&mut self.counter_end, end_map);
+        
+        match(SplicingEvent::from_read_assign(start_map, self.contig.clone(), valid_junction, self.start, self.end, &self.strand, read_strand), 
+            SplicingEvent::from_read_assign(end_map, self.contig.clone(), valid_junction, self.start, self.end, &self.strand, read_strand)
+            ){
+                (Some(x), None) => TreeData::update_splicing_counter(&mut self.counter_intron,Some(x)),
+                (None, Some(x)) => TreeData::update_splicing_counter(&mut self.counter_intron,Some(x)),
+                (Some(SplicingEvent::Spliced), Some(SplicingEvent::Spliced)) => TreeData::update_splicing_counter(&mut self.counter_intron,Some(SplicingEvent::Spliced)),
+                (Some(left), Some(right)) => {
+                    TreeData::update_splicing_counter(&mut self.counter_intron,SplicingEvent::merge(Some(left), Some(right)))
+                },
+                (_, _) => ()
 
-        if let Some(start_map) = read_toassign(
-            self.strand,
-            self.start,
-            self.start_type,
-            aln_start,
-            aln_end,
-            cigar,
-            read_strand,
-            overhang,
-        ) {
-            self.update_start_counter(start_map);
-
-
-            // I am not a fna of this it is very verbose but it seems to do the job.
-            // also I am going to test that match case millions of time... but it is setup at start..
-            match start_map {
-                ReadAssign::Empty =>  match  &mut out_file_read_buffer.empty {
-                        Some(handle) => handle.write(self.dump_reads_seq(&seq, &r_name, false, cigar).as_bytes())
-                        .unwrap_or_else(|_| panic!("cannot write reads")),
-                        _ => 0
-                },
-                ReadAssign::ReadThrough => match &mut out_file_read_buffer.read_through {
-                    Some(handle) => handle.write(self.dump_reads_seq(&seq, &r_name, false, cigar).as_bytes())
-                    .unwrap_or_else(|_| panic!("cannot write reads")),
-                    _ => 0
-                },
-                ReadAssign::ReadJunction(_, _) => match &mut out_file_read_buffer.read_junction {
-                    Some(handle) => handle.write(self.dump_reads_seq(&seq, &r_name, false, cigar).as_bytes())
-                    .unwrap_or_else(|_| panic!("cannot write reads")),
-                    _ => 0
-                },
-                ReadAssign::Unexpected => match &mut out_file_read_buffer.unexpected {
-                    Some(handle) => handle.write(self.dump_reads_seq(&seq, &r_name, false, cigar).as_bytes())
-                    .unwrap_or_else(|_| panic!("cannot write reads")),
-                    _ => 0
-                },
-                ReadAssign::FailPosFilter => match &mut out_file_read_buffer.fail_pos_filter {
-                    Some(handle) => handle.write(self.dump_reads_seq(&seq, &r_name, false, cigar).as_bytes())
-                    .unwrap_or_else(|_| panic!("cannot write reads")),
-                    _ => 0
-                },
-                ReadAssign::WrongStrand => match &mut out_file_read_buffer.wrong_strand {
-                    Some(handle) => handle.write(self.dump_reads_seq(&seq, &r_name, false, cigar).as_bytes())
-                    .unwrap_or_else(|_| panic!("cannot write reads")),
-                    _ => 0
-                },
-                ReadAssign::FailQc => match &mut out_file_read_buffer.fail_qc {
-                    Some(handle) => handle.write(self.dump_reads_seq(&seq, &r_name, false, cigar).as_bytes())
-                    .unwrap_or_else(|_| panic!("cannot write reads")),
-                    _ => 0
-                },
-                ReadAssign::EmptyPileup => match &mut out_file_read_buffer.empty_pileup {
-                    Some(handle) => handle.write(self.dump_reads_seq(&seq, &r_name, false, cigar).as_bytes())
-                    .unwrap_or_else(|_| panic!("cannot write reads")),
-                    _ => 0
-                },
-                ReadAssign::Skipped(_, _) => match &mut out_file_read_buffer.skipped {
-                    Some(handle) => handle.write(self.dump_reads_seq(&seq, &r_name, false, cigar).as_bytes())
-                    .unwrap_or_else(|_| panic!("cannot write reads")),
-                    _ => 0
-                },
-                ReadAssign::SoftClipped => match &mut out_file_read_buffer.soft_clipped {
-                    Some(handle) => handle.write(self.dump_reads_seq(&seq, &r_name, false, cigar).as_bytes())
-                    .unwrap_or_else(|_| panic!("cannot write reads")),
-                    _ => 0
-                },
-                ReadAssign::OverhangFail => match &mut out_file_read_buffer.overhang_fail {
-                    Some(handle) => handle.write(self.dump_reads_seq(&seq, &r_name, false, cigar).as_bytes())
-                    .unwrap_or_else(|_| panic!("cannot write reads")),
-                    _ => 0
-                },
-                
-            };
-
-        }
-
-        if let Some(end_map) = read_toassign(
-            self.strand,
-            self.end,
-            self.end_type,
-            aln_start,
-            aln_end,
-            cigar,
-            read_strand,
-            overhang,
-        ) {
-            self.update_end_counter(end_map);
+            }
             
-            match end_map {
-                ReadAssign::Empty =>  match &mut out_file_read_buffer.empty {
-                        Some(handle) => handle.write(self.dump_reads_seq(&seq, &r_name,
-                             true, cigar).as_bytes())
-                        .unwrap_or_else(|_| panic!("cannot write reads")),
-                        _ => 0
-                },
-                ReadAssign::ReadThrough => match &mut out_file_read_buffer.read_through {
-                    Some(handle) => handle.write(self.dump_reads_seq(&seq, &r_name, true, cigar).as_bytes())
-                    .unwrap_or_else(|_| panic!("cannot write reads")),
-                    _ => 0
-                },
-                ReadAssign::ReadJunction(_, _) => match &mut out_file_read_buffer.read_junction {
-                    Some(handle) => handle.write(self.dump_reads_seq(&seq, &r_name, true, cigar).as_bytes())
-                    .unwrap_or_else(|_| panic!("cannot write reads")),
-                    _ => 0
-                },
-                ReadAssign::Unexpected => match &mut out_file_read_buffer.unexpected {
-                    Some(handle) => handle.write(self.dump_reads_seq(&seq, &r_name, true, cigar).as_bytes())
-                    .unwrap_or_else(|_| panic!("cannot write reads")),
-                    _ => 0
-                },
-                ReadAssign::FailPosFilter => match &mut out_file_read_buffer.fail_pos_filter {
-                    Some(handle) => handle.write(self.dump_reads_seq(&seq, &r_name, true, cigar).as_bytes())
-                    .unwrap_or_else(|_| panic!("cannot write reads")),
-                    _ => 0
-                },
-                ReadAssign::WrongStrand => match &mut  out_file_read_buffer.wrong_strand {
-                    Some(handle) => handle.write(self.dump_reads_seq(&seq, &r_name, true, cigar).as_bytes())
-                    .unwrap_or_else(|_| panic!("cannot write reads")),
-                    _ => 0
-                },
-                ReadAssign::FailQc => match &mut out_file_read_buffer.fail_qc {
-                    Some(handle) => handle.write(self.dump_reads_seq(&seq, &r_name, true, cigar).as_bytes())
-                    .unwrap_or_else(|_| panic!("cannot write reads")),
-                    _ => 0
-                },
-                ReadAssign::EmptyPileup => match &mut out_file_read_buffer.empty_pileup {
-                    Some(handle) => handle.write(self.dump_reads_seq(&seq, &r_name, true, cigar).as_bytes())
-                    .unwrap_or_else(|_| panic!("cannot write reads")),
-                    _ => 0
-                },
-                ReadAssign::Skipped(_, _) => match &mut out_file_read_buffer.skipped {
-                    Some(handle) => handle.write(self.dump_reads_seq(&seq, &r_name, true, cigar).as_bytes())
-                    .unwrap_or_else(|_| panic!("cannot write reads")),
-                    _ => 0
-                },
-                ReadAssign::SoftClipped => match &mut out_file_read_buffer.soft_clipped {
-                    Some(handle) => handle.write(self.dump_reads_seq(&seq, &r_name, true, cigar).as_bytes())
-                    .unwrap_or_else(|_| panic!("cannot write reads")),
-                    _ => 0
-                },
-                ReadAssign::OverhangFail => match &mut out_file_read_buffer.overhang_fail {
-                    Some(handle) => handle.write(self.dump_reads_seq(&seq, &r_name, true, cigar).as_bytes())
-                    .unwrap_or_else(|_| panic!("cannot write reads")),
-                    _ => 0
-                },
-                
-            };
-        ()
-        }
     }
 
 
@@ -336,57 +241,57 @@ impl TreeData {
         match read_assign {
                 None => 0,
                 Some(ReadAssign::Empty) =>  match  &mut out_file_read_buffer.empty {
-                        Some(handle) => handle.write(self.dump_reads_seq(seq, r_name, false, cigar).as_bytes())
+                        Some(handle) => handle.write(self.dump_reads_seq(seq, r_name, end, cigar).as_bytes())
                         .unwrap_or_else(|_| panic!("cannot write reads")),
                         _ => 0
                 },
                 Some(ReadAssign::ReadThrough) => match &mut out_file_read_buffer.read_through {
-                    Some(handle) => handle.write(self.dump_reads_seq(seq, r_name, false, cigar).as_bytes())
+                    Some(handle) => handle.write(self.dump_reads_seq(seq, r_name, end, cigar).as_bytes())
                     .unwrap_or_else(|_| panic!("cannot write reads")),
                     _ => 0
                 },
                 Some(ReadAssign::ReadJunction(_, _)) => match &mut out_file_read_buffer.read_junction {
-                    Some(handle) => handle.write(self.dump_reads_seq(seq, r_name, false, cigar).as_bytes())
+                    Some(handle) => handle.write(self.dump_reads_seq(seq, r_name, end, cigar).as_bytes())
                     .unwrap_or_else(|_| panic!("cannot write reads")),
                     _ => 0
                 },
                 Some(ReadAssign::Unexpected) => match &mut out_file_read_buffer.unexpected {
-                    Some(handle) => handle.write(self.dump_reads_seq(seq, r_name, false, cigar).as_bytes())
+                    Some(handle) => handle.write(self.dump_reads_seq(seq, r_name, end, cigar).as_bytes())
                     .unwrap_or_else(|_| panic!("cannot write reads")),
                     _ => 0
                 },
                 Some(ReadAssign::FailPosFilter) => match &mut out_file_read_buffer.fail_pos_filter {
-                    Some(handle) => handle.write(self.dump_reads_seq(seq, r_name, false, cigar).as_bytes())
+                    Some(handle) => handle.write(self.dump_reads_seq(seq, r_name, end, cigar).as_bytes())
                     .unwrap_or_else(|_| panic!("cannot write reads")),
                     _ => 0
                 },
                 Some(ReadAssign::WrongStrand) => match &mut out_file_read_buffer.wrong_strand {
-                    Some(handle) => handle.write(self.dump_reads_seq(seq, r_name, false, cigar).as_bytes())
+                    Some(handle) => handle.write(self.dump_reads_seq(seq, r_name, end, cigar).as_bytes())
                     .unwrap_or_else(|_| panic!("cannot write reads")),
                     _ => 0
                 },
                 Some(ReadAssign::FailQc) => match &mut out_file_read_buffer.fail_qc {
-                    Some(handle) => handle.write(self.dump_reads_seq(seq, r_name, false, cigar).as_bytes())
+                    Some(handle) => handle.write(self.dump_reads_seq(seq, r_name, end, cigar).as_bytes())
                     .unwrap_or_else(|_| panic!("cannot write reads")),
                     _ => 0
                 },
                 Some(ReadAssign::EmptyPileup) => match &mut out_file_read_buffer.empty_pileup {
-                    Some(handle) => handle.write(self.dump_reads_seq(seq, r_name, false, cigar).as_bytes())
+                    Some(handle) => handle.write(self.dump_reads_seq(seq, r_name, end, cigar).as_bytes())
                     .unwrap_or_else(|_| panic!("cannot write reads")),
                     _ => 0
                 },
                 Some(ReadAssign::Skipped(_, _)) => match &mut out_file_read_buffer.skipped {
-                    Some(handle) => handle.write(self.dump_reads_seq(seq, r_name, false, cigar).as_bytes())
+                    Some(handle) => handle.write(self.dump_reads_seq(seq, r_name, end, cigar).as_bytes())
                     .unwrap_or_else(|_| panic!("cannot write reads")),
                     _ => 0
                 },
                 Some(ReadAssign::SoftClipped) => match &mut out_file_read_buffer.soft_clipped {
-                    Some(handle) => handle.write(self.dump_reads_seq(seq, r_name, false, cigar).as_bytes())
+                    Some(handle) => handle.write(self.dump_reads_seq(seq, r_name, end, cigar).as_bytes())
                     .unwrap_or_else(|_| panic!("cannot write reads")),
                     _ => 0
                 },
                 Some(ReadAssign::OverhangFail) => match &mut out_file_read_buffer.overhang_fail {
-                    Some(handle) => handle.write(self.dump_reads_seq(seq, r_name, false, cigar).as_bytes())
+                    Some(handle) => handle.write(self.dump_reads_seq(seq, r_name, end, cigar).as_bytes())
                     .unwrap_or_else(|_| panic!("cannot write reads")),
                     _ => 0
                 },
@@ -646,15 +551,5 @@ mod tests_it {
             println!("{}", r.data());
         }
     }
-    /*#[test]
-    fn test_2() {
-    let f = "/lab/solexa_yamashita/people/Romain/Projets/Adrienne/OmniSplice/X_auto/test_gtf_chr.gtf".to_string();
-    let mut tree = gtf_to_tree(f).unwrap();
-
-    for (chr_, subtree) in tree.iter(){
-        for inter in subtree.find(0..100_000_000){
-            println!("{:?}", inter);
-        }
-        }
-    }*/
+   
 }

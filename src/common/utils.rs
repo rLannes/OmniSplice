@@ -1,3 +1,4 @@
+use bio::bio_types::annot::spliced::Spliced;
 use clap::builder::Str;
 use lazy_static::lazy_static;
 use regex::Regex;
@@ -9,6 +10,8 @@ use strand_specifier_lib::Strand;
 use CigarParser::cigar::Cigar;
 use std::io::BufWriter;
 use std::str::FromStr;
+use std::convert::TryFrom;
+use std::convert::TryInto;
 
 
 pub fn parse_header(header: &str) -> HashMap<String, usize>{
@@ -238,13 +241,121 @@ impl ReadToWriteHandle{
 }
 
 
+
+#[derive(Clone, Debug, Copy, Eq, Hash, PartialEq)]
+pub enum SplicingEvent {
+    Spliced,
+    Unspliced,
+    Clipped,
+    ExonOther,
+    WrongStrand,
+    Skipped,
+    Isoform
+}
+
+impl SplicingEvent{
+
+    pub fn merge(left: Option<SplicingEvent>, right: Option<SplicingEvent>) -> Option<SplicingEvent>{
+        match(left, right){
+            
+            (None, Some(x)) | (None, Some(x)) => {
+                Some(x)
+            }
+            (Some(SplicingEvent::Spliced), Some(SplicingEvent::Spliced)) => {
+                Some(SplicingEvent::Spliced)
+            }
+            (Some(SplicingEvent::Isoform), _) | (_, Some(SplicingEvent::Isoform)) => {
+                Some(SplicingEvent::Isoform)
+            },
+            (Some(SplicingEvent::ExonOther), _) | (_, Some(SplicingEvent::ExonOther)) => {
+                Some(SplicingEvent::ExonOther)
+            },
+            (Some(SplicingEvent::Unspliced), _) | (_, Some(SplicingEvent::Unspliced)) => {
+                Some(SplicingEvent::Unspliced)
+            },
+            (Some(SplicingEvent::Skipped), _) | (_, Some(SplicingEvent::Skipped)) => {
+                Some(SplicingEvent::Skipped)
+            },
+            (Some(SplicingEvent::Clipped), _) | (_, Some(SplicingEvent::Clipped)) => {
+                Some(SplicingEvent::Clipped)
+            },
+            (Some(SplicingEvent::WrongStrand), Some(SplicingEvent::WrongStrand)) => {
+                Some(SplicingEvent::WrongStrand)
+            }
+            (None, None) => None,
+            (None, Some(SplicingEvent::WrongStrand) | Some(SplicingEvent::Spliced)) |
+             (Some(SplicingEvent::WrongStrand) | Some(SplicingEvent::Spliced), None) => {
+                unreachable!()
+            },
+            (_, _) =>{
+                unreachable!()
+            }
+ 
+            
+        }
+
+    }
+
+    pub fn from_read_assign(item: Option<ReadAssign>,
+                        contig: String,
+                        valid_junction: &HashMap<(String, i64, i64),  Strand>,
+                        feature_start: i64,
+                        feature_end: i64,
+                        feature_strand: &Strand,
+                        read_strand: &Strand,
+                        next:i64) -> Option<Self>{
+        match item {
+            None => None,
+            Some(ReadAssign::WrongStrand) => Some(SplicingEvent::WrongStrand),
+            Some(ReadAssign::ReadThrough) => Some(SplicingEvent::Unspliced),
+            Some(ReadAssign::SoftClipped) => Some(SplicingEvent::Clipped),
+            Some(ReadAssign::Skipped(n, m)) => Some(SplicingEvent::Skipped),
+            Some(ReadAssign::ReadJunction(n, m)) => {
+                if ((n == next) & (m == feature_start )) || (( n == feature_end ) & (n == next)){
+                    Some(SplicingEvent::Spliced)
+                }
+                else if valid_junction.contains_key(&(contig.clone(), n, m)) || valid_junction.contains_key(&(contig.clone(), m, n)) {
+                    if (*read_strand == Strand::NA) | (read_strand == valid_junction.get(&(contig.clone(), n,m)).unwrap()){
+                        Some(SplicingEvent::Isoform)
+                    }
+                    else {
+                        Some(SplicingEvent::ExonOther)
+                    }
+                }
+                else {
+                    Some(SplicingEvent::ExonOther)
+                }
+            },
+
+
+            _ => None
+            
+        }
+
+    }
+
+}
+
+/*impl fmt::Display for ReadAssign {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+                Spliced,
+                Unspliced,
+                Clipped,
+                ExonOther,
+            WrongStrand,
+            Skipped,
+            Isoform
+            }
+        }
+    }*/
+
 #[derive(Clone, Debug, Copy, Eq, Hash, PartialEq)]
 pub enum ReadAssign {
     ReadThrough,
     ReadJunction(i64, i64),
     Unexpected,
     FailPosFilter,
-    //DoesNotMatchP1P,
     WrongStrand,
     FailQc,
     EmptyPileup,
