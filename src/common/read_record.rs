@@ -1,5 +1,6 @@
-use crate::common::point::get_attr_id;
+//use crate::common::point::get_attr_id;/
 use crate::common::utils::{ExonType, ReadAssign};
+use crate::common::gtf_::{get_junction_from_gtf, get_attr_id};
 use bio::data_structures::interval_tree::IntervalTree;
 use clap::builder::Str;
 use std::collections::{HashMap, HashSet};
@@ -342,118 +343,6 @@ where
     }
 }
 
-fn get_junction_from_gtf(file: &str, libtype: &LibType) -> HashMap<(String, i64, i64),  Strand> {
-
-    let f = File::open(file).unwrap();
-    let reader = BufReader::new(f);
-    let mut this_line: String;
-
-    let mut start: i64;
-    let mut chr_: String = "".to_string();
-    let mut end: i64;
-    let mut strand: Strand = Strand::Plus;
-    let mut gene_name: String = "".to_string();
-    let mut transcript_id: String;
-
-    
-    let mut transcript_vec: Vec<(i64, i64)> = Vec::new();
-    let mut current_gene_id = "".to_string();
-    let mut current_transcript_id = "".to_string();
-    let mut myset: HashSet<(i64, i64, Strand)> = HashSet::new();
-    
-    //let mut result: HashMap<String, HashMap<(String, i64, i64), Strand>> = HashMap::new();
-    let mut my_map: HashMap<(String, i64, i64), Strand> = HashMap::new();
-
-
-    for line in reader.lines() {
-
-        this_line = line.unwrap();
-        let spt = this_line.trim().split('\t').collect::<Vec<&str>>();
-        if spt.len() < 8 {
-            continue;
-        }
-        if spt[2] != "exon" {
-            continue;
-        }
-
-        chr_ = spt[0].to_string();
-        start = spt[3].parse::<i64>().unwrap() - 1;
-        end = spt[4].parse::<i64>().unwrap();
-        strand =  Strand::from(spt[6]);
-
-        strand = match libtype{
-            LibType::PairedUnstranded | LibType::Unstranded => Strand::NA,
-            _ => Strand::from(spt[6])
-        };
-       
-        
-        if let Some((gene_tmp, tr_tmp)) =
-            get_attr_id(spt[8], "gene_id").zip(get_attr_id(spt[8], "transcript_id"))
-        {
-            gene_name = gene_tmp;
-            transcript_id = tr_tmp;
-        } else if let Some((gene_tmp, tr_tmp)) =
-            get_attr_id(spt[8], "gene_name").zip(get_attr_id(spt[8], "transcript_id"))
-        {
-            gene_name = gene_tmp;
-            transcript_id = tr_tmp;
-        } else {
-            println!("warning gene id or transcript id not found: {:?}", spt);
-            continue; // skip this gene
-        }
-
-        // another approach!
-        if gene_name != current_gene_id {
-            let ll = transcript_vec.len();
-            transcript_vec.sort_by_key(|x| x.0);
-            if ll > 1 {
-                for i in 0..(ll - 1) {
-                    my_map.insert((chr_.clone(), transcript_vec[i].1, transcript_vec[i + 1].0), strand);
-                    //myset.insert((transcript_vec[i].1, transcript_vec[i + 1].0, strand));
-                }
-            }
-
-            transcript_vec.clear();
-
-            current_gene_id = gene_name.clone();
-            current_transcript_id = transcript_id;
-        } else if transcript_id != current_transcript_id {
-            let ll = transcript_vec.len();
-            transcript_vec.sort_by_key(|x| x.0);
-            if ll > 1 {
-                for i in 0..(ll - 1) {
-                    my_map.insert((chr_.clone(), transcript_vec[i].1, transcript_vec[i + 1].0,), strand);
-                    //myset.insert((transcript_vec[i].1, transcript_vec[i + 1].0, strand));
-                }
-            }
-
-            transcript_vec.clear();
-            current_transcript_id = transcript_id;
-        }
-
-        transcript_vec.push((start, end));
-    }
-
-    let ll = transcript_vec.len();
-    transcript_vec.sort_by_key(|x| x.0);
-    if ll > 1 {
-        for i in 0..(ll - 1) {
-            my_map.insert((chr_.clone(), transcript_vec[i].1, transcript_vec[i + 1].0,), strand);
-            //myset.insert((transcript_vec[i].1, transcript_vec[i + 1].0, strand));
-        }
-    }
-
-    my_map
-    //transcript_vec.clear();
-    //result
-    //.entry(chr_.to_string())
-    //.or_insert_with(|| myset.clone())
-    //.extend(&myset);
-
-    //result.insert(gene_name.clone(), myset.clone());
-    //myset.clear();
-    //result
-}
 
 fn gtf_to_it(file: &str) -> HashMap<String, IntervalTree<i64, String>> {
     //let file = "genomic.gtf";

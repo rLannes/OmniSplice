@@ -37,7 +37,7 @@ impl<'a> Iterator for PointContainerIterator<'a> {
         }
     }
 }
-
+/* 
 impl PointContainer {
     pub fn parse_reads(
         self: &mut Self,
@@ -128,7 +128,7 @@ impl PointContainer {
         Ok(())
     }
 }
-
+*/
 impl PointContainer {
     pub fn iter(&self) -> PointContainerIterator {
         PointContainerIterator {

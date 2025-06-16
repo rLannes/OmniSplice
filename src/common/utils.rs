@@ -13,6 +13,13 @@ use std::str::FromStr;
 use std::convert::TryFrom;
 use std::convert::TryInto;
 
+pub struct Exon{
+    pub start: i64,
+    pub end: i64,
+    pub strand: Strand,
+    pub contig: String,
+}
+
 
 pub fn parse_header(header: &str) -> HashMap<String, usize>{
     let mut map: HashMap<String, usize> = HashMap::new();
@@ -299,11 +306,11 @@ impl SplicingEvent{
     pub fn from_read_assign(item: Option<ReadAssign>,
                         contig: String,
                         valid_junction: &HashMap<(String, i64, i64),  Strand>,
-                        feature_start: i64,
-                        feature_end: i64,
+                        feature_start: Option<i64>,
+                        feature_end: Option<i64>,
                         feature_strand: &Strand,
-                        read_strand: &Strand,
-                        next:i64) -> Option<Self>{
+                        read_strand: &Strand)
+                         -> Option<Self>{
         match item {
             None => None,
             Some(ReadAssign::WrongStrand) => Some(SplicingEvent::WrongStrand),
@@ -311,7 +318,8 @@ impl SplicingEvent{
             Some(ReadAssign::SoftClipped) => Some(SplicingEvent::Clipped),
             Some(ReadAssign::Skipped(n, m)) => Some(SplicingEvent::Skipped),
             Some(ReadAssign::ReadJunction(n, m)) => {
-                if ((n == next) & (m == feature_start )) || (( n == feature_end ) & (n == next)){
+                if (feature_start.is_some() && feature_end.is_some()) &&
+                         ( ((n == feature_end.unwrap()) & (m == feature_start.unwrap() )) || ((n == feature_start.unwrap()) & (m == feature_end.unwrap() )) ){
                     Some(SplicingEvent::Spliced)
                 }
                 else if valid_junction.contains_key(&(contig.clone(), n, m)) || valid_junction.contains_key(&(contig.clone(), m, n)) {
@@ -509,8 +517,8 @@ fn test_skipped(cigar: &Cigar, aln_start: i64, feature_pos: i64) -> Option<ReadA
 
 pub fn read_toassign(
     feature_strand: Strand,
-    feature_pos: i64,
-    feature_exontype: ExonType,
+    feature_pos: Option<i64>,
+    feature_exontype: Option<ExonType>,
     aln_start: i64,
     aln_end: i64,
     cigar: &Cigar,
@@ -519,42 +527,26 @@ pub fn read_toassign(
     overhang: i64,
 ) -> Option<ReadAssign> {
 
+    if feature_pos.is_none() {
+        return None
+    }
+    let feature_pos = feature_pos.unwrap();
+    let feature_exontype = feature_exontype.unwrap();
     // TODO Should I report it? no...
     // does that can ever happen?
     if out_of_range(feature_pos, aln_start, aln_end, overhang){
         return None
     }
 
-    //if !((aln_start <= feature_pos) & (aln_end >= feature_pos)) {
-    //    return None; //return Some(ReadAssign::FailPosFilter);
-    //}
-
-    // must be a better way this look a bit spagetthi don't like it
-    // if strand::NA => unstranded library
     match test_strand(&read_strand, &feature_strand) {
         Some(x) => {return Some(x)},
         _ => ()
     };
 
-    //if (*read_strand != feature_strand) & (*read_strand != Strand::NA){
-    //    return Some(ReadAssign::WrongStrand);
-    //}
     match test_skipped(&cigar, aln_start, feature_pos){
         Some(x) => return Some(x),
         _ => ()
     }
-
-    /*let junction = cigar.get_skipped_pos_on_ref(&aln_start);
-    if let Some(y) = junction {
-        if let Some(i) = y
-            .iter()
-            .enumerate()
-            .step_by(2)
-            .find(|(i, &x)| (x < feature_pos) & (y[i + 1] > feature_pos))
-        {
-            return Some(ReadAssign::Skipped(*i.1, y[i.0 + 1]));
-        }
-    }*/
 
     match (feature_strand, feature_exontype) {
         (Strand::Plus, ExonType::Donnor) | (Strand::Minus, ExonType::Acceptor) => {

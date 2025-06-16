@@ -23,10 +23,12 @@ use std::str;
 use std::convert::From;
 
 //use crate::common::utils::ReadAssign;
-use crate::common::it_approches::{
-    dump_tree_to_cat_results, gtf_to_tree, update_tree_with_bamfile,
-};
-use crate::common::point::{read_gtf, InsideCounter, PointContainer};
+use crate::common::gtf_::{gtf_to_hashmap, get_junction_from_gtf};
+use crate::common::it_intron::{interval_tree_from_gtfmap, update_tree_from_bam, dump_tree_to_cat_results};
+//use crate::common::it_approches::{
+//    dump_tree_to_cat_results, gtf_to_tree, update_tree_with_bamfile,
+//};
+//use crate::common::point::{read_gtf, InsideCounter, PointContainer};
 use crate::common::read_record::file_to_table;
 use crate::common::utils;
 use crate::common::junction_file::junction_file_from_table;
@@ -107,11 +109,15 @@ fn main_loop(
     let bam_file = bam_input;
 
     let gtf_file = gtf;
-
-    // parse the gtf and return a hashmap<chromosome> -> intervalTree(exon(start, end), associated_data(gene_name...))
-    let mut hash_tree = gtf_to_tree(gtf_file.as_str()).unwrap();
+    let gtf_hashmap = gtf_to_hashmap(&gtf_file).expect("failed to parse gtf");
+    let mut hash_tree = interval_tree_from_gtfmap(&gtf_hashmap).expect("failed to generate the hash tree from gtf");
     
-    update_tree_with_bamfile(
+    
+    // parse the gtf and return a hashmap<chromosome> -> intervalTree(intron(start, end), associated_data(gene_name...))
+    //let mut hash_tree = gtf_to_tree(gtf_file.as_str()).unwrap();
+    let junction_ = get_junction_from_gtf(&gtf_file, &librairy_type);
+
+    update_tree_from_bam(
         &mut hash_tree,
         &bam_file,
         librairy_type, //LibType::frFirstStrand,
@@ -120,6 +126,7 @@ fn main_loop(
         flag_out,
         mapq,
         output_write_read_handle,
+        &junction_
     );
 
     dump_tree_to_cat_results(&hash_tree, &output);
@@ -145,6 +152,8 @@ fn main() {
     let header_reads_handle = "read_name\tcig\tflag\taln_start\tread_assign\tfeature.pos\tnext_exon\tfeature.exon_type\tfeature.strand\tsequence\n".as_bytes();//.expect("Unable to write file");
     let mut readouthandle = ReadToWriteHandle::new();
     update_read_to_write_handle(&mut readouthandle, args.readToWrite, header_reads_handle, &output_file_prefix);
+
+
 
     main_loop(
         output.clone(),
