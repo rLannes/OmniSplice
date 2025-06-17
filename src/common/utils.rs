@@ -485,9 +485,9 @@ pub fn out_of_range(feature: i64, aln_start: i64, aln_end: i64, overhang: i64) -
     if !((aln_start <= feature ) & (aln_end >= feature)){
         return true
     }
-    if (aln_end - feature < overhang) | (feature - aln_start < overhang){
-            return true
-        }
+   // if (aln_end - feature < overhang) | (feature - aln_start < overhang){
+   //         return true
+   //     }
     false
 }
 
@@ -566,11 +566,12 @@ pub fn read_toassign(
         Some(x) => return Some(x),
         _ => ()
     }
-    
+
+    // that prevent any Soft clipped detection!
     // test read actually ends there. or start there, nor interesting for us.
-    if cigar.get_end_of_aln(&aln_start) == feature_pos || aln_start == feature_pos {
-        return None    
-    }
+    //if cigar.get_end_of_aln(&aln_start) == feature_pos || aln_start == feature_pos {
+    //    return None    
+    //}
 
     match (feature_strand, feature_exontype) {
         (Strand::Plus, ExonType::Donnor) | (Strand::Minus, ExonType::Acceptor) => {
@@ -600,11 +601,8 @@ pub fn read_toassign(
             {
                 return Some(ReadAssign::ReadThrough);
             }
-            println!("start, {} {} {} {} {:?} {:?} {:?}", aln_start, aln_end, feature_pos, feature_pos + overhang, cigar, feature_strand, feature_exontype);
 
             if cigar.soft_clipped_end(&Strand::Minus, 10) && aln_start == feature_pos {
-            println!("in, {} {} {} {} {:?} {:?} {:?}", aln_start, aln_end, feature_pos, feature_pos + overhang, cigar, feature_strand, feature_exontype);
-
                 return Some(ReadAssign::SoftClipped);
             }
         }
@@ -705,10 +703,7 @@ pub fn read_toassign(
 
      #[test]
     fn parse_strand_1() {
-
         // test_strand(read_strand: &Strand, feature_strand: &Strand)  -> Option<ReadAssign>
-
-
         let read_strand = Strand::Plus;
         let feature_strand = Strand::Plus;
         assert_eq!(test_strand(&read_strand, &feature_strand), None);
@@ -723,7 +718,28 @@ pub fn read_toassign(
         let read_strand = Strand::Minus;
         let feature_strand = Strand::Plus;
         assert_eq!(test_strand(&read_strand, &feature_strand), Some(ReadAssign::WrongStrand));
+    }
 
+
+    /*
+    
+                if cigar.soft_clipped_end(&Strand::Plus, 10) && aln_end == feature_pos {
+
+                return Some(ReadAssign::SoftClipped);
+            }
+            
+     */
+
+    #[test]
+    fn parse_clipped_1() {
+        let cigar = Cigar::from("50M30S");
+        let aln_start= 1;
+        let feature_pos = 51;
+        let aln_end = cigar.get_end_of_aln(&aln_start);
+        assert_eq!((cigar.soft_clipped_end(&Strand::Plus, 10) && aln_end == feature_pos), true);
+        let cigar = Cigar::from("50S30M");
+        let aln_start= 51;
+        assert_eq!(( cigar.soft_clipped_end(&Strand::Minus, 10) && aln_start == feature_pos), true);
 
     }
 
