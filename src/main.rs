@@ -109,13 +109,17 @@ fn main_loop(
     let bam_file = bam_input;
 
     let gtf_file = gtf;
+    println!("parse gtf file");
     let gtf_hashmap = gtf_to_hashmap(&gtf_file).expect("failed to parse gtf");
+    println!("gtf file parsed");
+    println!("building the interval tree");
     let mut hash_tree = interval_tree_from_gtfmap(&gtf_hashmap).expect("failed to generate the hash tree from gtf");
-    
+    println!("tree built");
     
     // parse the gtf and return a hashmap<chromosome> -> intervalTree(intron(start, end), associated_data(gene_name...))
     //let mut hash_tree = gtf_to_tree(gtf_file.as_str()).unwrap();
     let junction_ = get_junction_from_gtf(&gtf_file, &librairy_type);
+    println!("valid junctions loaded");
 
     update_tree_from_bam(
         &mut hash_tree,

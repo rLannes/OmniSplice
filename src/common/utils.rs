@@ -13,6 +13,8 @@ use std::str::FromStr;
 use std::convert::TryFrom;
 use std::convert::TryInto;
 
+
+#[derive(Debug)]
 pub struct Exon{
     pub start: i64,
     pub end: i64,
@@ -490,10 +492,23 @@ pub fn out_of_range(feature: i64, aln_start: i64, aln_end: i64, overhang: i64) -
 }
 
 pub fn test_strand(read_strand: &Strand, feature_strand: &Strand) -> Option<ReadAssign>{
-    if (read_strand != feature_strand) & (read_strand != &Strand::NA){
-        return Some(ReadAssign::WrongStrand);
+    //println!("in {:?}", *read_strand != *feature_strand);
+
+    match read_strand {
+        Strand::NA => (None),
+        read => {if (*read_strand != *feature_strand){
+            return Some(ReadAssign::WrongStrand)
+            }else{
+            return None}}
     }
-    return None
+
+    /*if (*read_strand == Strand::NA){
+        return None
+    }
+    else if (*read_strand != *feature_strand){
+        return Some(ReadAssign::WrongStrand)
+    }else{
+    return None}*/
 }
 
 fn test_skipped(cigar: &Cigar, aln_start: i64, feature_pos: i64) -> Option<ReadAssign>{
@@ -530,6 +545,10 @@ pub fn read_toassign(
     if feature_pos.is_none() {
         return None
     }
+    if feature_exontype.is_none(){
+        println!("test : {} {:?} {:?} {}", feature_strand, feature_pos, feature_exontype, aln_start)
+    };
+
     let feature_pos = feature_pos.unwrap();
     let feature_exontype = feature_exontype.unwrap();
     // TODO Should I report it? no...
@@ -547,35 +566,45 @@ pub fn read_toassign(
         Some(x) => return Some(x),
         _ => ()
     }
+    
+    // test read actually ends there. or start there, nor interesting for us.
+    if cigar.get_end_of_aln(&aln_start) == feature_pos || aln_start == feature_pos {
+        return None    
+    }
 
     match (feature_strand, feature_exontype) {
         (Strand::Plus, ExonType::Donnor) | (Strand::Minus, ExonType::Acceptor) => {
-            if !cigar.does_it_match_an_intervall(&aln_start, feature_pos - overhang, feature_pos) {
+            if !cigar.does_it_match_an_intervall(&aln_start, feature_pos - overhang , feature_pos) {
+                //println!("end, {} {} {} {} {:?} {:?} {:?}", aln_start, aln_end, feature_pos, feature_pos - overhang, cigar, feature_strand, feature_exontype);
                 return Some(ReadAssign::OverhangFail);
             }
 
-            if cigar.does_it_match_an_intervall(&aln_start, feature_pos - overhang, feature_pos + overhang)
+            if cigar.does_it_match_an_intervall(&aln_start, feature_pos - overhang, feature_pos  + overhang)
             {
                 return Some(ReadAssign::ReadThrough);
             }
 
             if cigar.soft_clipped_end(&Strand::Plus, 10) && aln_end == feature_pos {
+
                 return Some(ReadAssign::SoftClipped);
             }
         }
         (Strand::Plus, ExonType::Acceptor) | (Strand::Minus, ExonType::Donnor) => {
-            if !cigar.does_it_match_an_intervall(&aln_start, feature_pos, feature_pos + overhang) {
-                //println!("{:?} {} {} {:?}", self, aln_start, aln_end, cigar);
+            if !cigar.does_it_match_an_intervall(&aln_start, feature_pos , feature_pos + overhang) {
+                //println!("start, {} {} {} {} {:?} {:?} {:?}", aln_start, aln_end, feature_pos, feature_pos + overhang, cigar, feature_strand, feature_exontype);
                 return Some(ReadAssign::OverhangFail);
             }
 
             //if cigar.does_it_match_an_intervall(&aln_start, feature_pos - 1, feature_pos + overhang)
-            if cigar.does_it_match_an_intervall(&aln_start, feature_pos - overhang, feature_pos + overhang)
+            if cigar.does_it_match_an_intervall(&aln_start, feature_pos - overhang, feature_pos  + overhang)
             {
                 return Some(ReadAssign::ReadThrough);
             }
+            println!("start, {} {} {} {} {:?} {:?} {:?}", aln_start, aln_end, feature_pos, feature_pos + overhang, cigar, feature_strand, feature_exontype);
 
             if cigar.soft_clipped_end(&Strand::Minus, 10) && aln_start == feature_pos {
+            println!("in, {} {} {} {} {:?} {:?} {:?}", aln_start, aln_end, feature_pos, feature_pos + overhang, cigar, feature_strand, feature_exontype);
+
                 return Some(ReadAssign::SoftClipped);
             }
         }
@@ -655,6 +684,48 @@ pub fn read_toassign(
 #[cfg(test)]
 mod tests_it {
     use super::*;
+    use crate::common::gtf_::{gtf_to_hashmap, get_junction_from_gtf};
+    use crate::common::it_intron::{TreeDataIntron};
+
+
+/*
+pub fn read_toassign(
+    feature_strand: Strand,
+    feature_pos: Option<i64>,
+    feature_exontype: Option<ExonType>,
+    aln_start: i64,
+    aln_end: i64,
+    cigar: &Cigar,
+    //flag: &u16,
+    read_strand: &Strand,
+    overhang: i64,
+) -> Option<ReadAssign> {
+ */
+
+
+     #[test]
+    fn parse_strand_1() {
+
+        // test_strand(read_strand: &Strand, feature_strand: &Strand)  -> Option<ReadAssign>
+
+
+        let read_strand = Strand::Plus;
+        let feature_strand = Strand::Plus;
+        assert_eq!(test_strand(&read_strand, &feature_strand), None);
+        let read_strand = Strand::Minus;
+        let feature_strand = Strand::Minus;
+        assert_eq!(test_strand(&read_strand, &feature_strand), None);
+
+        let read_strand = Strand::Plus;
+        let feature_strand = Strand::Minus;
+        println!("{:?}", read_strand != feature_strand);
+        assert_eq!(test_strand(&read_strand, &feature_strand), Some(ReadAssign::WrongStrand));
+        let read_strand = Strand::Minus;
+        let feature_strand = Strand::Plus;
+        assert_eq!(test_strand(&read_strand, &feature_strand), Some(ReadAssign::WrongStrand));
+
+
+    }
 
     #[test]
     fn test_1() {
@@ -685,4 +756,14 @@ mod tests_it {
         assert_eq!(true, true);
     }
 
+
+
+
 }//21589349, 21589613
+
+/*pub fn test_strand(read_strand: &Strand, feature_strand: &Strand) -> Option<ReadAssign>{
+    if (read_strand != feature_strand) & (read_strand != &Strand::NA){
+        return Some(ReadAssign::WrongStrand);
+    }
+    return None
+} */

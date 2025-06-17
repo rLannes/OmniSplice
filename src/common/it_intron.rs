@@ -64,6 +64,8 @@ impl TreeDataIntron{
         valid_junction: &HashMap<(String, i64, i64),  Strand>
     ) -> () {
 
+        //println!("{:?}", self);
+
         let seq = match sequence {
             Some(seq) => seq,
             _ => "NoSeq".to_string()
@@ -98,6 +100,8 @@ impl TreeDataIntron{
             read_strand,
             overhang,
         );
+       
+        //panic!("");
         TreeDataIntron::update_counter(&mut self.counter_end, end_map);
         self.write_to_read_file(end_map, out_file_read_buffer, true, &seq, &r_name, cigar);
     
@@ -301,12 +305,13 @@ pub fn interval_tree_from_gtfmap(gtf_map: &HashMap<String, HashMap<String, Vec<E
             while cpt < exons.len(){
                 // manage left 
                 if cpt == 0{
+
                     let start_ = exons[cpt].start;
                     let end_ = start_ + 1;
 
-                    let mut start_type  = Some(ExonType::Acceptor) ;
+                    let mut end_type  = Some(ExonType::Acceptor);
                     if strand == Strand::Minus{
-                        start_type = Some(ExonType::Donnor) ;
+                        end_type = Some(ExonType::Donnor) ;
                     }
                     
 
@@ -314,7 +319,9 @@ pub fn interval_tree_from_gtfmap(gtf_map: &HashMap<String, HashMap<String, Vec<E
                     update_tree(&mut results, &contig, start_,
                                  end_, None, Some(start_),
                                 &strand, gene_id.clone(), tr_id.clone(), 
-                                start_type, None );
+                                None, end_type );
+                   cpt += 1;
+                   continue
 
                 }
                 //manage last
@@ -322,14 +329,15 @@ pub fn interval_tree_from_gtfmap(gtf_map: &HashMap<String, HashMap<String, Vec<E
                     let start_ = exons[cpt].end - 1;
                     let end_ = start_ + 1;
 
-                    let mut end_type  = Some(ExonType::Donnor) ;
+                    let mut start_type  = Some(ExonType::Donnor) ;
                     if strand == Strand::Minus{
-                        end_type = Some(ExonType::Acceptor) ;
+                        start_type = Some(ExonType::Acceptor) ;
                     }
                     update_tree(&mut results, &contig, start_,
-                                 end_, None, Some(end_),
+                                 end_, Some(end_), None,
                                 &strand, gene_id.clone(), tr_id.clone(), 
-                                None, end_type );
+                                start_type, None );
+                    cpt += 1;
                     continue;
                 }
                 
@@ -337,14 +345,14 @@ pub fn interval_tree_from_gtfmap(gtf_map: &HashMap<String, HashMap<String, Vec<E
                 let end_ = exons[cpt+1].start;
                 let start_: i64 = exons[cpt].end;
 
-                let mut end_type  = Some(ExonType::Donnor) ;
+                let mut end_type  = Some(ExonType::Acceptor) ;
                     if strand == Strand::Minus{
-                        end_type = Some(ExonType::Acceptor) ;
+                        end_type = Some(ExonType::Donnor) ;
                     }
 
-                let mut start_type  = Some(ExonType::Acceptor) ;
+                let mut start_type  = Some(ExonType::Donnor) ;
                     if strand == Strand::Minus{
-                        start_type = Some(ExonType::Donnor) ;
+                        start_type = Some(ExonType::Acceptor) ;
                     }
 
                 update_tree(&mut results, &contig, start_,
@@ -498,10 +506,12 @@ pub fn dump_tree_to_cat_results(
         for (contig, subtree) in hash_tree {
             // get ALL entry
             for node in subtree.find(i64::MIN..i64::MAX) {
+                if node.data().start.is_some(){
                 stream.write_all(node.data().dump_counter(false).as_bytes());
-                stream.write_all("\n".as_bytes());
+                stream.write_all("\n".as_bytes());}
+                if node.data().end.is_some(){
                 stream.write_all(node.data().dump_counter(true).as_bytes());
-                stream.write_all("\n".as_bytes());
+                stream.write_all("\n".as_bytes());}
             }
         }
         stream.flush().unwrap();
@@ -537,6 +547,30 @@ pub fn dump_tree_to_cat_results(
         .output()
         .expect("failed to remove presorted");
 }
+
+
+
+
+#[cfg(test)]
+mod tests_it {
+    use super::*;
+    use crate::common::gtf_::{gtf_to_hashmap, get_junction_from_gtf};
+
+    #[test]
+    fn test_1() {
+        let file = "/lab/solexa_yamashita/people/Romain/Projets/OmniSplice/debug/fbgn0001313.gtf".to_string();
+        let gtf_hashmap = gtf_to_hashmap(&file).expect("failed to parse gtf");
+        let mut hash_tree = interval_tree_from_gtfmap(&gtf_hashmap).expect("failed to generate the hash tree from gtf");
+        
+        //println!("{:?}\n\n{:?}", gtf_hashmap, hash_tree);
+        assert_eq!(true, true);
+    }
+
+  
+}//21589349, 21589613
+
+
+
 /*
         &mut self,
         aln_start: i64,
