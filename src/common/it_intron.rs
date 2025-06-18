@@ -86,6 +86,7 @@ impl TreeDataIntron{
             read_strand,
             overhang,
         );
+        println!("start: {:?}", start_map);
         self.write_to_read_file(start_map, out_file_read_buffer, false, &seq, &r_name, cigar);
         TreeDataIntron::update_counter(&mut self.counter_start, start_map);
     
@@ -100,7 +101,7 @@ impl TreeDataIntron{
             read_strand,
             overhang,
         );
-       
+        println!("end: {:?}", end_map);
         //panic!("");
         TreeDataIntron::update_counter(&mut self.counter_end, end_map);
         self.write_to_read_file(end_map, out_file_read_buffer, true, &seq, &r_name, cigar);
@@ -278,7 +279,6 @@ impl TreeDataIntron{
 
 
 
-
 /// we reads a gtf to generate an interval tree 
 /// HASHMAP(contig) -> IT(intron(start, end)) -> TreeDataIntron
 pub fn interval_tree_from_gtfmap(gtf_map: &HashMap<String, HashMap<String, Vec<Exon>>>) 
@@ -290,6 +290,9 @@ pub fn interval_tree_from_gtfmap(gtf_map: &HashMap<String, HashMap<String, Vec<E
     // by Iterating through the exon I can gather the Intron
     for (gene_id, tr_dico) in gtf_map{
         for (tr_id, exon_vec) in tr_dico.iter(){
+            if exon_vec.len() == 1{
+                continue;
+            }
             let strand = exon_vec[0].strand;
             let contig = &exon_vec[0].contig;
             flag_exon_already_found = false;
@@ -301,49 +304,10 @@ pub fn interval_tree_from_gtfmap(gtf_map: &HashMap<String, HashMap<String, Vec<E
 
 
             let exons = exon_vec.iter().sorted_by(|x, y| x.start.cmp(&y.start)).collect::<Vec<&Exon>>();
+            println!("exons {:?}", exons);
             let mut cpt = 0;
+
             while cpt < exons.len(){
-                // manage left 
-                if cpt == 0{
-
-                    let start_ = exons[cpt].start;
-                    let end_ = start_ + 1;
-
-                    let mut end_type  = Some(ExonType::Acceptor);
-                    if strand == Strand::Minus{
-                        end_type = Some(ExonType::Donnor) ;
-                    }
-                    
-
-
-                    update_tree(&mut results, &contig, start_,
-                                 end_, None, Some(start_),
-                                &strand, gene_id.clone(), tr_id.clone(), 
-                                None, end_type );
-                   cpt += 1;
-                   continue
-
-                }
-                //manage last
-                else if cpt == exons.len() - 1{
-                    let start_ = exons[cpt].end - 1;
-                    let end_ = start_ + 1;
-
-                    let mut start_type  = Some(ExonType::Donnor) ;
-                    if strand == Strand::Minus{
-                        start_type = Some(ExonType::Acceptor) ;
-                    }
-                    update_tree(&mut results, &contig, start_,
-                                 end_, Some(end_), None,
-                                &strand, gene_id.clone(), tr_id.clone(), 
-                                start_type, None );
-                    cpt += 1;
-                    continue;
-                }
-                
-                // make intron
-                let end_ = exons[cpt+1].start;
-                let start_: i64 = exons[cpt].end;
 
                 let mut end_type  = Some(ExonType::Acceptor) ;
                     if strand == Strand::Minus{
@@ -354,9 +318,58 @@ pub fn interval_tree_from_gtfmap(gtf_map: &HashMap<String, HashMap<String, Vec<E
                     if strand == Strand::Minus{
                         start_type = Some(ExonType::Acceptor) ;
                     }
+                
+                let mut start_ = Some(0);
+                let mut end_ = Some(0);
+                let mut start_i = 0;
+                let mut end_i = 0;
+                let s= exons.len() - 1;
+                
+                if cpt == 0{
+                    start_i = exons[cpt].start - 1;
+                    end_i = exons[cpt].start;
+                    end_ = Some(exons[cpt].start);
+                    start_type = None;
+                    start_ = None;
+                update_tree(&mut results, &contig, start_i,
+                                 end_i, start_, end_,
+                                &strand, gene_id.clone(), tr_id.clone(), 
+                                start_type, end_type);
+                    
+                }
+                else if cpt == exons.len() - 1 {
+                    start_i = exons[cpt].end;
+                    end_i = exons[cpt].end + 1;
+                    end_type = None;
+                    end_ = None;
+                    start_ = Some(exons[cpt].end);
 
-                update_tree(&mut results, &contig, start_,
-                                 end_, Some(start_), Some(end_),
+                update_tree(&mut results, &contig, start_i,
+                                 end_i, start_, end_,
+                                &strand, gene_id.clone(), tr_id.clone(), 
+                                start_type, end_type);
+                                cpt += 1;
+                                continue;
+                }
+
+                
+                start_i = exons[cpt].end;
+                end_i = exons[cpt+1].start;
+                start_ = Some(exons[cpt].end);
+                end_ = Some(exons[cpt+1].start);
+                let mut end_type  = Some(ExonType::Acceptor) ;
+                    if strand == Strand::Minus{
+                        end_type = Some(ExonType::Donnor) ;
+                    }
+
+                let mut start_type  = Some(ExonType::Donnor) ;
+                    if strand == Strand::Minus{
+                        start_type = Some(ExonType::Acceptor) ;
+                    }
+                
+
+                update_tree(&mut results, &contig, start_i,
+                                 end_i, start_, end_,
                                 &strand, gene_id.clone(), tr_id.clone(), 
                                 start_type, end_type);
                 cpt += 1;
@@ -469,7 +482,9 @@ pub fn update_tree_from_bam(hash_tree: &mut HashMap<String, interval_tree::Inter
 
 
                 if let Some(read_strand) = library_type.get_strand(flag) {
-                    for (ref mut exon) in subtree.find_mut(pos_s..pos_e + 1) {
+                    
+                    for (ref mut exon) in subtree.find_mut((pos_s-1)..(pos_e + 1)) {
+                        println!("record {:?}, read name{:?}, cigar {:?}, start{:?}", record, read_name, cig, pos_s);
                         exon.data().parse_read(
                             pos_s,
                             pos_e,
@@ -485,9 +500,7 @@ pub fn update_tree_from_bam(hash_tree: &mut HashMap<String, interval_tree::Inter
                 }
             }
         }
-
-        Ok(())
-
+    Ok(())
 }
 
 
@@ -556,6 +569,7 @@ mod tests_it {
     use super::*;
     use crate::common::gtf_::{gtf_to_hashmap, get_junction_from_gtf};
 
+
     #[test]
     fn test_1() {
         let file = "/lab/solexa_yamashita/people/Romain/Projets/OmniSplice/debug/fbgn0001313.gtf".to_string();
@@ -565,10 +579,34 @@ mod tests_it {
         //println!("{:?}\n\n{:?}", gtf_hashmap, hash_tree);
         assert_eq!(true, true);
     }
+    #[test]
+    fn test_2() {
+        let file = "/lab/solexa_yamashita/people/Romain/Projets/OmniSplice/debug/FBgn0000052.gtf".to_string();
+        let gtf_hashmap = gtf_to_hashmap(&file).expect("failed to parse gtf");
+        let mut hash_tree = interval_tree_from_gtfmap(&gtf_hashmap).expect("failed to generate the hash tree from gtf");
+        
+        println!("{:?}\n\n{:?}", gtf_hashmap, hash_tree);
+        assert_eq!(true, true);
+    }
 
+    #[test]
+    fn test_3() {
+        let x = read_toassign(Strand::Minus, Some(21681343), Some(ExonType::Donnor),
+                     21681343, 21681343 + 188, &Cigar::from("63S188M"), &Strand::Minus, 1);
+        println!("{:?}", x);
+    }
   
 }//21589349, 21589613
-
+/*        let start_map= read_toassign(
+            self.strand,
+            self.start,
+            self.start_type,
+            aln_start,
+            aln_end,
+            cigar,
+            read_strand,
+            overhang,
+        ); */
 
 
 /*

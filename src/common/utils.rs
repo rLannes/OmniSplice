@@ -592,7 +592,6 @@ pub fn read_toassign(
         }
         (Strand::Plus, ExonType::Acceptor) | (Strand::Minus, ExonType::Donnor) => {
             if !cigar.does_it_match_an_intervall(&aln_start, feature_pos , feature_pos + overhang) {
-                //println!("start, {} {} {} {} {:?} {:?} {:?}", aln_start, aln_end, feature_pos, feature_pos + overhang, cigar, feature_strand, feature_exontype);
                 return Some(ReadAssign::OverhangFail);
             }
 
