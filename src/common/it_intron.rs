@@ -88,7 +88,7 @@ impl TreeDataIntron{
             read_strand,
             overhang,
         );
-        println!("start: {:?}", start_map);
+        //println!("start: {:?}", start_map);
         self.write_to_read_file(start_map, out_file_read_buffer, false, &seq, &r_name, cigar);
         TreeDataIntron::update_counter(&mut self.counter_start, start_map);
     
@@ -103,7 +103,7 @@ impl TreeDataIntron{
             read_strand,
             overhang,
         );
-        println!("end: {:?}", end_map);
+        //println!("end: {:?}", end_map);
         //panic!("");
         TreeDataIntron::update_counter(&mut self.counter_end, end_map);
         self.write_to_read_file(end_map, out_file_read_buffer, true, &seq, &r_name, cigar);
