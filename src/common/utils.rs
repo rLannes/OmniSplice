@@ -545,9 +545,9 @@ pub fn read_toassign(
     if feature_pos.is_none() {
         return None
     }
-    if feature_exontype.is_none(){
-        println!("test : {} {:?} {:?} {}", feature_strand, feature_pos, feature_exontype, aln_start)
-    };
+   // if feature_exontype.is_none(){
+    //    println!("test : {} {:?} {:?} {}", feature_strand, feature_pos, feature_exontype, aln_start)
+   // };
 
     let feature_pos = feature_pos.unwrap();
     let feature_exontype = feature_exontype.unwrap();
