@@ -1,12 +1,14 @@
 #![allow(irrefutable_let_patterns)]
 //use crate::common::point::{get_attr_id, InsideCounter};
 use crate::common::utils::{read_toassign, SplicingEvent, ExonType, ReadAssign, ReadToWriteHandle, Exon};
+use bio::alignment::sparse::HashMapFx;
 use bio::bio_types::annot::contig;
 use bio::data_structures::interval_tree;
+use bio::seq_analysis;
 use bio::utils::Interval;
 use itertools::Itertools;
 use rust_htslib::bam::record::Record;
-use rust_htslib::bam::{IndexedReader, Read};
+use rust_htslib::bam::{header, IndexedReader, Read};
 use std::collections::{hash_map, HashMap, HashSet};
 use std::error::Error;
 use std::fs::{File, OpenOptions};
@@ -29,7 +31,7 @@ use CigarParser::cigar::Cigar;
 /// the three counters are the things actually counting the reads.
 pub struct TreeDataIntron {
     gene_name: String,
-    transcript: Vec<String>,
+    transcript_intron: Vec<(String, i32)>,
     start: Option<i64>,
     end: Option<i64>,
     strand: Strand,
@@ -157,7 +159,7 @@ impl TreeDataIntron{
             exontype = self.start_type.unwrap();
             pos = self.start.unwrap();
         }
-        for tr in &self.transcript {
+        for (tr, intron) in &self.transcript_intron {
             res.push(format!(
                 "{}\t{}\t{}\t{}\t{}\t{}",
                 self.contig, pos, self.gene_name, tr, self.strand, exontype
@@ -239,8 +241,74 @@ impl TreeDataIntron{
                 
             };
     }
+    
+    fn get_acceptor_donor(&self) -> (String, String){
+        let (mut left, mut right) = match (self.start, self.end){
+            (Some(left), Some(right)) => {
+                (left.to_string(), right.to_string())
+            },
+            (Some(left), None) => {
+                (left.to_string(), ".".to_string())
+            },
+            (None, Some(right)) => {
+                (".".to_string(),  right.to_string())
+            },
+            (None, None) => {
+                (".".to_string(), ".".to_string())
+            }
+        };
+        if self.strand == Strand::Plus{
+            return (left, right)
+        }
+        return (right, left)
 
-    fn dump_counter(&self, end: bool) -> String {
+    }
+
+
+
+
+    fn dump_junction_base(&self, ambigious_set: &HashSet<(String, i64)>) -> Vec<String> {
+        let mut res = Vec::new();
+        let mut exontype = ExonType::Acceptor;
+        // get acceptor donnor!
+
+        let mut pos = 0;
+        let (donnor, acceptor ) = self.get_acceptor_donor();
+
+        let ambigious = if ambigious_set.contains(&(self.contig.clone(), self.start.unwrap_or(0))) | ambigious_set.contains(&(self.contig.clone(), self.end.unwrap_or(0))){
+            true
+        }
+        else{false};
+
+        for (tr, intron) in &self.transcript_intron {
+            res.push(format!(
+                "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+                self.contig, self.gene_name, tr, intron, donnor, acceptor, self.strand, ambigious.to_string()
+            ));
+        }
+        res
+    }
+
+
+    fn dump_junction_counter(&self, ambigious_set: &HashSet<(String, i64)>, junction_order: &Vec<SplicingEvent>) -> String{
+        let base_vec = self.dump_junction_base(ambigious_set);
+        let mut results = Vec::new();
+        // TODO  order moove the allocation out
+        
+        let mut sub = Vec::new();
+        for base in &base_vec {
+            sub.clear();
+            sub.push(base.to_owned());
+            for even in junction_order{
+                sub.push(self.counter_intron.get(&even).unwrap_or(&0).to_string());
+            }
+            results.push(sub.join("\t"))
+
+        };
+        results.join("\n")
+    }
+    
+     fn dump_counter(&self, end: bool) -> String {
         let base_vec = self.dump_base(end);
         let mut results = Vec::new();
 
@@ -304,7 +372,7 @@ pub fn interval_tree_from_gtfmap(gtf_map: &HashMap<String, HashMap<String, Vec<E
 
 
             let exons = exon_vec.iter().sorted_by(|x, y| x.start.cmp(&y.start)).collect::<Vec<&Exon>>();
-            println!("exons {:?}", exons);
+
             let mut cpt = 0;
 
             while cpt < exons.len(){
@@ -331,10 +399,10 @@ pub fn interval_tree_from_gtfmap(gtf_map: &HashMap<String, HashMap<String, Vec<E
                     end_ = Some(exons[cpt].start);
                     start_type = None;
                     start_ = None;
-                update_tree(&mut results, &contig, start_i,
+                    update_tree(&mut results, &contig, start_i,
                                  end_i, start_, end_,
                                 &strand, gene_id.clone(), tr_id.clone(), 
-                                start_type, end_type);
+                                start_type, end_type, Some(0));
                     
                 }
                 else if cpt == exons.len() - 1 {
@@ -347,11 +415,15 @@ pub fn interval_tree_from_gtfmap(gtf_map: &HashMap<String, HashMap<String, Vec<E
                 update_tree(&mut results, &contig, start_i,
                                  end_i, start_, end_,
                                 &strand, gene_id.clone(), tr_id.clone(), 
-                                start_type, end_type);
+                                start_type, end_type, Some(1000));
                                 cpt += 1;
                                 continue;
                 }
-
+                
+                let mut _i = cpt + 1;
+                if strand == Strand::Minus{
+                   _i =  exons.len() - _i;
+                }
                 
                 start_i = exons[cpt].end;
                 end_i = exons[cpt+1].start;
@@ -371,7 +443,7 @@ pub fn interval_tree_from_gtfmap(gtf_map: &HashMap<String, HashMap<String, Vec<E
                 update_tree(&mut results, &contig, start_i,
                                  end_i, start_, end_,
                                 &strand, gene_id.clone(), tr_id.clone(), 
-                                start_type, end_type);
+                                start_type, end_type, Some(_i as i32));
                 cpt += 1;
             }
         }
@@ -384,7 +456,7 @@ pub fn interval_tree_from_gtfmap(gtf_map: &HashMap<String, HashMap<String, Vec<E
 
 pub fn update_tree(tree_map: &mut HashMap<String, interval_tree::IntervalTree<i64, TreeDataIntron>>, chr_: &str,
                 interval_start: i64, interval_end: i64, start: Option<i64>, end: Option<i64>, strand: &Strand,
-                gene_name: String, transcript_id: String, left_exon_type: Option<ExonType>, right_exon_type: Option<ExonType>
+                gene_name: String, transcript_id: String, left_exon_type: Option<ExonType>, right_exon_type: Option<ExonType>, intron_n: Option<i32>
                 ){
     let mut flag_exon_already_found = false;
     if let Some(this_tree) = tree_map.get_mut(chr_) {
@@ -392,7 +464,7 @@ pub fn update_tree(tree_map: &mut HashMap<String, interval_tree::IntervalTree<i6
             if (node.interval().start == interval_start) && (node.interval().end == interval_end) {
                 if let n = node.data() {
                     if n.gene_name == gene_name {
-                        n.transcript.push(transcript_id.clone());
+                        n.transcript_intron.push((transcript_id.clone(), intron_n.unwrap()));
                         flag_exon_already_found = true;
                     }
                 }
@@ -403,7 +475,7 @@ pub fn update_tree(tree_map: &mut HashMap<String, interval_tree::IntervalTree<i6
             interval_start..interval_end,
             TreeDataIntron{                        
                 gene_name: gene_name,
-                transcript: vec![transcript_id],
+                transcript_intron: vec![(transcript_id, intron_n.unwrap())],
                 start: start,
                 end: end,
                 strand: *strand,
@@ -451,8 +523,7 @@ pub fn update_tree_from_bam(hash_tree: &mut HashMap<String, interval_tree::Inter
         let mut bam = IndexedReader::from_path(bam_file).unwrap();
 
         for (contig, subtree) in hash_tree.iter_mut() {
-        //counter = 0;
-        //println!("Contig: {}", contig);
+
 
             match bam.fetch(&contig) {
                 Ok(_) => (),
@@ -484,7 +555,6 @@ pub fn update_tree_from_bam(hash_tree: &mut HashMap<String, interval_tree::Inter
                 if let Some(read_strand) = library_type.get_strand(flag) {
                     
                     for (ref mut exon) in subtree.find_mut((pos_s-1)..(pos_e + 1)) {
-                        println!("record {:?}, read name{:?}, cigar {:?}, start{:?}", record, read_name, cig, pos_s);
                         exon.data().parse_read(
                             pos_s,
                             pos_e,
@@ -503,39 +573,133 @@ pub fn update_tree_from_bam(hash_tree: &mut HashMap<String, interval_tree::Inter
     Ok(())
 }
 
+/*
+pub fn dump_tree_junction (hash_tree: &HashMap<String, interval_tree::IntervalTree<i64, TreeDataIntron>>,
+        out_file: &str,
+        ) -> () {
+            let presorted = format!("{}.presorted", out_file);
+            let header = "Contig\tGene\tTranscript\tIntron\tDonnor\tAcceptor\tStrand\tAmbiguous\tspliced\tunspliced\tclipped\texon_other\tskipped\twrong_strand\te_isoform\n".as_bytes();
+            
+            for (contig, subtree) in hash_tree {
+                for node in subtree.find(i64::MIN..i64::MAX) {
+
+            }
+        }
+    }
+*/
 
 pub fn dump_tree_to_cat_results(
     hash_tree: &HashMap<String, interval_tree::IntervalTree<i64, TreeDataIntron>>,
-    out_file: &str,
+    out_cat: &str,
+    out_junction: &str,
+    junction_ambigious: &HashSet<(String, i64)>,
+    junction_order: &Vec<SplicingEvent>,
 ) -> () {
-    let presorted = format!("{}.presorted", out_file);
-    let header = "Contig\tPosition\tGeneID\tTranscriptID\tstrand\tExonEndType\tCategory\tReadCount\n".as_bytes();
+    let presorted_cat = format!("{}.presorted", out_cat);
+    let presorted_j = format!("{}.presorted", out_junction);
+    let header_cat  = "Contig\tPosition\tGeneID\tTranscriptID\tstrand\tExonEndType\tCategory\tReadCount\n".as_bytes();
+    let header_j = "Contig\tGene\tTranscript\tIntron\tDonnor\tAcceptor\tStrand\tAmbiguous\tspliced\tunspliced\tclipped\texon_other\tskipped\twrong_strand\te_isoform\n".as_bytes();
+            
     {
-        let file = File::create_new(presorted.clone()).expect("output file should not exist.");
-        let mut stream = BufWriter::new(file);
+        let file_cat  = File::create_new(presorted_cat.clone()).expect("output file should not exist.");
+        let mut stream_cat = BufWriter::new(file_cat);
 
+        let file_j = File::create_new(presorted_j.clone()).expect("output file should not exist.");
+        let mut stream_j = BufWriter::new(file_j);
         //stream.write(header);
 
         for (contig, subtree) in hash_tree {
             // get ALL entry
             for node in subtree.find(i64::MIN..i64::MAX) {
                 if node.data().start.is_some(){
-                stream.write_all(node.data().dump_counter(false).as_bytes());
-                stream.write_all("\n".as_bytes());}
+                stream_cat.write_all(node.data().dump_counter(false).as_bytes());
+                stream_cat.write_all("\n".as_bytes());}
                 if node.data().end.is_some(){
-                stream.write_all(node.data().dump_counter(true).as_bytes());
-                stream.write_all("\n".as_bytes());}
+                stream_cat.write_all(node.data().dump_counter(true).as_bytes());
+                stream_cat.write_all("\n".as_bytes());}
+
+                stream_j.write_all(node.data().dump_junction_counter(junction_ambigious, junction_order).as_bytes());
+                stream_j.write_all("\n".as_bytes());
             }
         }
-        stream.flush().unwrap();
+        stream_cat.flush().unwrap();
+        stream_j.flush().unwrap();
     }
 
-    let file = File::create_new(out_file).expect("output file should not exist.");
+
+    sort_and_clear_cat(&presorted_cat, out_cat, header_cat);
+    sort_and_clear_junction(&presorted_j, out_junction, header_j)
+
+    /*
+    let file = File::create_new(out_cat).expect("output file should not exist.");
 
     let mut file = OpenOptions::new()
         .write(true)
         .append(true)
-        .open(out_file).expect("could not open file");
+        .open(out_cat).expect("could not open file");
+    file.write_all(header_cat);
+    //let mut stream = BufWriter::new(file);
+
+    let sort = Command::new("sort")
+        .args([
+            "-k1,1",
+            "-k3,3",
+            "-k4,4",
+            "-k2,2n",
+            "-k7,7",
+            presorted_cat.as_str(),
+        ])
+        .stdout(file)
+        .spawn()
+        .expect("sort command failed ")
+        .wait()
+        .expect("sort command failed ");
+    //stream.flush().unwrap();
+
+    let rm_out = Command::new("rm")
+        .args(["-f", presorted_cat.as_str()])
+        .output()
+        .expect("failed to remove presorted");*/
+}
+
+fn sort_and_clear_junction(presorted: &str, out: &str, header: &[u8]) -> (){
+    let file = File::create_new(out).expect("output file should not exist.");
+    let mut file = OpenOptions::new()
+        .write(true)
+        .append(true)
+        .open(out).expect("could not open file");
+    file.write_all(header);
+    //let mut stream = BufWriter::new(file);
+
+    let sort = Command::new("sort")
+        .args([
+            "-k1,1",
+            "-k2,2",
+            "-k3,3",
+            "-k4,4n",
+            presorted,
+        ])
+        .stdout(file)
+        .spawn()
+        .expect("sort command failed ")
+        .wait()
+        .expect("sort command failed ");
+    //stream.flush().unwrap();
+
+    let rm_out = Command::new("rm")
+        .args(["-f", presorted])
+        .output()
+        .expect("failed to remove presorted");
+}
+
+fn sort_and_clear_cat(presorted: &str, out: &str, header: &[u8]) -> (){
+
+    let file = File::create_new(out).expect("output file should not exist.");
+
+    let mut file = OpenOptions::new()
+        .write(true)
+        .append(true)
+        .open(out).expect("could not open file");
     file.write_all(header);
     //let mut stream = BufWriter::new(file);
 
@@ -546,7 +710,7 @@ pub fn dump_tree_to_cat_results(
             "-k4,4",
             "-k2,2n",
             "-k7,7",
-            presorted.as_str(),
+            presorted,
         ])
         .stdout(file)
         .spawn()
@@ -556,12 +720,10 @@ pub fn dump_tree_to_cat_results(
     //stream.flush().unwrap();
 
     let rm_out = Command::new("rm")
-        .args(["-f", presorted.as_str()])
+        .args(["-f", presorted])
         .output()
         .expect("failed to remove presorted");
 }
-
-
 
 
 #[cfg(test)]
@@ -576,7 +738,7 @@ mod tests_it {
         let gtf_hashmap = gtf_to_hashmap(&file).expect("failed to parse gtf");
         let mut hash_tree = interval_tree_from_gtfmap(&gtf_hashmap).expect("failed to generate the hash tree from gtf");
         
-        //println!("{:?}\n\n{:?}", gtf_hashmap, hash_tree);
+
         assert_eq!(true, true);
     }
     #[test]
@@ -585,7 +747,6 @@ mod tests_it {
         let gtf_hashmap = gtf_to_hashmap(&file).expect("failed to parse gtf");
         let mut hash_tree = interval_tree_from_gtfmap(&gtf_hashmap).expect("failed to generate the hash tree from gtf");
         
-        println!("{:?}\n\n{:?}", gtf_hashmap, hash_tree);
         assert_eq!(true, true);
     }
 
@@ -593,7 +754,7 @@ mod tests_it {
     fn test_3() {
         let x = read_toassign(Strand::Minus, Some(21681343), Some(ExonType::Donnor),
                      21681343, 21681343 + 188, &Cigar::from("63S188M"), &Strand::Minus, 1);
-        println!("{:?}", x);
+
     }
   
 }//21589349, 21589613

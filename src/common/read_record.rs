@@ -11,6 +11,7 @@ use std::sync::Arc;
 use strand_specifier_lib::{LibType, Strand};
 use std::mem;
 
+
 struct ReadtRecord {
     gene_id: String,
     transcript_id: String,

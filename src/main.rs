@@ -23,7 +23,7 @@ use std::str;
 use std::convert::From;
 
 //use crate::common::utils::ReadAssign;
-use crate::common::gtf_::{gtf_to_hashmap, get_junction_from_gtf};
+use crate::common::gtf_::{gtf_to_hashmap, get_junction_from_gtf, get_invalid_pos};
 use crate::common::it_intron::{interval_tree_from_gtfmap, update_tree_from_bam, dump_tree_to_cat_results};
 //use crate::common::it_approches::{
 //    dump_tree_to_cat_results, gtf_to_tree, update_tree_with_bamfile,
@@ -32,6 +32,7 @@ use crate::common::it_intron::{interval_tree_from_gtfmap, update_tree_from_bam, 
 use crate::common::read_record::file_to_table;
 use crate::common::utils;
 use crate::common::junction_file::junction_file_from_table;
+use crate::common::utils::SplicingEvent;
 use crate::common::utils::{ExonType, ReadAssign, update_read_to_write_handle, ReadToWriteHandle, ReadsToWrite};
 mod splicing_efficiency;
 
@@ -96,6 +97,7 @@ struct Args {
 /// This run the core of the program, will parse a gtf and a bam file and write a category file and if requested a read file.
 fn main_loop(
     output: String,
+    out_j : String,
     gtf: String,
     bam_input: String,
     overhang: i64,
@@ -118,6 +120,7 @@ fn main_loop(
     
     // parse the gtf and return a hashmap<chromosome> -> intervalTree(intron(start, end), associated_data(gene_name...))
     //let mut hash_tree = gtf_to_tree(gtf_file.as_str()).unwrap();
+    let junction_ambi = get_invalid_pos(&gtf_file);
     let junction_ = get_junction_from_gtf(&gtf_file, &librairy_type);
     println!("valid junctions loaded");
 
@@ -132,8 +135,14 @@ fn main_loop(
         output_write_read_handle,
         &junction_
     );
+    let junction_order: Vec<SplicingEvent> =  vec![SplicingEvent::Spliced, SplicingEvent::Unspliced, SplicingEvent::Clipped, SplicingEvent::ExonOther, SplicingEvent::Skipped, SplicingEvent::WrongStrand, SplicingEvent::Isoform];
 
-    dump_tree_to_cat_results(&hash_tree, &output);
+    dump_tree_to_cat_results(&hash_tree, &output, &out_j, &junction_ambi, &junction_order);
+    /* hash_tree: &HashMap<String, interval_tree::IntervalTree<i64, TreeDataIntron>>,
+    out_cat: &str,
+    out_junction: &str,
+    junction_ambigious: HashSet<(String, i64, i64)>,
+    junction_order: Vec<SplicingEvent>, */
     output_write_read_handle.flush();
 
 }
@@ -157,10 +166,11 @@ fn main() {
     let mut readouthandle = ReadToWriteHandle::new();
     update_read_to_write_handle(&mut readouthandle, args.readToWrite, header_reads_handle, &output_file_prefix);
 
-
+    let ambigious_position = get_invalid_pos(&args.gtf.clone());
 
     main_loop(
         output.clone(),
+        junction_file,
         args.gtf.clone(),
         args.input,
         args.overhang,
@@ -174,10 +184,12 @@ fn main() {
 
     let file = File::create_new(table.clone())
         .unwrap_or_else(|_| panic!("output file {} should not exist.", &table));//expect(&format!("output file {} should not exist.", &table));
+
+
     let mut stream = BufWriter::new(file);
     let _ = stream.write("contig\tgene_name\ttranscript_name\texon_number\tambiguous\tstrand\tpos\tnext\texon_type\tspliced\tunspliced\tclipped\texon_other\tskipped\twrong_strand\te_isoform\n".as_bytes());
     file_to_table(output.clone(), &mut stream, args.gtf.as_str(), args.libtype);
-    junction_file_from_table(&table, &junction_file);
+    //junction_file_from_table(&table, &junction_file);
     splicing_efficiency::to_se_from_table(&table, &splicing_defect, args.spliced_def, args.unspliced_def);
     
 }
