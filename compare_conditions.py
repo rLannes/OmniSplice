@@ -109,20 +109,11 @@ def main(condition_1, condition_2, successes, failures, tester, out_file,
         for junction in junctions:
             #print([junction.dump(), junction.data_stats, str(junction.p_value), str(junction.q_value) ])
             d = junction.dump()
-            fo.write("\t".join([d[0], d[1], d[3], d[4], junction.data_stats, str(junction.p_value), str(junction.q_value), d[2] ]) + "\n" )
-
-"""                               
-        for i, k in enumerate(keys):
-            v = dico_r[k]
-            to_print = "\t".join(["\t".join(v[0]), v[2], str(v[1]), str(q_values[1][i])])
-            fo.write(to_print + '\n')
-        for i, k in enumerate(keys_na):
-            v = dico_r[k]
-            to_print = "\t".join(["\t".join(v[0]), v[2], str(v[1]), "NA"])
-            fo.write(to_print + '\n')
-"""
-
-           
+            try:
+                fo.write("\t".join([d[0], d[1], d[3], d[4], junction.data_stats, str(junction.p_value), str(junction.q_value), d[2] ]) + "\n" )
+            except:
+                print("failed", junction.__dict__)
+                continue
 
 #         l = [self.contig, self.gene,
 #            self.transcript, self.strand, "intron:{}".format(self.intron_number),

@@ -1,15 +1,15 @@
-use std::collections::{ HashMap, HashSet};
+use crate::common::utils::Exon;
+use bio::data_structures::interval_tree::IntervalTree;
+use itertools::Itertools;
+use std::collections::{HashMap, HashSet};
+use std::error::Error;
 use std::fs::{File, OpenOptions};
+use std::hash::Hash;
 use std::io::BufRead;
-use std::io::{BufReader};
+use std::io::BufReader;
 use strand_specifier_lib::Strand;
 use strand_specifier_lib::{check_flag, LibType};
 use CigarParser::cigar::Cigar;
-use std::error::Error;
-use crate::common::utils::{Exon};
-use itertools::Itertools;
-use bio::data_structures::interval_tree::IntervalTree;
-use std::hash::Hash;
 
 pub fn get_attr_id(attr: &str, toget: &str) -> Option<String> {
     let mut result: String; // = "".to_string();
@@ -24,9 +24,9 @@ pub fn get_attr_id(attr: &str, toget: &str) -> Option<String> {
     None
 }
 
-
-pub fn gtf_to_hashmap(gtf_file: &str) -> Result<HashMap<String, HashMap<String, Vec<Exon>>> , Box<dyn Error>>{
-
+pub fn gtf_to_hashmap(
+    gtf_file: &str,
+) -> Result<HashMap<String, HashMap<String, Vec<Exon>>>, Box<dyn Error>> {
     // gene -> transcript -> Vec<Exon>
     let mut results: HashMap<String, HashMap<String, Vec<Exon>>> = HashMap::new();
 
@@ -44,7 +44,6 @@ pub fn gtf_to_hashmap(gtf_file: &str) -> Result<HashMap<String, HashMap<String, 
     let mut spt: Vec<&str> = Vec::new();
 
     for line in reader.lines() {
-
         this_line = line?;
         spt = this_line.trim().split('\t').collect::<Vec<&str>>();
 
@@ -75,23 +74,23 @@ pub fn gtf_to_hashmap(gtf_file: &str) -> Result<HashMap<String, HashMap<String, 
         end = spt[4].parse::<i64>()?;
         strand = Strand::from(spt[6]);
 
-        results.entry(gene_name)
-        .or_insert_with(|| HashMap::new())
-        .entry(transcript_id)
-        .or_insert_with(|| Vec::new()).push(
-            Exon{
+        results
+            .entry(gene_name)
+            .or_insert_with(|| HashMap::new())
+            .entry(transcript_id)
+            .or_insert_with(|| Vec::new())
+            .push(Exon {
                 start: start,
                 end: end,
                 strand: strand,
                 contig: chr_.clone(),
             });
     }
-       Ok(results)
+    Ok(results)
 }
 
 //TODO likely will need refactor
-pub fn get_junction_from_gtf(file: &str, libtype: &LibType) -> HashMap<(String, i64, i64),  Strand> {
-
+pub fn get_junction_from_gtf(file: &str, libtype: &LibType) -> HashMap<(String, i64, i64), Strand> {
     let f = File::open(file).unwrap();
     let reader = BufReader::new(f);
     let mut this_line: String;
@@ -103,18 +102,15 @@ pub fn get_junction_from_gtf(file: &str, libtype: &LibType) -> HashMap<(String, 
     let mut gene_name: String = "".to_string();
     let mut transcript_id: String;
 
-    
     let mut transcript_vec: Vec<(i64, i64)> = Vec::new();
     let mut current_gene_id = "".to_string();
     let mut current_transcript_id = "".to_string();
     let mut myset: HashSet<(i64, i64, Strand)> = HashSet::new();
-    
+
     //let mut result: HashMap<String, HashMap<(String, i64, i64), Strand>> = HashMap::new();
     let mut my_map: HashMap<(String, i64, i64), Strand> = HashMap::new();
 
-
     for line in reader.lines() {
-
         this_line = line.unwrap();
         let spt = this_line.trim().split('\t').collect::<Vec<&str>>();
         if spt.len() < 8 {
@@ -127,14 +123,13 @@ pub fn get_junction_from_gtf(file: &str, libtype: &LibType) -> HashMap<(String, 
         chr_ = spt[0].to_string();
         start = spt[3].parse::<i64>().unwrap() - 1;
         end = spt[4].parse::<i64>().unwrap();
-        strand =  Strand::from(spt[6]);
+        strand = Strand::from(spt[6]);
 
-        strand = match libtype{
+        strand = match libtype {
             LibType::PairedUnstranded | LibType::Unstranded => Strand::NA,
-            _ => Strand::from(spt[6])
+            _ => Strand::from(spt[6]),
         };
-       
-        
+
         if let Some((gene_tmp, tr_tmp)) =
             get_attr_id(spt[8], "gene_id").zip(get_attr_id(spt[8], "transcript_id"))
         {
@@ -156,7 +151,10 @@ pub fn get_junction_from_gtf(file: &str, libtype: &LibType) -> HashMap<(String, 
             transcript_vec.sort_by_key(|x| x.0);
             if ll > 1 {
                 for i in 0..(ll - 1) {
-                    my_map.insert((chr_.clone(), transcript_vec[i].1, transcript_vec[i + 1].0), strand);
+                    my_map.insert(
+                        (chr_.clone(), transcript_vec[i].1, transcript_vec[i + 1].0),
+                        strand,
+                    );
                     //myset.insert((transcript_vec[i].1, transcript_vec[i + 1].0, strand));
                 }
             }
@@ -170,7 +168,10 @@ pub fn get_junction_from_gtf(file: &str, libtype: &LibType) -> HashMap<(String, 
             transcript_vec.sort_by_key(|x| x.0);
             if ll > 1 {
                 for i in 0..(ll - 1) {
-                    my_map.insert((chr_.clone(), transcript_vec[i].1, transcript_vec[i + 1].0,), strand);
+                    my_map.insert(
+                        (chr_.clone(), transcript_vec[i].1, transcript_vec[i + 1].0),
+                        strand,
+                    );
                     //myset.insert((transcript_vec[i].1, transcript_vec[i + 1].0, strand));
                 }
             }
@@ -186,7 +187,10 @@ pub fn get_junction_from_gtf(file: &str, libtype: &LibType) -> HashMap<(String, 
     transcript_vec.sort_by_key(|x| x.0);
     if ll > 1 {
         for i in 0..(ll - 1) {
-            my_map.insert((chr_.clone(), transcript_vec[i].1, transcript_vec[i + 1].0,), strand);
+            my_map.insert(
+                (chr_.clone(), transcript_vec[i].1, transcript_vec[i + 1].0),
+                strand,
+            );
             //myset.insert((transcript_vec[i].1, transcript_vec[i + 1].0, strand));
         }
     }
@@ -194,6 +198,29 @@ pub fn get_junction_from_gtf(file: &str, libtype: &LibType) -> HashMap<(String, 
     my_map
 }
 
+
+pub fn get_all_junction_for_a_gene(
+    gtf_map: &HashMap<String, HashMap<String, Vec<Exon>>>,
+) -> HashMap<String, HashSet<(i64, i64)>> {
+    let mut res: HashMap<String, HashSet<(i64, i64)>> = HashMap::new();
+    let mut tmp = Vec::new();
+    for (gene, tr_dict) in gtf_map {
+        res.insert(gene.to_string(), HashSet::new());
+        for (tr_id, exon) in tr_dict {
+            for e in exon {
+                tmp.push((e.start, e.end));
+            }
+            if tmp.len() > 1 {
+                tmp.sort_by(|x, y| x.cmp(&y));
+                for i in 0..=(tmp.len() - 2) {
+                    res.get_mut(gene).unwrap().insert((tmp[i].1, tmp[i + 1].0));
+                }
+            }
+            tmp.clear();
+        }
+    }
+    res
+}
 
 // may need to refactor this was part of an older moduler keep it because it work but could crefactor to improve code redibility and performance
 #[derive(Eq, Hash, PartialEq, Clone, Copy, Debug)]
@@ -218,7 +245,6 @@ where
         }
     }
 }
-
 
 fn gtf_to_it(file: &str) -> HashMap<String, IntervalTree<i64, String>> {
     //let file = "genomic.gtf";
@@ -263,7 +289,6 @@ fn gtf_to_it(file: &str) -> HashMap<String, IntervalTree<i64, String>> {
     }
     result
 }
-
 
 fn graph_from_gtf(file: &str) -> HashMap<String, HashMap<Intervall<i64>, HashSet<Intervall<i64>>>> {
     //  TO remove clutter ca use a hashset to remove identical  exon
@@ -328,7 +353,6 @@ fn graph_from_gtf(file: &str) -> HashMap<String, HashMap<Intervall<i64>, HashSet
     g
 }
 pub fn get_invalid_pos(file: &str) -> HashSet<(String, i64)> {
-
     let g = graph_from_gtf(file);
     let mut seen = HashSet::new();
     let mut inter_vec = Vec::new();
@@ -339,24 +363,24 @@ pub fn get_invalid_pos(file: &str) -> HashSet<(String, i64)> {
 
     let mut current_neihbors: Vec<&Intervall<i64>>;
     for (chr_, subdict) in g.iter() {
-
-        for current_node in subdict.keys(){
+        for current_node in subdict.keys() {
             inter_vec.clear();
             if seen.contains(current_node) {
                 continue;
             }
-            
+
             file_.push(current_node.clone());
             while let Some(bfs_node) = file_.pop() {
                 if seen.contains(&bfs_node) {
                     continue;
                 }
-                inter_vec.push(bfs_node); 
+                inter_vec.push(bfs_node);
                 seen.insert(bfs_node);
-                if let Some(current_neihbors_hash) = subdict.get(&bfs_node){
-                    current_neihbors = current_neihbors_hash.iter().collect::<Vec<&Intervall<i64>>>();
+                if let Some(current_neihbors_hash) = subdict.get(&bfs_node) {
+                    current_neihbors = current_neihbors_hash
+                        .iter()
+                        .collect::<Vec<&Intervall<i64>>>();
                     for n in current_neihbors {
-                        
                         if seen.contains(n) {
                             continue;
                         }
@@ -364,7 +388,6 @@ pub fn get_invalid_pos(file: &str) -> HashSet<(String, i64)> {
                     }
                 }
             }
-        
 
             e1 = inter_vec[0].start;
             if !(inter_vec.iter().all(|x| x.start == e1)) {
@@ -393,27 +416,10 @@ pub fn get_invalid_pos(file: &str) -> HashSet<(String, i64)> {
             }
             // limit
             //inter_vec.clear();
-        //}
-    }
-    
-    }
-
-results
-}
-/* 
-// get junction!pub fn get_all_possible_junction(gtf_map: &HashMap<String, HashMap<String, Vec<Exon>>>) -> (){
-    res: HashMap<String, HashSet<(i64, i64)>> = HashMap::new();
-    for (gene, tr_dict) in gtf_map.into_iter(){
-        for(tr_id, exon_vec) in tr_dict.into_iter(){
-            let exons = exon_vec.iter().sorted_by(|x, y| x.start.cmp(&y.start)).collect::<Vec<&Exon>>();
-
-            }
+            //}
         }
-    ()
-    // gene -> Set(junction)
+    }
 
-
+    results
 }
-*/
-
 

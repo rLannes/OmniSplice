@@ -27,7 +27,7 @@ use strand_specifier_lib::{check_flag, LibType};
 
 fn aln_bw(fa: &str, reference: &str, out_bam: &str) {
     let bowt_child = Command::new("bowtie2")
-        .args(["-p", "2", "-x", reference, "-f", fa])
+        .args(["-p", "2", "-a", "-x", reference, "-f", fa])
         .stdout(Stdio::piped())
         .spawn()
         .expect("bowtie2 command failed to start");
@@ -373,10 +373,11 @@ pub fn parse_bam(
             //println!("{:?} {:?}", original_map_info, read_name);
             let transcript_container = transcript_map.get(&original_map_info.gene).unwrap().clone();
             for (indice, tr_junction) in transcript_container.iter().enumerate() {
-                if (tr_junction.exon_type == original_map_info.exon_type) | (contig != original_map_info.chr_){
+                if (tr_junction.exon_type == original_map_info.exon_type)
+                    | (contig != original_map_info.chr_)
+                {
                     continue;
-                }
-                 else if (tr_junction.pos == pos_s) & (pos_s < original_map_info.pos) {
+                } else if (tr_junction.pos == pos_s) & (pos_s < original_map_info.pos) {
                     if (tr_junction.strand == Strand::Plus)
                         & (tr_junction.exon_type == ExonType::Acceptor)
                     {
@@ -447,13 +448,7 @@ pub fn parse_bam(
                         continue;
                     }
                 }
-                /*                 else if (original_map_info.strand == "-") & ((tr_junction.pos == pos_e) | (tr_junction.pos == pos_s)){
-                    println!("{:?}", transcript_container);
-                    println!("{:?} {:?}", tr_junction, original_map_info);
-                    println!("{:?} {:?} {:?}\n", pos_s, pos_e, read_name);
 
-                 //   continue;
-                } */
             }
         }
     }
@@ -509,7 +504,7 @@ fn main() {
         &clipped_file,
         clipped_fasta.as_path().to_str().unwrap(),
         clipped_size_min,
-    ); 
+    );
     aln_bw(
         clipped_fasta.as_path().to_str().unwrap(),
         &bw2_ref,

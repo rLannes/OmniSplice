@@ -99,7 +99,11 @@ class Junction():
         if counts == (-1, -1):
             logging.warning(self.__dict__, (-1, -1))
             return 
-        (self.p_value, self.data_stats) = tester.test_sample(counts["control"], counts['treatment'])
+        try:
+            (self.p_value, self.data_stats) = tester.test_sample(counts["control"], counts['treatment'])
+        except:
+            print("failed to parse: ", counts)
+            return 
 
 
     def pass_threshold(self, ):
