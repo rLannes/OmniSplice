@@ -103,7 +103,7 @@ class Junction():
             (self.p_value, self.data_stats) = tester.test_sample(counts["control"], counts['treatment'])
         except:
             print("failed to parse: ", counts)
-            return 
+            raise 
 
 
     def pass_threshold(self, ):
@@ -141,12 +141,18 @@ def parse_js_file(file, results, genotype, ambigious=False, gene_list=None, tran
             next = spt[header["Acceptor"]] if spt[header["Strand"]] == "+" else spt[header["Donnor"]]
             
             hash_key = (contig, strand, pos, next)
-
+            if spt[header["Transcript"]] == "ENSMUST00000155989":
+                print(hash_key)
+                m = results.get(hash_key)
+                if m :
+                    print(m.__dict__)
             if hash_key not in results:
                 results[hash_key] = Junction(spt=spt, header=header, genotype=genotype, basename=basename)
             else:
                 results[hash_key].update_count(spt=spt, genotype=genotype, header=header, basename=basename)
-
+            if spt[header["Transcript"]] == "ENSMUST00000155989":
+                print(results.get(hash_key).__dict__)
+                print()
 
 class TestCounter(unittest.TestCase):
 

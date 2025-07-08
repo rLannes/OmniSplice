@@ -121,10 +121,11 @@ fn main_loop(
     let gtf_file = gtf;
     println!("parse gtf file");
 
-    println!("gtf file parsed");
-    println!("building the interval tree");
     let mut hash_tree =
         interval_tree_from_gtfmap(gtf_hashmap).expect("failed to generate the hash tree from gtf");
+
+    println!("gtf file parsed");
+    println!("building the interval tree");
     println!("tree built");
 
     // parse the gtf and return a hashmap<chromosome> -> intervalTree(intron(start, end), associated_data(gene_name...))

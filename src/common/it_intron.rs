@@ -537,8 +537,10 @@ pub fn update_tree(
     if let Some(this_tree) = tree_map.get_mut(chr_) {
         for (ref mut node) in this_tree.find_mut(interval_start..interval_end) {
             if (node.interval().start == interval_start) && (node.interval().end == interval_end) {
+                // TODO FIX this
+                // THIS cause a bug in case of ambigious junction that are very close to each others
                 if let n = node.data() {
-                    if n.gene_name == gene_name {
+                    if n.gene_name == gene_name && n.start == start && n.end == end {
                         n.transcript_intron
                             .push((transcript_id.clone(), intron_n.unwrap()));
                         flag_exon_already_found = true;

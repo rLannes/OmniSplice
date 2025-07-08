@@ -1,5 +1,6 @@
 import argparse
 from pathlib import Path
+import numpy as np
 from  statsmodels.stats.multitest import fdrcorrection
 import logging
 import time
@@ -24,10 +25,6 @@ def timer_decorator(func):
 
 
 
-
-    
-
-
 def main(condition_1, condition_2, successes, failures, tester, out_file,
           ambigious=False):
     """
@@ -50,9 +47,11 @@ def main(condition_1, condition_2, successes, failures, tester, out_file,
     counter = Counter(successes, failures)
     results = {}
     for file in condition_1:
+        print("parsing control file {}; ".format(file))
         parse_js_file(file, results, genotype="control", ambigious=ambigious)
     
     for file in condition_2:
+        print("parsing treatment file {}; ".format(file))
         parse_js_file(file, results, genotype="treatment", ambigious=ambigious)
 
     # now filter and test!
@@ -64,28 +63,13 @@ def main(condition_1, condition_2, successes, failures, tester, out_file,
                 v.stat_test(counter, tester)
             except:
                 print("failed")
-                print(v.__dict__)
+                print(e, v.__dict__)
                 raise
 
-
-    """        (p_value, data) = tester.test_sample(counts["control"], counts['treatment'])
-            dump_list = v.dump()
-            key = "{}_{}_{}_{}".format(dump_list[0], dump_list[1], dump_list[3], dump_list[4])
-            dico_r[key] = [dump_list, p_value, data]
-    
-    # I can avoid this loop by putting it in the previsou one
-    keys = []
-    keys_na = []
-    pvalues = []
-    for k, v in dico_r.items():
-        if v[1] == "NA":
-            keys_na.append(k)
-            continue
-        keys.append(k)
-        pvalues.append(v[1])
-    """
     junctions = list(results.values())
+    junctions = [j for j in junctions if not np.isnan(j.p_value) ]
     #y  = fdrcorrection([x.p_value for x in junctions])
+    
     q_values = fdrcorrection([x.p_value for x in junctions])[1] #[ y[0] for y in fdrcorrection([x.p_value for x in junctions]) ]
     #print(q_values)
 
@@ -215,7 +199,7 @@ if __name__ == "__main__":
     tester = None
     if args.stat == "GLM":
         try:
-            assert(len(args.control) > 3 and len(args.treatment) > 3)
+            assert(len(args.control) >= 3 and len(args.treatment) >= 3)
         except AssertionError:
             print("for glm you need at least tree replicates per conditions")
             raise AssertionError
