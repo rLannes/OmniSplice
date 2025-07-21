@@ -47,11 +47,11 @@ def main(condition_1, condition_2, successes, failures, tester, out_file,
     counter = Counter(successes, failures)
     results = {}
     for file in condition_1:
-        print("parsing control file {}; ".format(file))
+        logging.info("parsing control file {}; ".format(file))
         parse_js_file(file, results, genotype="control", ambigious=ambigious)
     
     for file in condition_2:
-        print("parsing treatment file {}; ".format(file))
+        logging.info("parsing treatment file {}; ".format(file))
         parse_js_file(file, results, genotype="treatment", ambigious=ambigious)
 
     # now filter and test!
@@ -127,13 +127,9 @@ if __name__ == "__main__":
     this program will compare two set of ".junction" files and compare the proportion of 2 groups of splicing groups.
     Allowing to identify splicing junction perturbed in one condition vs. the others.
     
-    3 statistical test are available Fischer, [Chi2 not implement yet TODO] and GLM [to TEST TODO]. 
-    Fischer test and Chi2 pool samples together. Chi2 limitations will be enforced junction with low count will output NA.
-    GLM is based on a binomial distribution and use this formula: 'successes + failures ~ group'
-    GLM will take into account the varriance between sample from the same group.
                                     
     usage: > python3 compare_conditions.py -c  control_1.junction control_2.junction -t treatment_1.junction treatment_2.junction --spliced SPLICED 
-            --defect UNSPLICED EXON_INTRON EXON_OTHER --stat FISCHER --out my_comparison_file.tsv
+            --defect UNSPLICED EXON_INTRON EXON_OTHER --out my_comparison_file.tsv
                                 
     """)
     parse.add_argument("--control", "-c", required=True,
@@ -158,13 +154,13 @@ if __name__ == "__main__":
                                            "WRONG_STRAND",
                                            "E_ISOFORM"])
     
-    parse.add_argument("--stat", required=True, choices=["GLM", "FISCHER", "CHI2"])
+    #parse.add_argument("--stat", required=True, choices=["GLM", "FISCHER", "CHI2"])
     parse.add_argument("--signif_level", "-s", help="if set filter junction with q_vlaue higher than this option" )
     parse.add_argument("--out", required=True)
     #parse.add_argument("--control_name", default="control", help="replace control condition by the name of your choice")
     #parse.add_argument("--treatment_name", default="treatment", help="replace treatment condition by the name of your choice")
     parse.add_argument("--ambigious", action='store_true', help="flag, do you want to take into account abigious junction, default is False. to set to true add '--amigious' to the command")
-    parse.add_argument("--logging_level", "-v", default="INFO",choices=["DEBUG", "INFO", "ERROR"] )
+    parse.add_argument("--logging_level", "-v", default="ERROR",choices=["DEBUG", "INFO", "ERROR"] )
     args = parse.parse_args()
 
 
@@ -196,24 +192,29 @@ if __name__ == "__main__":
     cond1 = list(set([x.lower() for x in args.spliced]))
     cond2 = list(set([x.lower() for x in args.defect]))
 
-    tester = None
-    if args.stat == "GLM":
-        try:
-            assert(len(args.control) >= 3 and len(args.treatment) >= 3)
-        except AssertionError:
-            print("for glm you need at least tree replicates per conditions")
-            raise AssertionError
-        except:
-            raise
-        tester = GLM_model()
-    elif args.stat == "FISCHER":
-        tester = Fischer_test()
-    elif args.stat == "CHI2":
-        print("CHI2 test not yet avalaible")
-        raise AssertionError
-    if not tester:
-        print("cannot find {} please checks your input".format(args.stat))
-        raise AssertionError
+    # tester = None
+    # if args.stat == "GLM":
+    #     try:
+    #         assert(len(args.control) >= 3 and len(args.treatment) >= 3)
+    #     except AssertionError:
+    #         print("for glm you need at least tree replicates per conditions")
+    #         raise AssertionError
+    #     except:
+    #         raise
+    #     tester = GLM_model()
+
+    # elif args.stat == "FISCHER":
+    #     tester = Fischer_test()
+
+    # elif args.stat == "CHI2":
+    #     print("CHI2 test not yet avalaible")
+    #     raise AssertionError
+    
+    # if not tester:
+    #     print("cannot find {} please checks your input".format(args.stat))
+    #     raise AssertionError
+
+    tester = Fischer_test()
     
     logger.debug("control file: {}".format(args.control))
     logger.debug("treatment file: {}".format(args.treatment))

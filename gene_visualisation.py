@@ -52,6 +52,7 @@ def ax_plot_bar(ax, counts_, genotype, defect_index, defect_to_plot, colors, rev
 def plot_1(out, defect_index, colors, counts_intron, order, defect_to_plot, width, height, title):
 
     counts_intron.sort(key=lambda x: int(x[1]))
+    counts_intron = counts_intron[1:-1]
     counts, intron = list(zip(*counts_intron))
     fig = plt.figure(figsize=(width, height))
     ax1 = fig.add_axes((0, 0, 1, 1))
@@ -69,6 +70,7 @@ def plot_1(out, defect_index, colors, counts_intron, order, defect_to_plot, widt
 def plot_2(out, defect_index, colors, counts_intron, order, defect_to_plot, width, height, title):
 
     counts_intron.sort(key=lambda x: int(x[1]))
+    counts_intron = counts_intron[1:-1]
     counts, intron = list(zip(*counts_intron))
     
 
@@ -99,6 +101,7 @@ def plot_3(out, defect_index, colors, counts_intron, order, defect_to_plot, widt
     fig = plt.figure(figsize=(width, height))
 
     counts_intron.sort(key=lambda x: int(x[1]))
+    counts_intron = counts_intron[1:-1]
     counts, intron = list(zip(*counts_intron))
     #(left, bottom, width, height)
     space = 0.05 * 2 

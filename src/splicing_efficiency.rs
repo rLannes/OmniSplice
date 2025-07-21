@@ -1,4 +1,5 @@
 use clap::{arg, command, value_parser, ArgAction, Command, Parser};
+use core::panic;
 use std::collections::{HashMap, HashSet};
 use std::ffi::OsStr;
 use std::fmt::format;
@@ -31,13 +32,13 @@ impl FromStr for SplicingChoice {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "spliced" => Ok(SplicingChoice::Spliced(9)),
-            "unspliced" => Ok(SplicingChoice::Unspliced(10)),
-            "clipped" => Ok(SplicingChoice::Clipped(11)),
-            "exon_other" => Ok(SplicingChoice::ExonOther(12)),
-            "skipped" => Ok(SplicingChoice::Skipped(13)),
-            "wrong_strand" => Ok(SplicingChoice::WrongStrand(14)),
-            "isoform" => Ok(SplicingChoice::Isoform(15)),
+            "spliced" => Ok(SplicingChoice::Spliced(8)),
+            "unspliced" => Ok(SplicingChoice::Unspliced(9)),
+            "clipped" => Ok(SplicingChoice::Clipped(10)),
+            "exon_other" => Ok(SplicingChoice::ExonOther(11)),
+            "skipped" => Ok(SplicingChoice::Skipped(12)),
+            "wrong_strand" => Ok(SplicingChoice::WrongStrand(13)),
+            "isoform" => Ok(SplicingChoice::Isoform(14)),
             _ => Err(SplicingChoiceError),
         }
     }
@@ -66,28 +67,6 @@ impl SplicingChoice {
 // - we want to support the combination of different fields. "unspliced" + "exon_other" ...
 //
 
-//hard coded field but very fast!
-#[non_exhaustive]
-pub struct Field_;
-impl Field_ {
-    pub const CONTIG: usize = 0;
-    pub const GENE: usize = 1;
-    pub const TRAN: usize = 2;
-    pub const EXON_N: usize = 3;
-    pub const AMBIG: usize = 4;
-    pub const STRAND: usize = 5;
-    pub const POS: usize = 6;
-    pub const NEXT: usize = 7;
-    pub const EXON_T: usize = 8;
-    pub const SPLICED: usize = 9;
-    pub const UNSPLICED: usize = 10;
-    pub const CLIPPED: usize = 11;
-    pub const E_OTH: usize = 12;
-    pub const SKIPPED: usize = 13;
-    pub const WRONG_STRAND: usize = 14;
-    pub const E_ISO: usize = 15;
-}
-
 struct Intron {
     contig: String,
     gene: String,
@@ -97,34 +76,27 @@ struct Intron {
     acceptor: String,
     strand: Strand,
     spliced: u32,
-    unspliced_donnor: u32,
-    unspliced_acceptor: u32,
+    unspliced: u32,
+
+    // TODO [FUTURE] [IMPROVMENT] may be parse the matching table file and give the details:
+    // unspliced_donnor: u32,
+    // unspliced_acceptor: u32,
+    // unspliced_common: u32
+
+
 }
 
 impl Intron {
+
     fn new(spt: &Vec<String>, counter: &Counter) -> Self {
-        let mut donnor: u32; // = 0;
-        let mut acceptor: u32; // = 0;
-        let mut intron_n: u16; // = 0;
+        let donnor = spt[4].clone();
+        let acceptor = spt[5].clone();
 
         let (spliced, unspliced) = counter.count(spt);
 
-        let mut donnor_uns = 0;
-        let mut acceptor_uns = 0;
-
-        intron_n = spt[3].split("_").collect::<Vec<&str>>()[1]
+        let intron_n = spt[3]
             .parse::<u16>()
             .unwrap();
-        if spt[8] == "Acceptor" {
-            acceptor_uns = unspliced;
-            donnor = spt[7].parse::<u32>().unwrap();
-            acceptor = spt[6].parse::<u32>().unwrap();
-            intron_n -= 1;
-        } else {
-            donnor_uns = unspliced;
-            donnor = spt[6].parse::<u32>().unwrap();
-            acceptor = spt[7].parse::<u32>().unwrap();
-        }
 
         Intron {
             contig: spt[0].to_string(),
@@ -133,14 +105,13 @@ impl Intron {
             intron_number: intron_n,
             donnor: donnor.to_string(),
             acceptor: acceptor.to_string(),
-            strand: Strand::from(spt[5].as_str()),
+            strand: Strand::from(spt[6].as_str()),
             spliced: spliced,
-            unspliced_donnor: donnor_uns,
-            unspliced_acceptor: acceptor_uns,
+            unspliced: unspliced
         }
     }
 
-    fn update(&mut self, spt: &Vec<String>, counter: &Counter) {
+    /*fn update(&mut self, spt: &Vec<String>, counter: &Counter) {
         let (_, unspliced) = counter.count(spt);
 
         if spt[8] == "Acceptor" {
@@ -148,12 +119,12 @@ impl Intron {
         } else {
             self.unspliced_donnor = unspliced;
         }
-    }
+    }*/
 
     fn dump(&self) -> String {
-        if self.spliced + self.unspliced_acceptor + self.unspliced_donnor == 0 {
+        if self.spliced + self.unspliced == 0 {
             format!(
-                "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
+                "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
                 self.contig,
                 self.donnor,
                 self.acceptor,
@@ -161,16 +132,15 @@ impl Intron {
                 self.gene,
                 "NA",
                 self.spliced,
-                self.unspliced_donnor,
-                self.unspliced_acceptor,
+                self.unspliced,
                 self.transcript,
                 self.intron_number
             )
         } else {
             let ratio = (self.spliced) as f32
-                / (self.spliced + self.unspliced_acceptor + self.unspliced_donnor) as f32;
+                / (self.spliced + self.unspliced) as f32;
             format!(
-                "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
+                "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
                 self.contig,
                 self.donnor,
                 self.acceptor,
@@ -178,8 +148,7 @@ impl Intron {
                 self.gene,
                 ratio,
                 self.spliced,
-                self.unspliced_donnor,
-                self.unspliced_acceptor,
+                self.unspliced,
                 self.transcript,
                 self.intron_number
             )
@@ -214,6 +183,124 @@ impl Counter {
         (spliced, unspliced)
     }
 }
+
+pub fn to_se_from_junction(
+    junction_file: &str,
+    out_file: &str,
+    spliced_def: Vec<String>,
+    unspliced_def: Vec<String>,
+) -> () {
+
+    let mut hashid: HashMap<usize, &str> = HashMap::new();
+    hashid.insert(8, "spliced");
+    hashid.insert(9, "unspliced");
+    hashid.insert(10, "clipped");
+    hashid.insert(11, "E_other");
+    hashid.insert(12, "skipped");
+    hashid.insert(13, "wrongStrand");
+    hashid.insert(14, "E_Isoform");
+
+    let g1: Vec<usize> = spliced_def
+        .iter()
+        .map(|x| SplicingChoice::from_str(x).unwrap().index())
+        .collect();
+    let g2: Vec<usize> = unspliced_def
+        .iter()
+        .map(|x| SplicingChoice::from_str(x).unwrap().index())
+        .collect();
+
+    let counter = Counter::new(g1.clone(), g2.clone());
+    //let test_amb= true;
+
+    let mut line: String; // = "".to_string();
+    let file = junction_file;
+    let presorted = format!("{}.presorted", &out_file);
+
+    let mut out_file_open = File::create_new(presorted.clone())
+        .unwrap_or_else(|_| panic!("output file {} should not exist.", &presorted));
+
+    let mut dict: HashMap<String, Intron> = HashMap::new();
+
+    let mut donnor: u32; // = 0;
+    let mut acceptor: u32; // = 0;
+
+    let f = File::open(file).unwrap();
+    let reader = BufReader::with_capacity(64 * 1024, f);
+
+    let mut key: String; //= "".to_string();
+    for (_i, l) in reader.lines().enumerate().skip(1) {
+        line = l.unwrap();
+        // println!("{}: {}", i,  line);
+        let spt = line
+            .trim()
+            .split('\t')
+            .map(|s| s.to_owned())
+            .collect::<Vec<String>>();
+        if spt.len() <= 1 {
+            continue;
+        }
+        if spt[7] == "true" {
+            continue;
+        }
+        if (spt[4] == ".") || (spt[5] == ".")  {
+            continue;
+        }
+
+        donnor = match spt[4].parse::<u32>(){
+            Ok(x) => x,
+            Err(x) => {println!("{:?}", spt); panic!()}
+        };
+        acceptor = match spt[5].parse::<u32>(){
+            Ok(x) => x,
+            Err(x) => {println!("{:?}", spt); panic!()}
+        };
+
+
+        key = format!("{}_{}_{}_{}_{}", spt[0], spt[1], spt[2], donnor, acceptor);
+        dict.insert(key, Intron::new(&spt, &counter));
+    }
+
+    for value in dict.values() {
+        let _ = out_file_open.write_all(value.dump().as_bytes());
+    }
+    let _ = out_file_open.flush();
+
+    {
+        let mut out_final = File::create_new(out_file)
+            .unwrap_or_else(|_| panic!("output file {} should not exist.", &out_file));
+        let header=format!("# spliced definition: {};\n# unspliced definition: {};\nContig\tstart\tend\tstrand\tgeneID\tRatio\tspliced\tUnspliced\ttranscriptID\tintronN\n",
+          
+          g1.iter().map(|x| hashid.get(x).unwrap().to_string()).collect::<Vec<String>>().join(" "),
+          g2.iter().map(|x| hashid.get(x).unwrap().to_string()).collect::<Vec<String>>().join(" "));
+
+        out_final.write_all(header.as_bytes()).unwrap();
+    }
+
+    {
+        let output_cmd = Std_Command::new("sort")
+            .args(["-k", "1g", "-k", "5,5", "-k", "2n", &presorted])
+            .output()
+            .expect(" sort command failed to start");
+
+        let mut file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(out_file)
+            .unwrap();
+
+        // Write the output to file
+        file.write_all(&output_cmd.stdout).unwrap();
+    }
+
+    let _ = Std_Command::new("rm")
+        .args([&presorted.clone()])
+        .spawn()
+        .expect(" rm command failed to start")
+        .wait();
+}
+
+
+/*
 
 pub fn to_se_from_table(
     table_file: &str,
@@ -332,11 +419,14 @@ pub fn to_se_from_table(
         .expect(" rm command failed to start")
         .wait();
 }
+*/
+
+
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
-    /// Name of the Input file
+    /// Name of the junction Input file
     #[arg(short, long, required = true)]
     input: String,
     /// Name of the Output file
@@ -361,7 +451,7 @@ struct Args {
 
 fn main() {
     let args = Args::parse();
-    to_se_from_table(
+    to_se_from_junction(
         &args.input,
         &args.output,
         args.spliced_def,

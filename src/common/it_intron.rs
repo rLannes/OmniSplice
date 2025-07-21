@@ -136,6 +136,12 @@ impl TreeDataIntron {
                     Some(SplicingEvent::Spliced),
                 )
             }
+            (Some(SplicingEvent::Unspliced), Some(SplicingEvent::Unspliced)) => {
+                TreeDataIntron::update_splicing_counter(
+                    &mut self.counter_intron,
+                    Some(SplicingEvent::Unspliced),
+                )
+            }
             (Some(left), Some(right)) => TreeDataIntron::update_splicing_counter(
                 &mut self.counter_intron,
                 SplicingEvent::merge(Some(left), Some(right)),

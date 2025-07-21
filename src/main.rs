@@ -196,7 +196,7 @@ fn main() {
     
     main_loop(
         output.clone(),
-        junction_file,
+        junction_file.clone(),
         args.gtf.clone(),
         args.input,
         args.overhang,
@@ -222,9 +222,11 @@ fn main() {
         args.libtype,
         &valid_j_gene,
     );
+
+
     //junction_file_from_table(&table, &junction_file);
-    splicing_efficiency::to_se_from_table(
-        &table,
+    splicing_efficiency::to_se_from_junction(
+        &junction_file.clone(),
         &splicing_defect,
         args.spliced_def,
         args.unspliced_def,
