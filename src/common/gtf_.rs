@@ -323,8 +323,12 @@ fn graph_from_gtf(file: &str) -> HashMap<String, HashMap<Intervall<i64>, HashSet
 
         chr_ = spt[0].to_string();
 
-        start = spt[3].parse::<i64>().unwrap() - 1;
-        end = spt[4].parse::<i64>().unwrap(); //- 1;
+        start = spt[3].parse::<i64>().unwrap() - 1; // 1 to 0 based 
+        end = spt[4].parse::<i64>().unwrap();
+
+        if start == end{
+            continue
+        }
 
         if let Some(gene_tmp) = get_attr_id(spt[8], "gene_id") {
             gene_name = gene_tmp;
@@ -352,6 +356,8 @@ fn graph_from_gtf(file: &str) -> HashMap<String, HashMap<Intervall<i64>, HashSet
     }
     g
 }
+
+
 pub fn get_invalid_pos(file: &str) -> HashSet<(String, i64)> {
     let g = graph_from_gtf(file);
     let mut seen = HashSet::new();

@@ -22,7 +22,7 @@ if __name__ == "__main__":
     this program will compare two set of ".junction" files/
     
                                     
-    usage: > python3 compare_conditions.py -c  control_1.junction control_2.junction -t treatment_1.junction treatment_2.junction --out my_comparison_file.tsv
+    usage: > python3 compare_two_groups.py -c  control_1.junction control_2.junction -t treatment_1.junction treatment_2.junction --out my_comparison_file.tsv
                                 
     """)
     parse.add_argument("--control", "-c", required=True,
@@ -51,7 +51,7 @@ if __name__ == "__main__":
 
     script_path = Path(os.path.realpath(__file__)).absolute()
     script_dir = script_path.parent
-    compare_ = script_dir / "compare_conditions.py"
+    compare_ = script_dir / "compare_two_groups.py"
     ctr = " ".join(args.control)
     treat = " ".join(args.treatment)
     for defect in ["CLIPPED", "EXON_OTHER", "SKIPPED", "WRONG_STRAND", "E_ISOFORM"]:

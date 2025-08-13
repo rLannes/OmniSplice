@@ -15,6 +15,35 @@ use strand_specifier_lib::Strand;
 use CigarParser::cigar::Cigar;
 
 #[derive(Debug)]
+pub struct Intervall{
+    pub start: i64,
+    pub end: i64
+}
+
+impl Intervall{
+
+    pub fn from_zero_based(start:i64, end:i64) -> Self{
+        Intervall { start,
+                    end }
+    }
+
+    pub fn from_one_based(start: i64, end: i64) -> Self{
+        Intervall {start: start - 1 ,
+                   end:  end }
+    }
+
+    pub fn intervall(&self) -> (i64, i64){
+        (self.start, self.end)
+    }
+    
+    pub fn intervall_zero(&self) -> (i64, i64){
+        (self.start + 1, self.end)
+    } 
+
+}
+
+
+#[derive(Debug)]
 pub struct Exon {
     pub start: i64,
     pub end: i64,

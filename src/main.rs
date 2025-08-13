@@ -64,10 +64,6 @@ struct Args {
     /// size of overhang
     #[arg(long, default_value_t = 1)]
     overhang: i64,
-    /// path to a file (must not exist) Uses if you want to output the reads with their category.
-    /// by default output all reads, this behaviour can be change using flags: clipped...
-    #[arg(long)]
-    output_write_read: Option<String>,
 
     #[arg(long, default_value_t = 0)]
     flag_in: u16,
