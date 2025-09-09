@@ -63,7 +63,7 @@ class Fischer_test(Stat_test):
         if successes + failures > 0:
             p = successes / (successes + failures)
         
-        return "{}/{}/{}".format(successes, failures, p)
+        return "{}\t{}\t{}".format(successes, failures, p)
 
 class GLM_model(Stat_test):
 
@@ -138,7 +138,7 @@ class GLM_model(Stat_test):
         if successes + failures > 0:
             p = successes / (successes + failures)        
         
-        return "{}/{}/{}".format(successes, failures, p)
+        return "{}\t{}\t{}".format(successes, failures, p)
 
 
 

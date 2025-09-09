@@ -83,7 +83,7 @@ def main(condition_1, condition_2, successes, failures, tester, out_file,
     junctions = sorted(junctions, key = lambda x: x.q_value if x.q_value else 2)
         
     header = ["chr", "strand", "start", "end", "statistic",
-               "control_success_failures_prop", "treatment_control_success_failures", "p_value", "q_value", "gene_transcript_intron\n"]
+               "control_success", "control_failures", "control_ratio", "treatment_success", "treatment_failures", "treatment_ratio", "p_value", "q_value", "gene_transcript_intron\n"]
     
     with open(out_file, "w") as fo:
         fo.write("#successes: {}\n".format(','.join(successes)))
@@ -154,7 +154,7 @@ if __name__ == "__main__":
                                            "WRONG_STRAND",
                                            "E_ISOFORM"])
     
-    #parse.add_argument("--stat", required=True, choices=["GLM", "FISCHER", "CHI2"])
+    parse.add_argument("--stat", required=True, choices=["GLM", "FISCHER"])
     parse.add_argument("--signif_level", "-s", help="if set filter junction with q_vlaue higher than this option" )
     parse.add_argument("--out", required=True)
     #parse.add_argument("--control_name", default="control", help="replace control condition by the name of your choice")
@@ -192,27 +192,27 @@ if __name__ == "__main__":
     cond1 = list(set([x.lower() for x in args.spliced]))
     cond2 = list(set([x.lower() for x in args.defect]))
 
-    # tester = None
-    # if args.stat == "GLM":
-    #     try:
-    #         assert(len(args.control) >= 3 and len(args.treatment) >= 3)
-    #     except AssertionError:
-    #         print("for glm you need at least tree replicates per conditions")
-    #         raise AssertionError
-    #     except:
-    #         raise
-    #     tester = GLM_model()
+    tester = None
+    if args.stat == "GLM":
+        try:
+            assert(len(args.control) >= 3 and len(args.treatment) >= 3)
+        except AssertionError:
+            print("for glm you need at least tree replicates per conditions")
+            raise AssertionError
+        except:
+            raise
+        tester = GLM_model()
 
-    # elif args.stat == "FISCHER":
-    #     tester = Fischer_test()
+    elif args.stat == "FISCHER":
+        tester = Fischer_test()
 
-    # elif args.stat == "CHI2":
-    #     print("CHI2 test not yet avalaible")
-    #     raise AssertionError
+    #elif args.stat == "CHI2":
+    #    print("CHI2 test not yet avalaible")
+    #    raise AssertionError
     
-    # if not tester:
-    #     print("cannot find {} please checks your input".format(args.stat))
-    #     raise AssertionError
+    if not tester:
+        print("cannot find {} please checks your input".format(args.stat))
+        raise AssertionError
 
     tester = Fischer_test()
     

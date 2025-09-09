@@ -32,7 +32,7 @@ if __name__ == "__main__":
                         help="space separated list of treatment file. eg: --treatment treatment_1.junction treatment_2.junction",
                         nargs="+")
     
-    #parse.add_argument("--stat", required=True, choices=["GLM", "FISCHER", "CHI2"])
+    parse.add_argument("--stat", required=True, choices=["GLM", "FISCHER"])
     parse.add_argument("--signif_level", "-s", help="if set filter junction with q_vlaue higher than this option" )
     parse.add_argument("--out", required=True, help="basename")
     #parse.add_argument("--control_name", default="control", help="replace control condition by the name of your choice")

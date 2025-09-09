@@ -595,7 +595,7 @@ pub fn update_tree_from_bam(
     valid_j_gene: &HashMap<String, HashSet<(i64, i64)>>,
 ) -> Result<(), Box<dyn Error>> {
     let mut read_name: Option<String> = None;
-    let mut seq: Option<Vec<u8>> = None;
+    let mut seq: Vec<u8>;
     let mut sequence: Option<String> = None;
 
     let mut counter: i64;
@@ -629,7 +629,7 @@ pub fn update_tree_from_bam(
 
             read_name =
                 Some(String::from_utf8(record.qname().to_vec()).expect("cannot parse read name"));
-            let seq = record.seq().as_bytes();
+            seq = record.seq().as_bytes();
             sequence = Some(String::from_utf8(seq).expect("cannot parse sequence"));
 
             if let Some(read_strand) = library_type.get_strand(flag) {

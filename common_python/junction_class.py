@@ -3,6 +3,7 @@ from pathlib import Path
 from .counter_junction import Counter
 import unittest
 import logging
+import functools
 
 logger = logging.getLogger("compare_conditions")
 class Junction():
@@ -29,7 +30,30 @@ class Junction():
         self.p_value = -1
         self.data_stats = None
         self.q_value = None
+
+        self.arbitrary = {} # used to store arbitrary data 
     
+
+    def pass_min_read_filter(self, min_read):
+        for genotype, basename_dict in self.count.items():
+            for sample, counts in basename_dict.items():
+                if sum(counts) < min_read:
+                    return False
+        return True
+
+    def pass_min_spliced_filter(self, min_spliced):
+        dico = {}
+        for genotype, basename_dict in self.count.items():
+            dico[genotype] = True
+            for sample, counts in basename_dict.items():
+                if counts[0] < min_spliced:          
+                    dico[genotype] = False
+        
+        val = list(dico.values())
+        return val[0] | val[1]
+        # overkill
+        #return functools.reduce(lambda x, y: x | y, dico.values())
+        
 
     def get_count_per_genotype_summed(self):
         res = {}
@@ -141,18 +165,18 @@ def parse_js_file(file, results, genotype, ambigious=False, gene_list=None, tran
             next = spt[header["Acceptor"]] if spt[header["Strand"]] == "+" else spt[header["Donnor"]]
             
             hash_key = (contig, strand, pos, next)
-            if spt[header["Transcript"]] == "ENSMUST00000155989":
-                print(hash_key)
-                m = results.get(hash_key)
-                if m :
-                    print(m.__dict__)
+            #if spt[header["Transcript"]] == "ENSMUST00000155989":
+            #    print(hash_key)
+            #    m = results.get(hash_key)
+            #    if m :
+            #        print(m.__dict__)
             if hash_key not in results:
                 results[hash_key] = Junction(spt=spt, header=header, genotype=genotype, basename=basename)
             else:
                 results[hash_key].update_count(spt=spt, genotype=genotype, header=header, basename=basename)
-            if spt[header["Transcript"]] == "ENSMUST00000155989":
-                print(results.get(hash_key).__dict__)
-                print()
+            #if spt[header["Transcript"]] == "ENSMUST00000155989":
+            #    print(results.get(hash_key).__dict__)
+            #    print()
 
 class TestCounter(unittest.TestCase):
 
