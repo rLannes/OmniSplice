@@ -2,9 +2,9 @@
 extern crate CigarParser;
 use clap::Parser;
 
-use rust_htslib::bam::{IndexedReader, Read};
-use strand_specifier_lib::{check_flag, LibType};
 use CigarParser::cigar::Cigar;
+use rust_htslib::bam::{IndexedReader, Read};
+use strand_specifier_lib::{LibType, check_flag};
 //use rust_htslib::errors::Error;
 use rust_htslib::bam::record::Record;
 use std::collections::HashMap;
@@ -12,8 +12,8 @@ use std::collections::HashSet;
 use std::fmt::format;
 use std::fs::File;
 use std::hash::Hash;
-use std::io::prelude::*;
 use std::io::BufWriter;
+use std::io::prelude::*;
 
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
@@ -40,7 +40,7 @@ use crate::common::utils;
 use crate::common::utils::Exon;
 use crate::common::utils::SplicingEvent;
 use crate::common::utils::{
-    update_read_to_write_handle, ExonType, ReadAssign, ReadToWriteHandle, ReadsToWrite,
+    ExonType, ReadAssign, ReadToWriteHandle, ReadsToWrite, update_read_to_write_handle,
 };
 mod splicing_efficiency;
 
@@ -177,9 +177,9 @@ fn main() {
     let mut clipped = false;
 
     let header_reads_handle = "read_name\tcig\tflag\taln_start\tread_assign\tfeature.pos\tnext_exon\tfeature.exon_type\tfeature.strand\tsequence\n".as_bytes(); //.expect("Unable to write file");
-    let mut readouthandle = ReadToWriteHandle::new();
+    let mut read_out_handle = ReadToWriteHandle::new();
     update_read_to_write_handle(
-        &mut readouthandle,
+        &mut read_out_handle,
         args.readToWrite,
         header_reads_handle,
         &output_file_prefix,
@@ -189,7 +189,7 @@ fn main() {
 
     let gtf_hashmap = gtf_to_hashmap(&args.gtf.clone()).expect("failed to parse gtf");
     let valid_j_gene = get_all_junction_for_a_gene(&gtf_hashmap);
-    
+
     main_loop(
         output.clone(),
         junction_file.clone(),
@@ -199,7 +199,7 @@ fn main() {
         args.flag_in,
         args.flag_out,
         args.mapq,
-        &mut readouthandle,
+        &mut read_out_handle,
         args.libtype,
         &gtf_hashmap,
         &valid_j_gene,
@@ -210,7 +210,7 @@ fn main() {
 
     let mut stream = BufWriter::new(file);
     let _ = stream.write("contig\tgene_name\ttranscript_name\texon_number\tambiguous\tstrand\tpos\tnext\texon_type\tspliced\tunspliced\tclipped\texon_other\tskipped\twrong_strand\te_isoform\n".as_bytes());
-    
+
     file_to_table(
         output.clone(),
         &mut stream,
@@ -218,7 +218,6 @@ fn main() {
         args.libtype,
         &valid_j_gene,
     );
-
 
     //junction_file_from_table(&table, &junction_file);
     splicing_efficiency::to_se_from_junction(

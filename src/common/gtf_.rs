@@ -1,4 +1,5 @@
 use crate::common::utils::Exon;
+use CigarParser::cigar::Cigar;
 use bio::data_structures::interval_tree::IntervalTree;
 use itertools::Itertools;
 use std::collections::{HashMap, HashSet};
@@ -8,11 +9,11 @@ use std::hash::Hash;
 use std::io::BufRead;
 use std::io::BufReader;
 use strand_specifier_lib::Strand;
-use strand_specifier_lib::{check_flag, LibType};
-use CigarParser::cigar::Cigar;
+use strand_specifier_lib::{LibType, check_flag};
+
 
 pub fn get_attr_id(attr: &str, toget: &str) -> Option<String> {
-    let mut result: String; // = "".to_string();
+    let mut result: String; 
     let x = attr.split(';').collect::<Vec<&str>>();
     for e in x {
         let spl = e.trim().split(' ').collect::<Vec<&str>>();
@@ -32,15 +33,15 @@ pub fn gtf_to_hashmap(
 
     let f = File::open(gtf_file)?;
     let reader = BufReader::new(f);
-    let mut this_line: String; //::new();
+    let mut this_line: String; 
 
-    let mut chr_: String; // = "".to_string();
-    let mut start: i64; //; = 0;
-    let mut end: i64; // = 0;
+    let mut chr_: String; 
+    let mut start: i64; 
+    let mut end: i64; 
     let mut strand: Strand;
 
-    let mut gene_name: String; // = "".to_string();
-    let mut transcript_id: String; // = "".to_string();
+    let mut gene_name: String; 
+    let mut transcript_id: String; 
     let mut spt: Vec<&str> = Vec::new();
 
     for line in reader.lines() {
@@ -198,7 +199,6 @@ pub fn get_junction_from_gtf(file: &str, libtype: &LibType) -> HashMap<(String, 
     my_map
 }
 
-
 pub fn get_all_junction_for_a_gene(
     gtf_map: &HashMap<String, HashMap<String, Vec<Exon>>>,
 ) -> HashMap<String, HashSet<(i64, i64)>> {
@@ -326,8 +326,8 @@ fn graph_from_gtf(file: &str) -> HashMap<String, HashMap<Intervall<i64>, HashSet
         start = spt[3].parse::<i64>().unwrap() - 1; // 1 to 0 based 
         end = spt[4].parse::<i64>().unwrap();
 
-        if start == end{
-            continue
+        if start == end {
+            continue;
         }
 
         if let Some(gene_tmp) = get_attr_id(spt[8], "gene_id") {
@@ -356,7 +356,6 @@ fn graph_from_gtf(file: &str) -> HashMap<String, HashMap<Intervall<i64>, HashSet
     }
     g
 }
-
 
 pub fn get_invalid_pos(file: &str) -> HashSet<(String, i64)> {
     let g = graph_from_gtf(file);
@@ -428,4 +427,3 @@ pub fn get_invalid_pos(file: &str) -> HashSet<(String, i64)> {
 
     results
 }
-

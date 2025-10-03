@@ -1,4 +1,4 @@
-use clap::{arg, command, value_parser, ArgAction, Command, Parser};
+use clap::{ArgAction, Command, Parser, arg, command, value_parser};
 use core::panic;
 use std::collections::{HashMap, HashSet};
 use std::ffi::OsStr;
@@ -6,8 +6,8 @@ use std::fmt::format;
 use std::fs::OpenOptions;
 use std::fs::{self, File};
 use std::hash::Hash;
-use std::io::prelude::*;
 use std::io::Write;
+use std::io::prelude::*;
 use std::io::{BufReader, BufWriter};
 use std::path::{Path, PathBuf};
 use std::process::{Command as Std_Command, Stdio};
@@ -60,7 +60,7 @@ impl SplicingChoice {
 
 /// This is a self contain file that parse the table file and output an splicing effiency table.
 /// i am unsure if I keep it separate or integrate it to the main software or both
-/// it is to replicate and more the exact formual of spilcing e
+/// it is to replicate and more the exact formual of spilcinge
 //
 // we want to support:
 // - either Donnor only Acceptor only or both
@@ -77,26 +77,20 @@ struct Intron {
     strand: Strand,
     spliced: u32,
     unspliced: u32,
-
     // TODO [FUTURE] [IMPROVMENT] may be parse the matching table file and give the details:
     // unspliced_donnor: u32,
     // unspliced_acceptor: u32,
     // unspliced_common: u32
-
-
 }
 
 impl Intron {
-
     fn new(spt: &Vec<String>, counter: &Counter) -> Self {
         let donnor = spt[4].clone();
         let acceptor = spt[5].clone();
 
         let (spliced, unspliced) = counter.count(spt);
 
-        let intron_n = spt[3]
-            .parse::<u16>()
-            .unwrap();
+        let intron_n = spt[3].parse::<u16>().unwrap();
 
         Intron {
             contig: spt[0].to_string(),
@@ -107,7 +101,7 @@ impl Intron {
             acceptor: acceptor.to_string(),
             strand: Strand::from(spt[6].as_str()),
             spliced: spliced,
-            unspliced: unspliced
+            unspliced: unspliced,
         }
     }
 
@@ -137,8 +131,7 @@ impl Intron {
                 self.intron_number
             )
         } else {
-            let ratio = (self.spliced) as f32
-                / (self.spliced + self.unspliced) as f32;
+            let ratio = (self.spliced) as f32 / (self.spliced + self.unspliced) as f32;
             format!(
                 "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
                 self.contig,
@@ -190,7 +183,6 @@ pub fn to_se_from_junction(
     spliced_def: Vec<String>,
     unspliced_def: Vec<String>,
 ) -> () {
-
     let mut hashid: HashMap<usize, &str> = HashMap::new();
     hashid.insert(8, "spliced");
     hashid.insert(9, "unspliced");
@@ -242,19 +234,24 @@ pub fn to_se_from_junction(
         if spt[7] == "true" {
             continue;
         }
-        if (spt[4] == ".") || (spt[5] == ".")  {
+        if (spt[4] == ".") || (spt[5] == ".") {
             continue;
         }
 
-        donnor = match spt[4].parse::<u32>(){
+        donnor = match spt[4].parse::<u32>() {
             Ok(x) => x,
-            Err(x) => {println!("{:?}", spt); panic!()}
+            Err(x) => {
+                println!("{:?}", spt);
+                panic!()
+            }
         };
-        acceptor = match spt[5].parse::<u32>(){
+        acceptor = match spt[5].parse::<u32>() {
             Ok(x) => x,
-            Err(x) => {println!("{:?}", spt); panic!()}
+            Err(x) => {
+                println!("{:?}", spt);
+                panic!()
+            }
         };
-
 
         key = format!("{}_{}_{}_{}_{}", spt[0], spt[1], spt[2], donnor, acceptor);
         dict.insert(key, Intron::new(&spt, &counter));
@@ -268,10 +265,17 @@ pub fn to_se_from_junction(
     {
         let mut out_final = File::create_new(out_file)
             .unwrap_or_else(|_| panic!("output file {} should not exist.", &out_file));
-        let header=format!("# spliced definition: {};\n# unspliced definition: {};\nContig\tstart\tend\tstrand\tgeneID\tRatio\tspliced\tUnspliced\ttranscriptID\tintronN\n",
-          
-          g1.iter().map(|x| hashid.get(x).unwrap().to_string()).collect::<Vec<String>>().join(" "),
-          g2.iter().map(|x| hashid.get(x).unwrap().to_string()).collect::<Vec<String>>().join(" "));
+        let header = format!(
+            "# spliced definition: {};\n# unspliced definition: {};\nContig\tstart\tend\tstrand\tgeneID\tRatio\tspliced\tUnspliced\ttranscriptID\tintronN\n",
+            g1.iter()
+                .map(|x| hashid.get(x).unwrap().to_string())
+                .collect::<Vec<String>>()
+                .join(" "),
+            g2.iter()
+                .map(|x| hashid.get(x).unwrap().to_string())
+                .collect::<Vec<String>>()
+                .join(" ")
+        );
 
         out_final.write_all(header.as_bytes()).unwrap();
     }
@@ -298,7 +302,6 @@ pub fn to_se_from_junction(
         .expect(" rm command failed to start")
         .wait();
 }
-
 
 /*
 
@@ -390,7 +393,7 @@ pub fn to_se_from_table(
         let mut out_final = File::create_new(out_file)
             .unwrap_or_else(|_| panic!("output file {} should not exist.", &out_file));
         let header=format!("# spliced definition: {};\n# unspliced definition: {};\nContig\tstart\tend\tstrand\tgeneID\tRatio\tspliced\tUnspliceDonnor\tUnsplicedAcceptor\ttranscriptID\tintronN\n",
-          
+
           g1.iter().map(|x| hashid.get(x).unwrap().to_string()).collect::<Vec<String>>().join(" "),
           g2.iter().map(|x| hashid.get(x).unwrap().to_string()).collect::<Vec<String>>().join(" "));
 
@@ -420,8 +423,6 @@ pub fn to_se_from_table(
         .wait();
 }
 */
-
-
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]

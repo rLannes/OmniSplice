@@ -13,6 +13,10 @@ strand_specifier = { git = "https://github.com/rLannes/BAMstrandSpecifier" }
 regex = "*"
 lazy_static = "1.5.0"
 itertools = "*"
+log = "0.4"
+pretty_env_logger = "0.4"
+thiserror = "2"
+
 
 [[bin]]
 name = "omni_splice"

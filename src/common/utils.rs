@@ -1,3 +1,4 @@
+use CigarParser::cigar::Cigar;
 use bio::bio_types::annot::spliced::Spliced;
 use clap::builder::Str;
 use lazy_static::lazy_static;
@@ -12,36 +13,33 @@ use std::io::BufWriter;
 use std::io::Write;
 use std::str::FromStr;
 use strand_specifier_lib::Strand;
-use CigarParser::cigar::Cigar;
 
 #[derive(Debug)]
-pub struct Intervall{
+pub struct Intervall {
     pub start: i64,
-    pub end: i64
+    pub end: i64,
 }
 
-impl Intervall{
-
-    pub fn from_zero_based(start:i64, end:i64) -> Self{
-        Intervall { start,
-                    end }
+impl Intervall {
+    pub fn from_zero_based(start: i64, end: i64) -> Self {
+        Intervall { start, end }
     }
 
-    pub fn from_one_based(start: i64, end: i64) -> Self{
-        Intervall {start: start - 1 ,
-                   end:  end }
+    pub fn from_one_based(start: i64, end: i64) -> Self {
+        Intervall {
+            start: start - 1,
+            end: end,
+        }
     }
 
-    pub fn intervall(&self) -> (i64, i64){
+    pub fn intervall(&self) -> (i64, i64) {
         (self.start, self.end)
     }
-    
-    pub fn intervall_zero(&self) -> (i64, i64){
+
+    pub fn intervall_zero(&self) -> (i64, i64) {
         (self.start + 1, self.end)
-    } 
-
+    }
 }
-
 
 #[derive(Debug)]
 pub struct Exon {
@@ -97,155 +95,155 @@ pub enum ReadsToWrite {
 }
 
 pub fn update_read_to_write_handle(
-    readouthandle: &mut ReadToWriteHandle,
+    read_out_handle: &mut ReadToWriteHandle,
     read_to_write: Vec<ReadsToWrite>,
-    headerReadsHandle: &[u8],
-    outputFilePrefix: &str,
+    header_reads_handle: &[u8],
+    output_file_prefix: &str,
 ) {
     for e in read_to_write {
         match e {
             ReadsToWrite::All => {
-                readouthandle.all = Some(BufWriter::new(
-                    File::create_new(format!("{}{}", outputFilePrefix, ".readAll"))
+                read_out_handle.all = Some(BufWriter::new(
+                    File::create_new(format!("{}{}", output_file_prefix, ".readAll"))
                         .unwrap_or_else(|_| panic!("readAll file should not exist.")),
                 ));
-                readouthandle
+                read_out_handle
                     .all
                     .as_mut()
                     .unwrap()
-                    .write_all(headerReadsHandle)
+                    .write_all(header_reads_handle)
                     .expect("Unable to write file");
             }
             ReadsToWrite::ReadThrough => {
-                readouthandle.read_through = Some(BufWriter::new(
-                    File::create_new(format!("{}{}", outputFilePrefix, ".readThrough"))
+                read_out_handle.read_through = Some(BufWriter::new(
+                    File::create_new(format!("{}{}", output_file_prefix, ".readThrough"))
                         .unwrap_or_else(|_| panic!("readThrough file should not exist.")),
                 ));
-                readouthandle
+                read_out_handle
                     .read_through
                     .as_mut()
                     .unwrap()
-                    .write_all(headerReadsHandle)
+                    .write_all(header_reads_handle)
                     .expect("Unable to write file");
             }
             ReadsToWrite::ReadJunction => {
-                readouthandle.read_junction = Some(BufWriter::new(
-                    File::create_new(format!("{}{}", outputFilePrefix, ".readJunction"))
+                read_out_handle.read_junction = Some(BufWriter::new(
+                    File::create_new(format!("{}{}", output_file_prefix, ".readJunction"))
                         .unwrap_or_else(|_| panic!("readJunction file should not exist.")),
                 ));
-                readouthandle
+                read_out_handle
                     .read_junction
                     .as_mut()
                     .unwrap()
-                    .write_all(headerReadsHandle)
+                    .write_all(header_reads_handle)
                     .expect("Unable to write file");
             }
             ReadsToWrite::Unexpected => {
-                readouthandle.unexpected = Some(BufWriter::new(
-                    File::create_new(format!("{}{}", outputFilePrefix, ".unexpected"))
+                read_out_handle.unexpected = Some(BufWriter::new(
+                    File::create_new(format!("{}{}", output_file_prefix, ".unexpected"))
                         .unwrap_or_else(|_| panic!("unexpected file should not exist.")),
                 ));
-                readouthandle
+                read_out_handle
                     .unexpected
                     .as_mut()
                     .unwrap()
-                    .write_all(headerReadsHandle)
+                    .write_all(header_reads_handle)
                     .expect("Unable to write file");
             }
             ReadsToWrite::FailPosFilter => {
-                readouthandle.fail_pos_filter = Some(BufWriter::new(
-                    File::create_new(format!("{}{}", outputFilePrefix, ".FailPosFilter"))
+                read_out_handle.fail_pos_filter = Some(BufWriter::new(
+                    File::create_new(format!("{}{}", output_file_prefix, ".FailPosFilter"))
                         .unwrap_or_else(|_| panic!("FailPosFilter file should not exist.")),
                 ));
-                readouthandle
+                read_out_handle
                     .fail_pos_filter
                     .as_mut()
                     .unwrap()
-                    .write_all(headerReadsHandle)
+                    .write_all(header_reads_handle)
                     .expect("Unable to write file");
             }
             ReadsToWrite::WrongStrand => {
-                readouthandle.wrong_strand = Some(BufWriter::new(
-                    File::create_new(format!("{}{}", outputFilePrefix, ".WrongStrand"))
+                read_out_handle.wrong_strand = Some(BufWriter::new(
+                    File::create_new(format!("{}{}", output_file_prefix, ".WrongStrand"))
                         .unwrap_or_else(|_| panic!("WrongStrand file should not exist.")),
                 ));
-                readouthandle
+                read_out_handle
                     .wrong_strand
                     .as_mut()
                     .unwrap()
-                    .write_all(headerReadsHandle)
+                    .write_all(header_reads_handle)
                     .expect("Unable to write file");
             }
             ReadsToWrite::FailQc => {
-                readouthandle.fail_qc = Some(BufWriter::new(
-                    File::create_new(format!("{}{}", outputFilePrefix, ".FailQC"))
+                read_out_handle.fail_qc = Some(BufWriter::new(
+                    File::create_new(format!("{}{}", output_file_prefix, ".FailQC"))
                         .unwrap_or_else(|_| panic!("FailQC file should not exist.")),
                 ));
-                readouthandle
+                read_out_handle
                     .fail_qc
                     .as_mut()
                     .unwrap()
-                    .write_all(headerReadsHandle)
+                    .write_all(header_reads_handle)
                     .expect("Unable to write file");
             }
             ReadsToWrite::EmptyPileup => {
-                readouthandle.empty_pileup = Some(BufWriter::new(
-                    File::create_new(format!("{}{}", outputFilePrefix, ".EmptyPileup"))
+                read_out_handle.empty_pileup = Some(BufWriter::new(
+                    File::create_new(format!("{}{}", output_file_prefix, ".EmptyPileup"))
                         .unwrap_or_else(|_| panic!("EmptyPileup file should not exist.")),
                 ));
-                readouthandle
+                read_out_handle
                     .empty_pileup
                     .as_mut()
                     .unwrap()
-                    .write_all(headerReadsHandle)
+                    .write_all(header_reads_handle)
                     .expect("Unable to write file");
             }
             ReadsToWrite::Skipped => {
-                readouthandle.skipped = Some(BufWriter::new(
-                    File::create_new(format!("{}{}", outputFilePrefix, ".Skipped"))
+                read_out_handle.skipped = Some(BufWriter::new(
+                    File::create_new(format!("{}{}", output_file_prefix, ".Skipped"))
                         .unwrap_or_else(|_| panic!("Skipped file should not exist.")),
                 ));
-                readouthandle
+                read_out_handle
                     .skipped
                     .as_mut()
                     .unwrap()
-                    .write_all(headerReadsHandle)
+                    .write_all(header_reads_handle)
                     .expect("Unable to write file");
             }
             ReadsToWrite::SoftClipped => {
-                readouthandle.soft_clipped = Some(BufWriter::new(
-                    File::create_new(format!("{}{}", outputFilePrefix, ".SoftClipped"))
+                read_out_handle.soft_clipped = Some(BufWriter::new(
+                    File::create_new(format!("{}{}", output_file_prefix, ".SoftClipped"))
                         .unwrap_or_else(|_| panic!("SoftClipped file should not exist.")),
                 ));
-                readouthandle
+                read_out_handle
                     .soft_clipped
                     .as_mut()
                     .unwrap()
-                    .write_all(headerReadsHandle)
+                    .write_all(header_reads_handle)
                     .expect("Unable to write file");
             }
             ReadsToWrite::OverhangFail => {
-                readouthandle.overhang_fail = Some(BufWriter::new(
-                    File::create_new(format!("{}{}", outputFilePrefix, ".OverhangFail"))
+                read_out_handle.overhang_fail = Some(BufWriter::new(
+                    File::create_new(format!("{}{}", output_file_prefix, ".OverhangFail"))
                         .unwrap_or_else(|_| panic!("OverhangFail file should not exist.")),
                 ));
-                readouthandle
+                read_out_handle
                     .overhang_fail
                     .as_mut()
                     .unwrap()
-                    .write_all(headerReadsHandle)
+                    .write_all(header_reads_handle)
                     .expect("Unable to write file");
             }
             ReadsToWrite::Empty => {
-                readouthandle.empty = Some(BufWriter::new(
-                    File::create_new(format!("{}{}", outputFilePrefix, ".Empty"))
+                read_out_handle.empty = Some(BufWriter::new(
+                    File::create_new(format!("{}{}", output_file_prefix, ".Empty"))
                         .unwrap_or_else(|_| panic!("Empty file should not exist.")),
                 ));
-                readouthandle
+                read_out_handle
                     .empty
                     .as_mut()
                     .unwrap()
-                    .write_all(headerReadsHandle)
+                    .write_all(header_reads_handle)
                     .expect("Unable to write file");
             }
         }
@@ -434,10 +432,12 @@ impl SplicingEvent {
             Some(ReadAssign::SoftClipped) => Some(SplicingEvent::Clipped),
             Some(ReadAssign::Skipped(n, m)) => {
                 if valid_junction.contains(&(n, m)) || valid_junction.contains(&(m, n)) {
-                    Some(SplicingEvent::Isoform)}
-                else{
-                Some(SplicingEvent::Skipped)}
-            },
+                    Some(SplicingEvent::Isoform)
+                } else {
+                    // if fe
+                    Some(SplicingEvent::Skipped)
+                }
+            }
             Some(ReadAssign::ReadJunction(n, m)) => {
                 if (feature_start.is_some() && feature_end.is_some())
                     && (((n == feature_end.unwrap()) & (m == feature_start.unwrap()))
@@ -623,18 +623,18 @@ pub fn test_strand(read_strand: &Strand, feature_strand: &Strand) -> Option<Read
 }
 
 fn test_skipped(cigar: &Cigar, aln_start: i64, feature_pos: i64) -> Option<ReadAssign> {
-    let junction = cigar.get_skipped_pos_on_ref(&aln_start);
+    let junction = cigar.get_skipped_pos_on_ref(aln_start);
     if let Some(y) = junction {
         if let Some(i) = y
             .iter()
             .enumerate()
             .step_by(2)
-            .find(|(i, &x)| (x < feature_pos) & (y[i + 1] > feature_pos))
+            .find(|&(ref i, &x)| (x < feature_pos) & (y[i + 1] > feature_pos))
         {
             return Some(ReadAssign::Skipped(*i.1, y[i.0 + 1]));
         }
     }
-    return None;
+    None
 }
 
 //pub fn overhang_fail(feature: i64, aln_start: i64, aln_end: i64, overhang: i64){
@@ -684,13 +684,13 @@ pub fn read_toassign(
 
     match (feature_strand, feature_exontype) {
         (Strand::Plus, ExonType::Donnor) | (Strand::Minus, ExonType::Acceptor) => {
-            if !cigar.does_it_match_an_intervall(&aln_start, feature_pos - overhang, feature_pos) {
+            if !cigar.does_it_match_an_intervall(aln_start, feature_pos - overhang, feature_pos) {
                 //println!("end, {} {} {} {} {:?} {:?} {:?}", aln_start, aln_end, feature_pos, feature_pos - overhang, cigar, feature_strand, feature_exontype);
                 return Some(ReadAssign::OverhangFail);
             }
 
             if cigar.does_it_match_an_intervall(
-                &aln_start,
+                aln_start,
                 feature_pos - overhang,
                 feature_pos + overhang,
             ) {
@@ -702,13 +702,13 @@ pub fn read_toassign(
             }
         }
         (Strand::Plus, ExonType::Acceptor) | (Strand::Minus, ExonType::Donnor) => {
-            if !cigar.does_it_match_an_intervall(&aln_start, feature_pos, feature_pos + overhang) {
+            if !cigar.does_it_match_an_intervall(aln_start, feature_pos, feature_pos + overhang) {
                 return Some(ReadAssign::OverhangFail);
             }
 
             //if cigar.does_it_match_an_intervall(&aln_start, feature_pos - 1, feature_pos + overhang)
             if cigar.does_it_match_an_intervall(
-                &aln_start,
+                aln_start,
                 feature_pos - overhang,
                 feature_pos + overhang,
             ) {
@@ -725,7 +725,7 @@ pub fn read_toassign(
         }
     };
 
-    match cigar.get_skipped_pos_on_ref(&aln_start) {
+    match cigar.get_skipped_pos_on_ref(aln_start) {
         Some(j) => {
             match (
                 j.iter().position(|&x| x == feature_pos),
@@ -735,9 +735,9 @@ pub fn read_toassign(
                 // TODO add overhang check!
                 (Some(p), Strand::Plus, ExonType::Donnor)
                 | (Some(p), Strand::Minus, ExonType::Acceptor) => {
-                    if !((cigar.does_it_match_an_intervall(&aln_start, j[p] - overhang, j[p]))
+                    if !((cigar.does_it_match_an_intervall(aln_start, j[p] - overhang, j[p]))
                         & (cigar.does_it_match_an_intervall(
-                            &aln_start,
+                            aln_start,
                             j[p + 1],
                             j[p + 1] + overhang,
                         )))
@@ -750,10 +750,10 @@ pub fn read_toassign(
                 (Some(p), Strand::Plus, ExonType::Acceptor)
                 | (Some(p), Strand::Minus, ExonType::Donnor) => {
                     if !((cigar.does_it_match_an_intervall(
-                        &aln_start,
+                        aln_start,
                         j[p - 1] - overhang,
                         j[p - 1],
-                    )) & (cigar.does_it_match_an_intervall(&aln_start, j[p], j[p] + overhang)))
+                    )) & (cigar.does_it_match_an_intervall(aln_start, j[p], j[p] + overhang)))
                     {
                         return Some(ReadAssign::OverhangFail);
                     }
@@ -770,7 +770,7 @@ pub fn read_toassign(
                         .iter()
                         .enumerate()
                         .step_by(2)
-                        .find(|(i, &x)| (x < feature_pos) & (j[i + 1] > feature_pos))
+                        .find(|&(ref i, &x)| (x < feature_pos) & (j[i + 1] > feature_pos))
                     {
                         //println!("Skipped: {:?} {:?} {:?} {:?} {:?} {:?} {:?} {:?} {:?}",\
                         // j, aln_start ,aln_end, cigar, read_strand, feature_strand, feature_pos, feature_exontype, overhang);
@@ -841,15 +841,15 @@ mod tests_it {
 
     #[test]
     fn parse_clipped_1() {
-        let cigar = Cigar::from("50M30S");
+        let cigar = Cigar::from_str("50M30S").unwrap();
         let aln_start = 1;
         let feature_pos = 51;
-        let aln_end = cigar.get_end_of_aln(&aln_start);
+        let aln_end = cigar.get_end_of_aln(aln_start);
         assert_eq!(
             (cigar.soft_clipped_end(&Strand::Plus, 10) && aln_end == feature_pos),
             true
         );
-        let cigar = Cigar::from("50S30M");
+        let cigar = Cigar::from_str("50S30M").unwrap();
         let aln_start = 51;
         assert_eq!(
             (cigar.soft_clipped_end(&Strand::Minus, 10) && aln_start == feature_pos),
@@ -862,10 +862,10 @@ mod tests_it {
         let aln_start = 21589327;
         let feature_pos = 21589347;
         let overhang = 5;
-        let cigar = Cigar::from("22M264N78M");
+        let cigar = Cigar::from_str("22M264N78M").unwrap();
 
         assert_eq!(
-            cigar.does_it_match_an_intervall(&aln_start, feature_pos - overhang, feature_pos),
+            cigar.does_it_match_an_intervall(aln_start, feature_pos - overhang, feature_pos),
             true
         );
     }
@@ -874,10 +874,10 @@ mod tests_it {
         let aln_start = 21589345;
         let feature_pos = 21589347;
         let overhang = 5;
-        let cigar = Cigar::from("22M264N78M");
+        let cigar = Cigar::from_str("22M264N78M").unwrap();
 
         assert_eq!(
-            cigar.does_it_match_an_intervall(&aln_start, feature_pos - overhang, feature_pos),
+            cigar.does_it_match_an_intervall(aln_start, feature_pos - overhang, feature_pos),
             false
         );
     }
@@ -887,8 +887,8 @@ mod tests_it {
         let aln_start = 21597482;
         let feature_pos = 21611098;
         let overhang = 5;
-        let cigar = Cigar::from("89M13524N11M");
-        println!("{:?}", cigar.get_skipped_pos_on_ref(&aln_start));
+        let cigar = Cigar::from_str("89M13524N11M").unwrap();
+        println!("{:?}", cigar.get_skipped_pos_on_ref(aln_start));
         assert_eq!(true, true);
     }
 } //21589349, 21589613

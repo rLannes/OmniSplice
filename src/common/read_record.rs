@@ -70,15 +70,16 @@ impl ReadtRecord {
                     start_order = start;
                     end_order = end;
 
-                    //if valid_j_gene.contains(&(start_order, end_order))  | valid_j_gene.contains(&(end_order, start_order)) 
-                    if valid_j_gene.contains(&(start_order, end_order))  | valid_j_gene.contains(&(end_order, start_order)){
-                                e_isoform = e_isoform + elem.1;
-                                continue;
-                            
+                    //if valid_j_gene.contains(&(start_order, end_order))  | valid_j_gene.contains(&(end_order, start_order))
+                    if valid_j_gene.contains(&(start_order, end_order))
+                        | valid_j_gene.contains(&(end_order, start_order))
+                    {
+                        e_isoform = e_isoform + elem.1;
+                        continue;
                     } else {
                         skipped = elem.1
                     }
-                },
+                }
                 ReadAssign::ReadJunction(start, end) => {
                     start_order = start;
                     end_order = end;
@@ -88,30 +89,28 @@ impl ReadtRecord {
                         (_, _, None) => (),
                         (Strand::Plus | Strand::NA, ExonType::Donnor, Some(next))
                         | (Strand::Minus, ExonType::Acceptor, Some(next)) => {
-
                             if next == end {
                                 spliced = spliced + elem.1;
+                            } else if valid_j_gene.contains(&(start_order, end_order))
+                                | valid_j_gene.contains(&(end_order, start_order))
+                            {
+                                e_isoform = e_isoform + elem.1;
+                            } else {
+                                exon_other = exon_other + elem.1;
                             }
-                            else if valid_j_gene.contains(&(start_order, end_order))  | valid_j_gene.contains(&(end_order, start_order)){
-                                        e_isoform = e_isoform + elem.1;
-                                    
-                            }
-                            else{
-                            exon_other = exon_other + elem.1;}
                         }
                         (Strand::Minus, ExonType::Donnor, Some(next))
                         | (Strand::Plus | Strand::NA, ExonType::Acceptor, Some(next)) => {
                             if next == start {
                                 spliced = spliced + elem.1;
                                 continue;
+                            } else if valid_j_gene.contains(&(start_order, end_order))
+                                | valid_j_gene.contains(&(end_order, start_order))
+                            {
+                                e_isoform = e_isoform + elem.1;
+                            } else {
+                                exon_other = exon_other + elem.1;
                             }
-
-                            else if valid_j_gene.contains(&(start_order, end_order))  | valid_j_gene.contains(&(end_order, start_order)){
-                                        e_isoform = e_isoform + elem.1;
-                                    
-                            }
-                            else{
-                            exon_other = exon_other + elem.1;}
                         }
                     }
                 }
@@ -268,9 +267,7 @@ pub fn file_to_table(
             //let sub_set: Option<&HashSet<(i64, i64, Strand)>> = gene_junction_set.get(&cont.container[0].contig);
 
             let _ = out_file.write(
-                cont.dump(&gene_junction_set,
-                            &invalid_pos,
-                            all_gene_junction)
+                cont.dump(&gene_junction_set, &invalid_pos, all_gene_junction)
                     .as_bytes(),
             );
         }

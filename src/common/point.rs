@@ -3,7 +3,8 @@ use std::cmp::Ordering;
 use std::fs::File;
 use std::hash::Hash;
 //mod common;
-use crate::common::utils::{read_toassign, ExonType, ReadAssign};
+use crate::common::utils::{ExonType, ReadAssign, read_toassign};
+use CigarParser::cigar::Cigar;
 use rust_htslib::bam::record::Record;
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -12,7 +13,6 @@ use std::io::BufRead;
 use std::io::Write;
 use std::io::{BufReader, BufWriter};
 use strand_specifier_lib::Strand;
-use CigarParser::cigar::Cigar;
 
 #[derive(Debug, Clone)]
 pub struct PointContainer {
@@ -37,6 +37,7 @@ impl<'a> Iterator for PointContainerIterator<'a> {
         }
     }
 }
+
 /*
 impl PointContainer {
     pub fn parse_reads(

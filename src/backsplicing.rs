@@ -1,10 +1,11 @@
 #![allow(unused)]
 use crate::common::point::InsideCounter;
+use CigarParser::cigar::{Cigar, CigarOperation};
 use clap::builder::Str;
 use clap::{ArgAction, Parser};
 use regex::Regex;
 use rust_htslib::bam::{Header, HeaderView, IndexedReader, Read, Reader, Record};
-use std::collections::{hash_map, HashMap, HashSet};
+use std::collections::{HashMap, HashSet, hash_map};
 use std::error::Error;
 use std::fs::File;
 use std::io::BufRead;
@@ -12,22 +13,19 @@ use std::io::Write;
 use std::io::{BufReader, BufWriter};
 use std::process::{Command, Stdio};
 use std::str;
-use std::str::{from_utf8, FromStr};
+use std::str::{FromStr, from_utf8};
 use std::{thread, time};
 use strand_specifier_lib::Strand;
-use CigarParser::cigar::{Cigar, CigarOperation};
 mod common;
-use crate::common::point::{get_attr_id, Point, PointContainer};
-use crate::common::utils::{read_toassign, ExonType, ReadAssign};
+use crate::common::point::{Point, PointContainer, get_attr_id};
+use crate::common::utils::{ExonType, ReadAssign, read_toassign};
 use itertools::Itertools;
+use lazy_static::lazy_static;
 use std::cmp::Reverse;
 use std::fmt::{self, format};
 use std::hash::Hash;
 use std::path::{Path, PathBuf};
-use strand_specifier_lib::{check_flag, LibType};
-use lazy_static::lazy_static;
-
-
+use strand_specifier_lib::{LibType, check_flag};
 
 fn aln_bw(fa: &str, reference: &str, out_bam: &str) {
     let bowt_child = Command::new("bowtie2")
@@ -55,14 +53,21 @@ fn aln_bw(fa: &str, reference: &str, out_bam: &str) {
         .expect("samtools index command failed to start");
 }
 
-
-fn get_ambigious_multimapper(bam_file: &PathBuf, reg: &regex::Regex) -> HashSet<String>{
+fn get_ambigious_multimapper(bam_file: &PathBuf, reg: &regex::Regex) -> HashSet<String> {
     let mut bam_ = Path::new(bam_file);
     let sam_ = bam_.with_extension(".sam");
     let mut sort_ = Command::new("samtools")
-        .args(["sort", "-O", "sam", "-n",  "-o", sam_.to_str().unwrap() ,bam_.to_str().unwrap() ])
+        .args([
+            "sort",
+            "-O",
+            "sam",
+            "-n",
+            "-o",
+            sam_.to_str().unwrap(),
+            bam_.to_str().unwrap(),
+        ])
         .spawn()
-        .expect("samtools view command failed to start");   
+        .expect("samtools view command failed to start");
     sort_.wait();
 
     let f = File::open(sam_).unwrap();
@@ -73,27 +78,31 @@ fn get_ambigious_multimapper(bam_file: &PathBuf, reg: &regex::Regex) -> HashSet<
     let mut current_v: Vec<Vec<String>> = Vec::new();
     let mut current_n: String = "".to_string();
 
-    for l in reader.lines(){
+    for l in reader.lines() {
         line = l.unwrap();
 
-        if line.starts_with("@"){
-            continue
+        if line.starts_with("@") {
+            continue;
         }
 
-        let spt = line.trim().split_whitespace().map(|a| a.to_owned()).collect::<Vec<String>>();
-        
-        if (spt.len() > 1) && (spt[0] != current_n){
-            if current_v.len() > 1{
+        let spt = line
+            .trim()
+            .split_whitespace()
+            .map(|a| a.to_owned())
+            .collect::<Vec<String>>();
+
+        if (spt.len() > 1) && (spt[0] != current_n) {
+            if current_v.len() > 1 {
                 current_v.sort_by_key(|a| a[1].parse::<i32>().unwrap());
                 let best = get_best_aln(&current_v, reg);
-                
+
                 //println!("best: ");
                 //for e in &best{
                 //    println!("{:?}", e);
                 //}
                 //println!("");
-                
-                if best.len() > 1{
+
+                if best.len() > 1 {
                     //println!("insert! {}", current_n);
                     set_read.insert(current_n);
                     //println!("{:?}", set_read);
@@ -102,35 +111,30 @@ fn get_ambigious_multimapper(bam_file: &PathBuf, reg: &regex::Regex) -> HashSet<
             current_n = spt[0].to_owned();
             current_v.clear();
             current_v.push(spt);
-        }
-        else{
+        } else {
             current_v.push(spt);
         }
     }
     set_read
-
 }
 
-
-fn get_best_aln(lists: &Vec<Vec<String>>, reg: &regex::Regex) -> Vec<Vec<String>>{
-    
+fn get_best_aln(lists: &Vec<Vec<String>>, reg: &regex::Regex) -> Vec<Vec<String>> {
     let sub = lists[0].join(" ");
     let capture = reg.captures(&sub).unwrap();
 
     let as_top = capture.get(1).unwrap().as_str().parse::<i32>().unwrap();
 
-    let mut  bests = vec![lists[0].clone()];
-    
-    for element in lists.iter().skip(1){
+    let mut bests = vec![lists[0].clone()];
+
+    for element in lists.iter().skip(1) {
         let sub = element.join(" ");
         let capture = reg.captures(&sub).unwrap();
-        if capture.get(1).unwrap().as_str().parse::<i32>().unwrap() >= as_top{
+        if capture.get(1).unwrap().as_str().parse::<i32>().unwrap() >= as_top {
             bests.push(element.clone());
         }
-    };
+    }
     bests
 }
-
 
 fn get_sofclipped_seq(
     cig: &Cigar,
@@ -373,15 +377,23 @@ impl BackSplicingCounter {
         self.support_donnor + self.support_acceptor
     }
     fn prettydump(&self) -> () {
-        println!("{}", &format!("Position: {}:{}-{}({}), Total Support: {}, Donnor Support: {}, Acceptor Support: {}",
-         self.contig, self.prime5, self.prime3, self.strand, self.support_acceptor + self.support_donnor, self.support_donnor, self.support_acceptor));
-    }
-
-    fn _id(&self) -> String{
-                format!("{}:{}-{}",
+        println!(
+            "{}",
+            &format!(
+                "Position: {}:{}-{}({}), Total Support: {}, Donnor Support: {}, Acceptor Support: {}",
                 self.contig,
                 self.prime5,
-                self.prime3)
+                self.prime3,
+                self.strand,
+                self.support_acceptor + self.support_donnor,
+                self.support_donnor,
+                self.support_acceptor
+            )
+        );
+    }
+
+    fn _id(&self) -> String {
+        format!("{}:{}-{}", self.contig, self.prime5, self.prime3)
     }
 }
 
@@ -415,7 +427,7 @@ pub fn parse_bam(
     bam_file: &str,
     transcript_map: HashMap<String, PointContainer>,
     readmap: &HashMap<String, ReadInfo>,
-    to_ignore : HashSet<String>
+    to_ignore: HashSet<String>,
 ) -> HashMap<(String, i64, i64), BackSplicingCounter> {
     let mut counter: i64;
     let mut record: Record;
@@ -439,15 +451,22 @@ pub fn parse_bam(
         back_flag = false;
         record = r.unwrap();
         pos_s = record.pos();
-        cig = Cigar::from_str(&record.cigar().to_string()).unwrap();
-        pos_e = cig.get_end_of_aln(&pos_s);
+        cig = match Cigar::from_str(&record.cigar().to_string()) {
+            Ok(x) => x,
+            Err(_) => {
+                eprintln!("Error parsing CigarString skipping this reads");
+                continue;
+            }
+        };
+        //cig = Cigar::from_str(&record.cigar().to_string()).unwrap();
+        pos_e = cig.get_end_of_aln(pos_s);
         flag = record.flags();
 
         read_name = String::from_utf8(record.qname().to_vec()).expect("cannot parse read name");
 
-        if to_ignore.contains(&read_name){
+        if to_ignore.contains(&read_name) {
             println!("{} ignored due to best-map-only option", read_name);
-            continue 
+            continue;
         }
 
         if !check_flag(flag, 0, 256) {
@@ -464,8 +483,6 @@ pub fn parse_bam(
         contig = from_utf8(header_view.tid2name(record.tid() as u32))
             .expect("failed to parse contig name")
             .to_string();
-
-
 
         //read_info = readmap.get(&read_name).unwrap().clone();
         if let Some(original_map_info) = readmap.get(&read_name) {
@@ -547,7 +564,6 @@ pub fn parse_bam(
                         continue;
                     }
                 }
-
             }
         }
     }
@@ -584,7 +600,7 @@ struct Args {
     /// By default consider only Primary alignment,
     /// If  this option is in addition: will only consider read that are either unique mapper or read with only on best Alignment (one alignment as an higher AS score then all other ones)
     #[arg(long, action=ArgAction::SetTrue)]
-    best_map_only: bool
+    best_map_only: bool,
 }
 
 fn main() {
@@ -604,10 +620,9 @@ fn main() {
     let clipped_file = args.input_clipped_read;
     let best_only = args.best_map_only;
 
-
     lazy_static! {
-    static ref reg_AS: Regex =
-        Regex::new(r"AS:i:(-?\d+)").expect("Failed to compile AS:i regexp");
+        static ref reg_AS: Regex =
+            Regex::new(r"AS:i:(-?\d+)").expect("Failed to compile AS:i regexp");
     }
 
     let map_read = clipped_to_fasta(
@@ -622,7 +637,7 @@ fn main() {
     );
 
     let mut to_ignore: HashSet<String> = HashSet::new();
-    if best_only{
+    if best_only {
         to_ignore = get_ambigious_multimapper(&bw_bam, &reg_AS);
     }
     println!("best-map-only option => ignoring: {:?}", to_ignore);
@@ -631,8 +646,16 @@ fn main() {
     let file = File::create_new(output_file).expect("output clipped fasta file should not exist.");
     let mut f_out = BufWriter::new(file);
 
-    let result = parse_bam(bw_bam.as_path().to_str().unwrap(), point_cont, &map_read, to_ignore);
-    for (key, val) in result.iter().sorted_by_key(|x| (Reverse(x.1.get_support()), x.1._id())) {
+    let result = parse_bam(
+        bw_bam.as_path().to_str().unwrap(),
+        point_cont,
+        &map_read,
+        to_ignore,
+    );
+    for (key, val) in result
+        .iter()
+        .sorted_by_key(|x| (Reverse(x.1.get_support()), x.1._id()))
+    {
         f_out.write_all(format!("{val}\n").as_bytes());
     }
 

@@ -154,7 +154,7 @@ pub fn junction_file_from_table(table_file: &str, junction_file: &str) {
     let mut out_file_open =
         File::create_new(junction_file.clone()) //presorted out_file.clone()
             .unwrap_or_else(|_| panic!("output file {} should not exist.", &junction_file)); //expect(&format!("output file {} should not exist.", &table));
-                                                                                             //let mut out_stream = BufWriter::new(out_file_open);
+    //let mut out_stream = BufWriter::new(out_file_open);
 
     let f = File::open(table_file).unwrap();
     let mut reader = BufReader::new(f);

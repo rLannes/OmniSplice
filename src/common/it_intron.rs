@@ -1,8 +1,9 @@
 #![allow(irrefutable_let_patterns)]
 //use crate::common::point::{get_attr_id, InsideCounter};
 use crate::common::utils::{
-    read_toassign, Exon, ExonType, ReadAssign, ReadToWriteHandle, SplicingEvent,
+    Exon, ExonType, ReadAssign, ReadToWriteHandle, SplicingEvent, read_toassign,
 };
+use CigarParser::cigar::Cigar;
 use bio::alignment::sparse::HashMapFx;
 use bio::bio_types::annot::contig;
 use bio::data_structures::interval_tree;
@@ -10,8 +11,8 @@ use bio::seq_analysis;
 use bio::utils::Interval;
 use itertools::Itertools;
 use rust_htslib::bam::record::Record;
-use rust_htslib::bam::{header, IndexedReader, Read};
-use std::collections::{hash_map, HashMap, HashSet};
+use rust_htslib::bam::{IndexedReader, Read, header};
+use std::collections::{HashMap, HashSet, hash_map};
 use std::error::Error;
 use std::fs::{File, OpenOptions};
 use std::io::BufRead;
@@ -20,8 +21,7 @@ use std::io::{BufReader, BufWriter};
 use std::process::{Command, Stdio};
 use std::str::FromStr;
 use strand_specifier_lib::Strand;
-use strand_specifier_lib::{check_flag, LibType};
-use CigarParser::cigar::Cigar;
+use strand_specifier_lib::{LibType, check_flag};
 
 #[derive(Debug)]
 /// This structure is used in the intervall tree HASHMAP(contig) -> IT(intron(start, end)) -> TreeDataIntron
@@ -41,6 +41,8 @@ pub struct TreeDataIntron {
     end_type: Option<ExonType>,
     counter_start: HashMap<ReadAssign, i32>,
     counter_end: HashMap<ReadAssign, i32>,
+    counter_splicingevent_start: HashMap<SplicingEvent, i32>,
+    counter_splicingevent_end: HashMap<SplicingEvent, i32>,
     counter_intron: HashMap<SplicingEvent, i32>,
 }
 
@@ -125,12 +127,30 @@ impl TreeDataIntron {
             ),
         ) {
             (Some(x), None) => {
-                TreeDataIntron::update_splicing_counter(&mut self.counter_intron, Some(x))
+                //counter_splicingevent_start: HashMap::new(),
+                TreeDataIntron::update_splicing_counter(
+                    &mut self.counter_splicingevent_start,
+                    Some(x),
+                );
+                TreeDataIntron::update_splicing_counter(&mut self.counter_intron, Some(x));
             }
             (None, Some(x)) => {
+                TreeDataIntron::update_splicing_counter(
+                    &mut self.counter_splicingevent_end,
+                    Some(x),
+                );
                 TreeDataIntron::update_splicing_counter(&mut self.counter_intron, Some(x))
             }
             (Some(SplicingEvent::Spliced), Some(SplicingEvent::Spliced)) => {
+                TreeDataIntron::update_splicing_counter(
+                    &mut self.counter_splicingevent_start,
+                    Some(SplicingEvent::Spliced),
+                );
+                TreeDataIntron::update_splicing_counter(
+                    &mut self.counter_splicingevent_end,
+                    Some(SplicingEvent::Spliced),
+                );
+
                 TreeDataIntron::update_splicing_counter(
                     &mut self.counter_intron,
                     Some(SplicingEvent::Spliced),
@@ -138,14 +158,34 @@ impl TreeDataIntron {
             }
             (Some(SplicingEvent::Unspliced), Some(SplicingEvent::Unspliced)) => {
                 TreeDataIntron::update_splicing_counter(
+                    &mut self.counter_splicingevent_start,
+                    Some(SplicingEvent::Unspliced),
+                );
+                TreeDataIntron::update_splicing_counter(
+                    &mut self.counter_splicingevent_end,
+                    Some(SplicingEvent::Unspliced),
+                );
+
+                TreeDataIntron::update_splicing_counter(
                     &mut self.counter_intron,
                     Some(SplicingEvent::Unspliced),
                 )
             }
-            (Some(left), Some(right)) => TreeDataIntron::update_splicing_counter(
-                &mut self.counter_intron,
-                SplicingEvent::merge(Some(left), Some(right)),
-            ),
+            (Some(left), Some(right)) => {
+                TreeDataIntron::update_splicing_counter(
+                    &mut self.counter_splicingevent_start,
+                    Some(left),
+                );
+                TreeDataIntron::update_splicing_counter(
+                    &mut self.counter_splicingevent_end,
+                    Some(right),
+                );
+
+                TreeDataIntron::update_splicing_counter(
+                    &mut self.counter_intron,
+                    SplicingEvent::merge(Some(left), Some(right)),
+                )
+            }
             (None, None) => (),
             (_, _) => (),
         }
@@ -569,6 +609,8 @@ pub fn update_tree(
                     counter_start: HashMap::new(),
                     counter_end: HashMap::new(),
                     counter_intron: HashMap::new(),
+                    counter_splicingevent_end: HashMap::new(),
+                    counter_splicingevent_start: HashMap::new(),
                 },
             );
         }
@@ -618,8 +660,17 @@ pub fn update_tree_from_bam(
             //for r in bam.records() {
             //record = r.unwrap();
             pos_s = record.pos();
-            cig = Cigar::from_str(&record.cigar().to_string()).unwrap();
-            pos_e = cig.get_end_of_aln(&pos_s);
+
+            //cig = Cigar::from_str(&record.cigar().to_string()).unwrap();
+            cig = match Cigar::from_str(&record.cigar().to_string()) {
+                Ok(c) => c,
+                Err(_) => {
+                    eprintln!("unproper CigarString skipping this reads");
+                    continue;
+                }
+            };
+
+            pos_e = cig.get_end_of_aln(pos_s);
             flag = record.flags();
 
             // QC
@@ -841,16 +892,17 @@ mod tests_it {
         );
     }
 } //21589349, 21589613
-  /*        let start_map= read_toassign(
-      self.strand,
-      self.start,
-      self.start_type,
-      aln_start,
-      aln_end,
-      cigar,
-      read_strand,
-      overhang,
-  ); */
+
+/*        let start_map= read_toassign(
+    self.strand,
+    self.start,
+    self.start_type,
+    aln_start,
+    aln_end,
+    cigar,
+    read_strand,
+    overhang,
+); */
 
 /*
 &mut self,
