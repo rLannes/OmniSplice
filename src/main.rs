@@ -9,6 +9,7 @@ use strand_specifier_lib::{LibType, check_flag};
 use rust_htslib::bam::record::Record;
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::error::Error;
 use std::fmt::format;
 use std::fs::File;
 use std::hash::Hash;
@@ -19,6 +20,7 @@ use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 mod common;
+use common::error::OmniError;
 use std::convert::From;
 use std::fs;
 use std::str;
@@ -111,7 +113,7 @@ fn main_loop(
     librairy_type: LibType,
     gtf_hashmap: &HashMap<String, HashMap<String, Vec<Exon>>>,
     valid_j_gene: &HashMap<String, HashSet<(i64, i64)>>,
-) -> () {
+) -> Result<(), OmniError> {
     let bam_file = bam_input;
 
     let gtf_file = gtf;
@@ -126,8 +128,12 @@ fn main_loop(
 
     // parse the gtf and return a hashmap<chromosome> -> intervalTree(intron(start, end), associated_data(gene_name...))
     //let mut hash_tree = gtf_to_tree(gtf_file.as_str()).unwrap();
-    let junction_ambi = get_invalid_pos(&gtf_file);
-    let junction_ = get_junction_from_gtf(&gtf_file, &librairy_type);
+    let junction_ambi = get_invalid_pos(&gtf_file)?;
+    let junction_ = get_junction_from_gtf(&gtf_file, &librairy_type)?;
+    //let junction_ = match get_junction_from_gtf(&gtf_file, &librairy_type){
+    //    Ok(j) => j,
+    //    Err(e) => {eprintln!("failed to get junction from gtf, aborting, cannot recover from that: {}", e); panic!()}
+    //};
 
     println!("valid junctions loaded");
 
@@ -160,9 +166,11 @@ fn main_loop(
     junction_ambigious: HashSet<(String, i64, i64)>,
     junction_order: Vec<SplicingEvent>, */
     output_write_read_handle.flush();
+
+    Ok(())
 }
 
-fn main() {
+fn main() -> Result<(), Box<dyn Error>>  {
     let args = Args::parse();
 
     match args.libtype {
@@ -188,7 +196,9 @@ fn main() {
     let ambigious_position = get_invalid_pos(&args.gtf.clone());
 
     let gtf_hashmap = gtf_to_hashmap(&args.gtf.clone()).expect("failed to parse gtf");
-    let valid_j_gene = get_all_junction_for_a_gene(&gtf_hashmap);
+    let valid_j_gene = get_all_junction_for_a_gene(&gtf_hashmap)
+            .map_err(|e| format!("failed to get all junctions for genes must abort: {e}"))?;
+
 
     main_loop(
         output.clone(),
@@ -206,7 +216,9 @@ fn main() {
     );
 
     let file = File::create_new(table.clone())
-        .unwrap_or_else(|_| panic!("output file {} should not exist.", &table)); //expect(&format!("output file {} should not exist.", &table));
+    .map_err(|e| OmniError::OutputExists(table.clone(), e))?;
+
+    //.unwrap_or_else(|_| panic!("output file {} should not exist.", &table)); //expect(&format!("output file {} should not exist.", &table));
 
     let mut stream = BufWriter::new(file);
     let _ = stream.write("contig\tgene_name\ttranscript_name\texon_number\tambiguous\tstrand\tpos\tnext\texon_type\tspliced\tunspliced\tclipped\texon_other\tskipped\twrong_strand\te_isoform\n".as_bytes());
@@ -226,6 +238,7 @@ fn main() {
         args.spliced_def,
         args.unspliced_def,
     );
+    Ok(())
 }
 
 //// TODO OPTIMIZATION:

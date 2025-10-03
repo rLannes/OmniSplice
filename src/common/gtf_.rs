@@ -1,5 +1,6 @@
 use crate::common::utils::Exon;
-use CigarParser::cigar::Cigar;
+use crate::common::error::OmniError;
+use CigarParser::cigar::{Cigar, CigarError};
 use bio::data_structures::interval_tree::IntervalTree;
 use itertools::Itertools;
 use std::collections::{HashMap, HashSet};
@@ -27,7 +28,7 @@ pub fn get_attr_id(attr: &str, toget: &str) -> Option<String> {
 
 pub fn gtf_to_hashmap(
     gtf_file: &str,
-) -> Result<HashMap<String, HashMap<String, Vec<Exon>>>, Box<dyn Error>> {
+) -> Result<HashMap<String, HashMap<String, Vec<Exon>>>, OmniError> {
     // gene -> transcript -> Vec<Exon>
     let mut results: HashMap<String, HashMap<String, Vec<Exon>>> = HashMap::new();
 
@@ -91,8 +92,8 @@ pub fn gtf_to_hashmap(
 }
 
 //TODO likely will need refactor
-pub fn get_junction_from_gtf(file: &str, libtype: &LibType) -> HashMap<(String, i64, i64), Strand> {
-    let f = File::open(file).unwrap();
+pub fn get_junction_from_gtf(file: &str, libtype: &LibType) -> Result<HashMap<(String, i64, i64), Strand>, OmniError> {
+    let f = File::open(file)?;
     let reader = BufReader::new(f);
     let mut this_line: String;
 
@@ -112,7 +113,7 @@ pub fn get_junction_from_gtf(file: &str, libtype: &LibType) -> HashMap<(String, 
     let mut my_map: HashMap<(String, i64, i64), Strand> = HashMap::new();
 
     for line in reader.lines() {
-        this_line = line.unwrap();
+        this_line = line?;
         let spt = this_line.trim().split('\t').collect::<Vec<&str>>();
         if spt.len() < 8 {
             continue;
@@ -122,8 +123,8 @@ pub fn get_junction_from_gtf(file: &str, libtype: &LibType) -> HashMap<(String, 
         }
 
         chr_ = spt[0].to_string();
-        start = spt[3].parse::<i64>().unwrap() - 1;
-        end = spt[4].parse::<i64>().unwrap();
+        start = spt[3].parse::<i64>()? - 1;
+        end = spt[4].parse::<i64>()?;
         strand = Strand::from(spt[6]);
 
         strand = match libtype {
@@ -196,12 +197,12 @@ pub fn get_junction_from_gtf(file: &str, libtype: &LibType) -> HashMap<(String, 
         }
     }
 
-    my_map
+    Ok(my_map)
 }
 
 pub fn get_all_junction_for_a_gene(
     gtf_map: &HashMap<String, HashMap<String, Vec<Exon>>>,
-) -> HashMap<String, HashSet<(i64, i64)>> {
+) -> Result<HashMap<String, HashSet<(i64, i64)>>, OmniError> {
     let mut res: HashMap<String, HashSet<(i64, i64)>> = HashMap::new();
     let mut tmp = Vec::new();
     for (gene, tr_dict) in gtf_map {
@@ -213,13 +214,19 @@ pub fn get_all_junction_for_a_gene(
             if tmp.len() > 1 {
                 tmp.sort_by(|x, y| x.cmp(&y));
                 for i in 0..=(tmp.len() - 2) {
-                    res.get_mut(gene).unwrap().insert((tmp[i].1, tmp[i + 1].0));
+
+
+
+                    res.get_mut(gene)
+                        .ok_or_else(|| OmniError::Expect("gene unfound in hashmap, cannot recover from this".to_string()))?
+                        .insert((tmp[i].1, tmp[i + 1].0));
+
                 }
             }
             tmp.clear();
         }
     }
-    res
+    Ok(res)
 }
 
 // may need to refactor this was part of an older moduler keep it because it work but could crefactor to improve code redibility and performance
@@ -246,9 +253,9 @@ where
     }
 }
 
-fn gtf_to_it(file: &str) -> HashMap<String, IntervalTree<i64, String>> {
+fn gtf_to_it(file: &str) -> Result<HashMap<String, IntervalTree<i64, String>>, OmniError> {
     //let file = "genomic.gtf";
-    let f = File::open(file).unwrap();
+    let f = File::open(file)?;
     let reader = BufReader::new(f);
     let mut this_line: String; //::new();
 
@@ -261,7 +268,7 @@ fn gtf_to_it(file: &str) -> HashMap<String, IntervalTree<i64, String>> {
     let mut result: HashMap<String, IntervalTree<i64, String>> = HashMap::new();
 
     for line in reader.lines() {
-        this_line = line.unwrap();
+        this_line = line?;
         let spt = this_line.trim().split('\t').collect::<Vec<&str>>();
         if spt.len() < 8 {
             continue;
@@ -271,8 +278,8 @@ fn gtf_to_it(file: &str) -> HashMap<String, IntervalTree<i64, String>> {
         }
 
         chr_ = spt[0].to_string();
-        start = spt[3].parse::<i64>().unwrap() - 1;
-        end = spt[4].parse::<i64>().unwrap();
+        start = spt[3].parse::<i64>()? - 1;
+        end = spt[4].parse::<i64>()?;
 
         if let Some(gene_tmp) = get_attr_id(spt[8], "gene_id") {
             gene_name = gene_tmp;
@@ -287,17 +294,17 @@ fn gtf_to_it(file: &str) -> HashMap<String, IntervalTree<i64, String>> {
             .or_insert_with(|| IntervalTree::new())
             .insert(start..end, gene_name);
     }
-    result
+    Ok(result)
 }
 
-fn graph_from_gtf(file: &str) -> HashMap<String, HashMap<Intervall<i64>, HashSet<Intervall<i64>>>> {
+fn graph_from_gtf(file: &str) -> Result<HashMap<String, HashMap<Intervall<i64>, HashSet<Intervall<i64>>>>, OmniError> {
     //  TO remove clutter ca use a hashset to remove identical  exon
     // from same genes
 
     //let file = "genomic.gtf";
-    let mut it_dico: HashMap<String, IntervalTree<i64, String>> = gtf_to_it(file);
+    let mut it_dico: HashMap<String, IntervalTree<i64, String>> = gtf_to_it(file)?;
 
-    let f = File::open(file).unwrap();
+    let f = File::open(file)?;
     let reader = BufReader::new(f);
     let mut this_line: String; //::new();
 
@@ -312,7 +319,7 @@ fn graph_from_gtf(file: &str) -> HashMap<String, HashMap<Intervall<i64>, HashSet
     let mut g: HashMap<String, HashMap<Intervall<i64>, HashSet<Intervall<i64>>>> = HashMap::new();
 
     for line in reader.lines() {
-        this_line = line.unwrap();
+        this_line = line?;
         let spt = this_line.trim().split('\t').collect::<Vec<&str>>();
         if spt.len() < 8 {
             continue;
@@ -323,8 +330,8 @@ fn graph_from_gtf(file: &str) -> HashMap<String, HashMap<Intervall<i64>, HashSet
 
         chr_ = spt[0].to_string();
 
-        start = spt[3].parse::<i64>().unwrap() - 1; // 1 to 0 based 
-        end = spt[4].parse::<i64>().unwrap();
+        start = spt[3].parse::<i64>()? - 1; // 1 to 0 based 
+        end = spt[4].parse::<i64>()?;
 
         if start == end {
             continue;
@@ -354,11 +361,11 @@ fn graph_from_gtf(file: &str) -> HashMap<String, HashMap<Intervall<i64>, HashSet
             }
         }
     }
-    g
+    Ok(g)
 }
 
-pub fn get_invalid_pos(file: &str) -> HashSet<(String, i64)> {
-    let g = graph_from_gtf(file);
+pub fn get_invalid_pos(file: &str) -> Result<HashSet<(String, i64)>, OmniError> {
+    let g = graph_from_gtf(file)?;
     let mut seen = HashSet::new();
     let mut inter_vec = Vec::new();
     let mut e1 = 0;
@@ -397,7 +404,9 @@ pub fn get_invalid_pos(file: &str) -> HashSet<(String, i64)> {
             e1 = inter_vec[0].start;
             if !(inter_vec.iter().all(|x| x.start == e1)) {
                 //println!("{} {:?}", chr_, inter_vec );
-                borne = inter_vec.iter().min_by_key(|x| x.start).unwrap();
+                borne = inter_vec.iter().min_by_key(|x| x.start)
+                    .ok_or( OmniError::Expect("get invalid pos expecting value".to_string()))?;
+
                 for i in &inter_vec {
                     if i == borne {
                         continue;
@@ -410,7 +419,8 @@ pub fn get_invalid_pos(file: &str) -> HashSet<(String, i64)> {
             e1 = inter_vec[0].end;
             if !(inter_vec.iter().all(|x| x.end == e1)) {
                 //println!("{} {:?}", chr_, inter_vec );
-                borne = inter_vec.iter().max_by_key(|x| x.end).unwrap();
+                borne = inter_vec.iter().max_by_key(|x| x.end)
+                .ok_or( OmniError::Expect("get invalid pos expecting value".to_string()))?;
                 for i in &inter_vec {
                     if i == borne {
                         continue;
@@ -425,5 +435,5 @@ pub fn get_invalid_pos(file: &str) -> HashSet<(String, i64)> {
         }
     }
 
-    results
+    Ok(results)
 }

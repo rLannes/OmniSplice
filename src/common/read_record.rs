@@ -1,3 +1,4 @@
+use crate::common::error::OmniError;
 //use crate::common::point::get_attr_id;/
 use crate::common::gtf_::{get_attr_id, get_junction_from_gtf};
 use crate::common::utils::{ExonType, ReadAssign};
@@ -249,16 +250,23 @@ pub fn file_to_table(
     gtf: &str,
     libtype: LibType,
     valid_j_gene: &HashMap<String, HashSet<(i64, i64)>>,
-) -> () {
+) -> Result<(), OmniError> {
     let mut mymap = parse_file(file.as_str());
 
     // ambigious position
     let invalid_pos = get_invalid_pos(gtf);
     //isoform
-    let gene_junction_set = get_junction_from_gtf(gtf, &libtype);
+    let gene_junction_set = get_junction_from_gtf(gtf, &libtype)?;
 
     for (_gene_name, container) in &mut mymap {
-        let all_gene_junction = valid_j_gene.get(_gene_name).unwrap();
+
+        let all_gene_junction = match valid_j_gene.get(_gene_name){
+            Some(x)=> x,
+            None => {
+                        eprintln!("Failed to recover gene junction from the gtf! Cannot recover from that");
+                        return Err(OmniError::GTFParse("failed to recover junction".to_string()))
+                    }
+        };
         for (_transcript_name, cont) in &mut *container {
             cont.sort();
         }
@@ -274,6 +282,7 @@ pub fn file_to_table(
     }
     out_file.write("\n".as_bytes());
     out_file.flush();
+    Ok(())
 }
 
 fn parse_file(file: &str) -> HashMap<String, HashMap<String, ReadtRecordContainer>> {
