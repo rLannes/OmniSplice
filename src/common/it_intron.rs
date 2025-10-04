@@ -1,4 +1,5 @@
 #![allow(irrefutable_let_patterns)]
+use crate::common::error::OmniError;
 //use crate::common::point::{get_attr_id, InsideCounter};
 use crate::common::utils::{
     Exon, ExonType, ReadAssign, ReadToWriteHandle, SplicingEvent, read_toassign,
@@ -33,16 +34,25 @@ use strand_specifier_lib::{LibType, check_flag};
 pub struct TreeDataIntron {
     gene_name: String,
     transcript_intron: Vec<(String, i32)>,
+
+    start_bis: Option<i64>,
     start: Option<i64>,
     end: Option<i64>,
+    end_bis: Option<i64>,
+
     strand: Strand,
     contig: String,
     start_type: Option<ExonType>,
     end_type: Option<ExonType>,
+    /// count exon end level Raw event with position included
     counter_start: HashMap<ReadAssign, i32>,
+    /// count  exon end level Raw event with position included
     counter_end: HashMap<ReadAssign, i32>,
+    /// count  exon end level SplicingEvent event with position included
     counter_splicingevent_start: HashMap<SplicingEvent, i32>,
+    /// count  exon end level SplicingEvent event with position included
     counter_splicingevent_end: HashMap<SplicingEvent, i32>,
+    /// count Intron level splicingevent event with position included
     counter_intron: HashMap<SplicingEvent, i32>,
 }
 
@@ -64,7 +74,6 @@ impl TreeDataIntron {
         valid_junction: &HashMap<(String, i64, i64), Strand>,
         valid_j_gene: &HashMap<String, HashSet<(i64, i64)>>,
     ) -> () {
-        //println!("{:?}", self);
 
         let seq = match sequence {
             Some(seq) => seq,
@@ -98,11 +107,11 @@ impl TreeDataIntron {
             read_strand,
             overhang,
         );
-        //panic!("");
+
         TreeDataIntron::update_counter(&mut self.counter_end, end_map);
         self.write_to_read_file(end_map, out_file_read_buffer, true, &seq, &r_name, cigar);
 
-        // valid_j_gene.get(&self.gene_id).unwrap_or(HashSet::new()),
+
 
         match (
             SplicingEvent::from_read_assign(
@@ -219,16 +228,16 @@ impl TreeDataIntron {
         }
     }
 
-    fn dump_base(&self, end: bool) -> Vec<String> {
+    fn dump_base(&self, end: bool) -> Result<Vec<String>, OmniError> {
         let mut res = Vec::new();
         let mut exontype = ExonType::Acceptor;
         let mut pos = 0;
         if end {
-            exontype = self.end_type.unwrap();
-            pos = self.end.unwrap();
+            exontype = self.end_type.ok_or(OmniError::Expect("interger expect find None in dump base".to_string()))?;
+            pos = self.end.ok_or(OmniError::Expect("interger expect find None in dump base".to_string()))?;
         } else {
-            exontype = self.start_type.unwrap();
-            pos = self.start.unwrap();
+            exontype = self.start_type.ok_or(OmniError::Expect("interger expect find None in dump base".to_string()))?;
+            pos = self.start.ok_or(OmniError::Expect("interger expect find None in dump base".to_string()))?;
         }
         for (tr, intron) in &self.transcript_intron {
             res.push(format!(
@@ -236,19 +245,19 @@ impl TreeDataIntron {
                 self.contig, pos, self.gene_name, tr, self.strand, exontype
             ));
         }
-        res
+        Ok(res)
     }
 
-    fn dump_reads_seq(&self, sequence: &str, seqname: &str, end: bool, cigar: &Cigar) -> String {
+    fn dump_reads_seq(&self, sequence: &str, seqname: &str, end: bool, cigar: &Cigar) -> Result<String, OmniError> {
         ///
         /// :param end: if set to true look at the end of the sequence (end > start)
-        let mut base_vec = self.dump_base(end);
+        let mut base_vec = self.dump_base(end)?;
 
         for e in &mut base_vec {
             e.push_str(&format!("\t{}\t{}\t{}", seqname, cigar, sequence))
         }
 
-        return format!("{}\n", base_vec.join("\n"));
+        return Ok(format!("{}\n", base_vec.join("\n")));
     }
 
     fn write_to_read_file(
@@ -259,76 +268,66 @@ impl TreeDataIntron {
         seq: &str,
         r_name: &str,
         cigar: &Cigar,
-    ) {
+    ) -> Result<(), OmniError>{
         match read_assign {
             None => 0,
             Some(ReadAssign::Empty) => match &mut out_file_read_buffer.empty {
                 Some(handle) => handle
-                    .write(self.dump_reads_seq(seq, r_name, end, cigar).as_bytes())
-                    .unwrap_or_else(|_| panic!("cannot write reads")),
+                    .write(self.dump_reads_seq(seq, r_name, end, cigar)?.as_bytes())?,
                 _ => 0,
             },
             Some(ReadAssign::ReadThrough) => match &mut out_file_read_buffer.read_through {
                 Some(handle) => handle
-                    .write(self.dump_reads_seq(seq, r_name, end, cigar).as_bytes())
-                    .unwrap_or_else(|_| panic!("cannot write reads")),
+                    .write(self.dump_reads_seq(seq, r_name, end, cigar)?.as_bytes())?,
                 _ => 0,
             },
             Some(ReadAssign::ReadJunction(_, _)) => match &mut out_file_read_buffer.read_junction {
                 Some(handle) => handle
-                    .write(self.dump_reads_seq(seq, r_name, end, cigar).as_bytes())
-                    .unwrap_or_else(|_| panic!("cannot write reads")),
+                    .write(self.dump_reads_seq(seq, r_name, end, cigar)?.as_bytes())?,
                 _ => 0,
             },
             Some(ReadAssign::Unexpected) => match &mut out_file_read_buffer.unexpected {
                 Some(handle) => handle
-                    .write(self.dump_reads_seq(seq, r_name, end, cigar).as_bytes())
-                    .unwrap_or_else(|_| panic!("cannot write reads")),
+                    .write(self.dump_reads_seq(seq, r_name, end, cigar)?.as_bytes())?,
                 _ => 0,
             },
             Some(ReadAssign::FailPosFilter) => match &mut out_file_read_buffer.fail_pos_filter {
                 Some(handle) => handle
-                    .write(self.dump_reads_seq(seq, r_name, end, cigar).as_bytes())
-                    .unwrap_or_else(|_| panic!("cannot write reads")),
+                    .write(self.dump_reads_seq(seq, r_name, end, cigar)?.as_bytes())?,
                 _ => 0,
             },
             Some(ReadAssign::WrongStrand) => match &mut out_file_read_buffer.wrong_strand {
                 Some(handle) => handle
-                    .write(self.dump_reads_seq(seq, r_name, end, cigar).as_bytes())
-                    .unwrap_or_else(|_| panic!("cannot write reads")),
+                    .write(self.dump_reads_seq(seq, r_name, end, cigar)?.as_bytes())?,
                 _ => 0,
             },
             Some(ReadAssign::FailQc) => match &mut out_file_read_buffer.fail_qc {
                 Some(handle) => handle
-                    .write(self.dump_reads_seq(seq, r_name, end, cigar).as_bytes())
-                    .unwrap_or_else(|_| panic!("cannot write reads")),
+                    .write(self.dump_reads_seq(seq, r_name, end, cigar)?.as_bytes())?,
                 _ => 0,
             },
             Some(ReadAssign::EmptyPileup) => match &mut out_file_read_buffer.empty_pileup {
                 Some(handle) => handle
-                    .write(self.dump_reads_seq(seq, r_name, end, cigar).as_bytes())
-                    .unwrap_or_else(|_| panic!("cannot write reads")),
+                    .write(self.dump_reads_seq(seq, r_name, end, cigar)?.as_bytes())?,
                 _ => 0,
             },
             Some(ReadAssign::Skipped(_, _)) => match &mut out_file_read_buffer.skipped {
                 Some(handle) => handle
-                    .write(self.dump_reads_seq(seq, r_name, end, cigar).as_bytes())
-                    .unwrap_or_else(|_| panic!("cannot write reads")),
+                    .write(self.dump_reads_seq(seq, r_name, end, cigar)?.as_bytes())?,
                 _ => 0,
             },
             Some(ReadAssign::SoftClipped) => match &mut out_file_read_buffer.soft_clipped {
                 Some(handle) => handle
-                    .write(self.dump_reads_seq(seq, r_name, end, cigar).as_bytes())
-                    .unwrap_or_else(|_| panic!("cannot write reads")),
+                    .write(self.dump_reads_seq(seq, r_name, end, cigar)?.as_bytes())?,
                 _ => 0,
             },
             Some(ReadAssign::OverhangFail) => match &mut out_file_read_buffer.overhang_fail {
                 Some(handle) => handle
-                    .write(self.dump_reads_seq(seq, r_name, end, cigar).as_bytes())
-                    .unwrap_or_else(|_| panic!("cannot write reads")),
+                    .write(self.dump_reads_seq(seq, r_name, end, cigar)?.as_bytes())?,
                 _ => 0,
             },
         };
+        Ok(())
     }
 
     fn get_acceptor_donor(&self) -> (String, String) {
@@ -397,8 +396,8 @@ impl TreeDataIntron {
         results.join("\n")
     }
 
-    fn dump_counter(&self, end: bool) -> String {
-        let base_vec = self.dump_base(end);
+    fn dump_counter(&self, end: bool) -> Result<String, OmniError> {
+        let base_vec = self.dump_base(end)?;
         let mut results = Vec::new();
 
         if end {
@@ -429,7 +428,7 @@ impl TreeDataIntron {
             }
         }
 
-        results.join("\n")
+        Ok(results.join("\n"))
     }
 }
 
@@ -462,6 +461,13 @@ pub fn interval_tree_from_gtfmap(
                 .collect::<Vec<&Exon>>();
 
             let mut cpt = 0;
+                let mut start_ = Some(0);
+                let mut end_ = Some(0);
+                let mut start_b = Some(0);
+                let mut end_b_ = Some(0);
+                let mut start_i = 0;
+                let mut end_i = 0;
+                let mut s = 0;
 
             while cpt < exons.len() {
                 let mut end_type = Some(ExonType::Acceptor);
@@ -473,26 +479,28 @@ pub fn interval_tree_from_gtfmap(
                 if strand == Strand::Minus {
                     start_type = Some(ExonType::Acceptor);
                 }
+                
+                s = exons.len() - 1;
 
-                let mut start_ = Some(0);
-                let mut end_ = Some(0);
-                let mut start_i = 0;
-                let mut end_i = 0;
-                let s = exons.len() - 1;
 
                 if cpt == 0 {
                     start_i = exons[cpt].start - 1;
-                    end_i = exons[cpt].start;
+                    end_i = exons[cpt].start + 1;
                     end_ = Some(exons[cpt].start);
+                    end_b_ = Some(exons[cpt].end);
                     start_type = None;
                     start_ = None;
+                    start_b = None;
+
                     update_tree(
                         &mut results,
                         &contig,
                         start_i,
                         end_i,
                         start_,
+                        start_b, 
                         end_,
+                        end_b_,
                         &strand,
                         gene_id.clone(),
                         tr_id.clone(),
@@ -505,7 +513,9 @@ pub fn interval_tree_from_gtfmap(
                     end_i = exons[cpt].end + 1;
                     end_type = None;
                     end_ = None;
+                    end_b_ = None;
                     start_ = Some(exons[cpt].end);
+                    start_b = Some(exons[cpt].start);
 
                     update_tree(
                         &mut results,
@@ -513,7 +523,9 @@ pub fn interval_tree_from_gtfmap(
                         start_i,
                         end_i,
                         start_,
+                        start_b,
                         end_,
+                        end_b_,
                         &strand,
                         gene_id.clone(),
                         tr_id.clone(),
@@ -533,7 +545,10 @@ pub fn interval_tree_from_gtfmap(
                 start_i = exons[cpt].end;
                 end_i = exons[cpt + 1].start;
                 start_ = Some(exons[cpt].end);
+                start_b = Some(exons[cpt].start);
                 end_ = Some(exons[cpt + 1].start);
+                end_b_ = Some(exons[cpt + 1].end);
+
                 let mut end_type = Some(ExonType::Acceptor);
                 if strand == Strand::Minus {
                     end_type = Some(ExonType::Donnor);
@@ -550,7 +565,9 @@ pub fn interval_tree_from_gtfmap(
                     start_i,
                     end_i,
                     start_,
+                    start_b,
                     end_,
+                    end_b_,
                     &strand,
                     gene_id.clone(),
                     tr_id.clone(),
@@ -571,14 +588,16 @@ pub fn update_tree(
     interval_start: i64,
     interval_end: i64,
     start: Option<i64>,
+    start_bis: Option<i64>,
     end: Option<i64>,
+    end_bis: Option<i64>,
     strand: &Strand,
     gene_name: String,
     transcript_id: String,
     left_exon_type: Option<ExonType>,
     right_exon_type: Option<ExonType>,
     intron_n: Option<i32>,
-) {
+) -> Result<(), OmniError> {
     let mut flag_exon_already_found = false;
     if let Some(this_tree) = tree_map.get_mut(chr_) {
         for (ref mut node) in this_tree.find_mut(interval_start..interval_end) {
@@ -588,7 +607,9 @@ pub fn update_tree(
                 if let n = node.data() {
                     if n.gene_name == gene_name && n.start == start && n.end == end {
                         n.transcript_intron
-                            .push((transcript_id.clone(), intron_n.unwrap()));
+                            .push((transcript_id.clone(),
+                                 intron_n.ok_or(OmniError::Expect("expect integer None found".to_string()))?)
+                                );
                         flag_exon_already_found = true;
                     }
                 }
@@ -599,22 +620,30 @@ pub fn update_tree(
                 interval_start..interval_end,
                 TreeDataIntron {
                     gene_name: gene_name,
-                    transcript_intron: vec![(transcript_id, intron_n.unwrap())],
+                    transcript_intron: vec![(transcript_id,
+                                            intron_n
+                                            .ok_or(OmniError::Expect("expect integer None found".to_string()))?)],
                     start: start,
                     end: end,
                     strand: *strand,
+                    start_bis: start_bis,
+                    end_bis: end_bis,
                     contig: chr_.to_string(),
                     start_type: left_exon_type,
                     end_type: right_exon_type,
+
                     counter_start: HashMap::new(),
                     counter_end: HashMap::new(),
+
                     counter_intron: HashMap::new(),
+
                     counter_splicingevent_end: HashMap::new(),
                     counter_splicingevent_start: HashMap::new(),
                 },
             );
         }
     }
+    Ok(())
 }
 
 // HashMap<String, interval_tree::IntervalTree<i64, TreeDataIntron>>
@@ -635,7 +664,7 @@ pub fn update_tree_from_bam(
     out_file_read_buffer: &mut ReadToWriteHandle,
     junction_valid: &HashMap<(String, i64, i64), Strand>,
     valid_j_gene: &HashMap<String, HashSet<(i64, i64)>>,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<(), OmniError> {
     let mut read_name: Option<String> = None;
     let mut seq: Vec<u8>;
     let mut sequence: Option<String> = None;
@@ -646,7 +675,7 @@ pub fn update_tree_from_bam(
     let mut pos_e: i64;
     let mut cig: Cigar;
     let mut flag: u16;
-    let mut bam = IndexedReader::from_path(bam_file).unwrap();
+    let mut bam = IndexedReader::from_path(bam_file)?;
 
     for (contig, subtree) in hash_tree.iter_mut() {
         match bam.fetch(&contig) {
@@ -657,11 +686,9 @@ pub fn update_tree_from_bam(
             }
         }
         while let Some(r) = bam.read(&mut record) {
-            //for r in bam.records() {
-            //record = r.unwrap();
-            pos_s = record.pos();
 
-            //cig = Cigar::from_str(&record.cigar().to_string()).unwrap();
+            pos_s = record.pos();
+            // TODO replace eprint by log
             cig = match Cigar::from_str(&record.cigar().to_string()) {
                 Ok(c) => c,
                 Err(_) => {
@@ -725,7 +752,7 @@ pub fn dump_tree_to_cat_results(
     out_junction: &str,
     junction_ambigious: &HashSet<(String, i64)>,
     junction_order: &Vec<SplicingEvent>,
-) -> () {
+) -> Result<(), OmniError> {
     let presorted_cat = format!("{}.presorted", out_cat);
     let presorted_j = format!("{}.presorted", out_junction);
     let header_cat =
@@ -746,11 +773,11 @@ pub fn dump_tree_to_cat_results(
             // get ALL entry
             for node in subtree.find(i64::MIN..i64::MAX) {
                 if node.data().start.is_some() {
-                    stream_cat.write_all(node.data().dump_counter(false).as_bytes());
+                    stream_cat.write_all(node.data().dump_counter(false)?.as_bytes());
                     stream_cat.write_all("\n".as_bytes());
                 }
                 if node.data().end.is_some() {
-                    stream_cat.write_all(node.data().dump_counter(true).as_bytes());
+                    stream_cat.write_all(node.data().dump_counter(true)?.as_bytes());
                     stream_cat.write_all("\n".as_bytes());
                 }
 
@@ -762,43 +789,14 @@ pub fn dump_tree_to_cat_results(
                 stream_j.write_all("\n".as_bytes());
             }
         }
-        stream_cat.flush().unwrap();
-        stream_j.flush().unwrap();
+        stream_cat.flush()?;
+        stream_j.flush()?;
     }
 
     sort_and_clear_cat(&presorted_cat, out_cat, header_cat);
-    sort_and_clear_junction(&presorted_j, out_junction, header_j)
+    sort_and_clear_junction(&presorted_j, out_junction, header_j);
+    Ok(())
 
-    /*
-    let file = File::create_new(out_cat).expect("output file should not exist.");
-
-    let mut file = OpenOptions::new()
-        .write(true)
-        .append(true)
-        .open(out_cat).expect("could not open file");
-    file.write_all(header_cat);
-    //let mut stream = BufWriter::new(file);
-
-    let sort = Command::new("sort")
-        .args([
-            "-k1,1",
-            "-k3,3",
-            "-k4,4",
-            "-k2,2n",
-            "-k7,7",
-            presorted_cat.as_str(),
-        ])
-        .stdout(file)
-        .spawn()
-        .expect("sort command failed ")
-        .wait()
-        .expect("sort command failed ");
-    //stream.flush().unwrap();
-
-    let rm_out = Command::new("rm")
-        .args(["-f", presorted_cat.as_str()])
-        .output()
-        .expect("failed to remove presorted");*/
 }
 
 fn sort_and_clear_junction(presorted: &str, out: &str, header: &[u8]) -> () {
@@ -818,7 +816,7 @@ fn sort_and_clear_junction(presorted: &str, out: &str, header: &[u8]) -> () {
         .expect("sort command failed ")
         .wait()
         .expect("sort command failed ");
-    //stream.flush().unwrap();
+
 
     let rm_out = Command::new("rm")
         .args(["-f", presorted])
@@ -844,7 +842,7 @@ fn sort_and_clear_cat(presorted: &str, out: &str, header: &[u8]) -> () {
         .expect("sort command failed ")
         .wait()
         .expect("sort command failed ");
-    //stream.flush().unwrap();
+
 
     let rm_out = Command::new("rm")
         .args(["-f", presorted])
@@ -891,28 +889,6 @@ mod tests_it {
             1,
         );
     }
-} //21589349, 21589613
+} 
 
-/*        let start_map= read_toassign(
-    self.strand,
-    self.start,
-    self.start_type,
-    aln_start,
-    aln_end,
-    cigar,
-    read_strand,
-    overhang,
-); */
 
-/*
-&mut self,
-aln_start: i64,
-aln_end: i64,
-cigar: &Cigar,
-read_strand: &Strand,
-overhang: i64,
-out_file_read_buffer: &mut ReadToWriteHandle,
-read_name: Option<String>,
-sequence: Option<String>,
-valid_junction: &HashMap<(String, i64, i64),  Strand>
- */
