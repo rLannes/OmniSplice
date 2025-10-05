@@ -1,3 +1,4 @@
+use crate::common::error::OmniError;
 use crate::common::utils;
 use crate::get_header;
 use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
@@ -150,13 +151,13 @@ impl Junction {
     }
 }
 
-pub fn junction_file_from_table(table_file: &str, junction_file: &str) {
+pub fn junction_file_from_table(table_file: &str, junction_file: &str) -> Result<(), OmniError>{
     let mut out_file_open =
         File::create_new(junction_file.clone()) //presorted out_file.clone()
             .unwrap_or_else(|_| panic!("output file {} should not exist.", &junction_file)); //expect(&format!("output file {} should not exist.", &table));
     //let mut out_stream = BufWriter::new(out_file_open);
 
-    let f = File::open(table_file).unwrap();
+    let f = File::open(table_file)?;
     let mut reader = BufReader::new(f);
 
     let mut header_line: String = "".to_string();
@@ -217,8 +218,7 @@ pub fn junction_file_from_table(table_file: &str, junction_file: &str) {
         out_file_open.write_all(format!("{}\n", j.dump()).as_bytes());
     }
 
-    //out_stream.flush().unwrap();
-    //out_stream.into_inner().unwrap().sync_all().unwrap();
+    Ok(())
 }
 
 mod tests_it {
