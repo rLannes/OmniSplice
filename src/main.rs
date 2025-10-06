@@ -25,6 +25,10 @@ use std::convert::From;
 use std::fs;
 use std::str;
 
+
+use bio::data_structures::interval_tree::IntervalTree;
+
+
 use log::{info, debug, error, trace, warn};
 use flexi_logger::{Logger, FileSpec, WriteMode};
 
@@ -32,6 +36,7 @@ use flexi_logger::{Logger, FileSpec, WriteMode};
 use crate::common::gtf_::{
     get_all_junction_for_a_gene, get_invalid_pos, get_junction_from_gtf, gtf_to_hashmap,
 };
+use crate::common::it_intron::TreeDataIntron;
 use crate::common::it_intron::{
     dump_tree_to_cat_results, interval_tree_from_gtfmap, update_tree_from_bam,
 };
@@ -120,7 +125,7 @@ fn main_loop(
     librairy_type: LibType,
     gtf_hashmap: &HashMap<String, HashMap<String, Vec<Exon>>>,
     valid_j_gene: &HashMap<String, HashSet<(i64, i64)>>,
-) -> Result<(), OmniError> {
+) -> Result<HashMap<String, IntervalTree<i64, TreeDataIntron>>, OmniError> {
 
 
     info!("Launching the main loop parsing the bam.");
@@ -148,15 +153,23 @@ fn main_loop(
         &junction_,
         valid_j_gene,
     );
+
+    return Ok(hash_tree);
+
+
+    /*
     let junction_order: Vec<SplicingEvent> = vec![
         SplicingEvent::Spliced,
         SplicingEvent::Unspliced,
         SplicingEvent::Clipped,
         SplicingEvent::ExonOther,
         SplicingEvent::Skipped,
+        SplicingEvent::SkippedUnrelated,
         SplicingEvent::WrongStrand,
         SplicingEvent::Isoform,
     ];
+
+
 
     dump_tree_to_cat_results(&hash_tree, &output, &out_j, &junction_ambi, &junction_order);
     /* hash_tree: &HashMap<String, interval_tree::IntervalTree<i64, TreeDataIntron>>,
@@ -166,8 +179,7 @@ fn main_loop(
     junction_order: Vec<SplicingEvent>, */
     output_write_read_handle.flush();
     
-
-    Ok(())
+    Ok(())*/
 }
 
 fn main() -> Result<(), Box<dyn Error>>  {
@@ -180,10 +192,10 @@ fn main() -> Result<(), Box<dyn Error>>  {
     }
     let mut output_file_prefix = args.output_file_prefix;
 
-    let table = format!("{}{}", output_file_prefix, ".table");
-    let output = format!("{}{}", output_file_prefix, ".cat");
+    let table = format!("{}{}", output_file_prefix, ".exons");
+    let output = format!("{}{}", output_file_prefix, ".raw");
     let splicing_defect = format!("{}{}", output_file_prefix, ".sd");
-    let junction_file = format!("{}{}", output_file_prefix, ".junction");
+    let junction_file = format!("{}{}", output_file_prefix, ".junctions");
     let log_file = format!("{}{}", output_file_prefix, ".log");
 
     let mut clipped = false;
@@ -241,6 +253,17 @@ fn main() -> Result<(), Box<dyn Error>>  {
     );
 
     info!("main loop ended writting results");
+
+    let junction_order: Vec<SplicingEvent> = vec![
+        SplicingEvent::Spliced,
+        SplicingEvent::Unspliced,
+        SplicingEvent::Clipped,
+        SplicingEvent::ExonOther,
+        SplicingEvent::Skipped,
+        SplicingEvent::SkippedUnrelated,
+        SplicingEvent::WrongStrand,
+        SplicingEvent::Isoform,
+    ];
 
     let file = File::create_new(table.clone())
     .map_err(|e| OmniError::OutputExists(table.clone(), e))?;

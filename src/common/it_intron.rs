@@ -34,6 +34,7 @@ use log::{info, debug, error, trace, warn};
 /// start_type and end_type  are deduced from the strand and positions, similarly from start and end they are also optional with one needed to be setup
 /// the three counters are the things actually counting the reads.
 pub struct TreeDataIntron {
+
     gene_name: String,
     transcript_intron: Vec<(String, i32)>,
 
@@ -395,9 +396,8 @@ impl TreeDataIntron {
     ) -> String {
         let base_vec = self.dump_junction_base(ambigious_set);
         let mut results = Vec::new();
-        // TODO  order moove the allocation out
-
         let mut sub = Vec::new();
+
         for base in &base_vec {
             sub.clear();
             sub.push(base.to_owned());
@@ -407,6 +407,117 @@ impl TreeDataIntron {
             results.push(sub.join("\t"))
         }
         results.join("\n")
+    }
+/*    counter_splicingevent_start: HashMap<SplicingEvent, i32>,
+    /// count  exon end level SplicingEvent event with position included
+    counter_splicingevent_end: HashMap<SplicingEvent, i32>, */
+
+
+
+//dump_exon_counter_loop(counter: &HashMap<SplicingEvent, i32>, base_vec: &Vec<String>, results: &mut Vec<String>, sub: &mut Vec<String>, junction_order: &Vec<SplicingEvent>)
+
+    fn dump_exon_counter(&self,
+                        ambigious_set: &HashSet<(String, i64)>,
+                        junction_order: &Vec<SplicingEvent>
+                    ) -> Result<String, OmniError> {
+
+        let base_vec_end = self.dump_exon_base(ambigious_set, true)?;
+        let mut results = Vec::new();
+        let mut sub = Vec::new();
+        dump_exon_counter_loop(&self.counter_splicingevent_end, &self.dump_exon_base(ambigious_set, true)?, &mut results, &mut sub, junction_order);
+        dump_exon_counter_loop(&self.counter_splicingevent_start, &self.dump_exon_base(ambigious_set, false)?, &mut results, &mut sub, junction_order);
+
+        Ok(results.join("\n"))
+
+    }
+
+    fn dump_exon_base(&self, ambigious_set: &HashSet<(String, i64)>, end: bool) -> Result<Vec<String>, OmniError> {
+
+
+        let mut res = Vec::new();
+        let mut exontype = ExonType::Acceptor;
+        // get acceptor donnor!
+
+        let mut pos = 0;
+        //let (donnor, acceptor) = self.get_acceptor_donor();
+
+        let ambigious = if ambigious_set.contains(&(self.contig.clone(), self.start.unwrap_or(0)))
+            | ambigious_set.contains(&(self.contig.clone(), self.end.unwrap_or(0)))
+        {
+            true
+        } else {
+            false
+        };
+
+
+/*    gene_name: String,
+    transcript_intron: Vec<(String, i32)>,
+
+    start_bis: Option<i64>,
+    start: Option<i64>,
+    end: Option<i64>,
+    end_bis: Option<i64>,
+
+    strand: Strand,
+    contig: String,
+    start_type: Option<ExonType>,
+    end_type: Option<ExonType>,
+*/
+
+        // Contig Gene Transcript Exon_number Exon_type Position Next Strand Ambiguous
+      
+    if end == true{
+
+        if self.end.is_none() {
+            return Ok(Vec::new())
+        };
+
+        for (tr, intron) in &self.transcript_intron {
+            res.push(format!(
+                "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+                self.contig,
+                self.gene_name,
+                tr,
+                match self.end_type{
+                    Some(ExonType::Acceptor) => *intron + 1,
+                    Some(ExonType::Donnor) => *intron,
+                    None => {error!("expected value for end type found None"); return Err(OmniError::Expect("value expected None found".to_string()))}
+                },
+                self.end_type.ok_or(OmniError::Expect("value expected None found".to_string()))?,
+                self.end.ok_or(OmniError::Expect("value expected None found".to_string()))?,
+                self.start.ok_or(OmniError::Expect("value expected None found".to_string()))?,
+                self.strand,
+                ambigious.to_string()
+            ));
+        }
+    }
+    else{
+        if self.start.is_none() {
+            return Ok(Vec::new())
+        };
+
+                for (tr, intron) in &self.transcript_intron {
+            res.push(format!(
+                "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+                self.contig,
+                self.gene_name,
+                tr,
+                match self.start_type{
+                    Some(ExonType::Acceptor) => *intron + 1,
+                    Some(ExonType::Donnor) => *intron,
+                    None => {error!("expected value for start type found None"); return Err(OmniError::Expect("value expected None found".to_string()))}
+                },
+                self.start_type.ok_or(OmniError::Expect("value expected None found".to_string()))?,
+                self.start.ok_or(OmniError::Expect("value expected None found".to_string()))?,
+                self.end.ok_or(OmniError::Expect("value expected None found".to_string()))?,
+                
+                self.strand,
+                ambigious.to_string()
+            ));
+        }
+
+    }
+        Ok(res)
     }
 
     fn dump_counter(&self, end: bool) -> Result<String, OmniError> {
@@ -422,7 +533,6 @@ impl TreeDataIntron {
                 for (assign, value) in &self.counter_end {
                     for base in &base_vec {
                         results.push(format!("{}\t{}\t{}", base, assign, value))
-                        //base.push_str(&format!("\t{}\t{}", assign, value))
                     }
                 }
             }
@@ -659,6 +769,19 @@ pub fn update_tree(
     Ok(())
 }
 
+
+fn dump_exon_counter_loop(counter: &HashMap<SplicingEvent, i32>, base_vec: &Vec<String>, results: &mut Vec<String>, sub: &mut Vec<String>, junction_order: &Vec<SplicingEvent>) -> (){
+    for base in base_vec {
+        sub.clear();
+        sub.push(base.to_owned());
+        for even in junction_order {
+            sub.push(counter.get(&even).unwrap_or(&0).to_string());
+        }
+        results.push(sub.join("\t"))
+    }
+}
+
+
 // HashMap<String, interval_tree::IntervalTree<i64, TreeDataIntron>>
 pub fn update_tree_from_bam(
     hash_tree: &mut HashMap<String, interval_tree::IntervalTree<i64, TreeDataIntron>>,
@@ -761,6 +884,103 @@ pub fn dump_tree_junction (hash_tree: &HashMap<String, interval_tree::IntervalTr
         }
     }
 */
+
+
+/*pub fn dump_raw(    hash_tree: &HashMap<String, interval_tree::IntervalTree<i64, TreeDataIntron>>,
+    out_cat: &str,
+    out_junction: &str,
+    junction_ambigious: &HashSet<(String, i64)>,
+    junction_order: &Vec<SplicingEvent>) -> Result<(), OmniError>{Ok(())}
+
+
+pub fn dump_exons() -> Result<(), OmniError>{Ok(())}
+pub fn dump_junctions() -> Result<(), OmniError>{Ok(())}*/
+
+
+pub fn dump_tree_into_raw_exon_junction(    
+    hash_tree: &HashMap<String, interval_tree::IntervalTree<i64, TreeDataIntron>>,
+    out_raw: &str,
+    out_exons: &str,
+    out_junction: &str,
+    junction_ambigious: &HashSet<(String, i64)>,
+    junction_order: &Vec<SplicingEvent>,) -> Result<(), OmniError> {
+    
+    let presorted_raw = format!("{}.presorted", out_raw);
+    let presorted_junction = format!("{}.presorted", out_junction);
+    let presorted_exons = format!("{}.presorted", out_exons);
+
+    /*        SplicingEvent::Spliced,
+        SplicingEvent::Unspliced,
+        SplicingEvent::Clipped,
+        SplicingEvent::ExonOther,
+        SplicingEvent::Skipped,
+        SplicingEvent::SkippedUnrelated,
+        SplicingEvent::WrongStrand,
+        SplicingEvent::Isoform, */
+
+    let header_raw =
+        "Contig\tPosition\tGeneID\tTranscriptID\tstrand\tExonEndType\tCategory\tReadCount\n"
+            .as_bytes();
+    let header_junction = "Contig\tGene\tTranscript\tIntron\tDonnor\tAcceptor\tStrand\tAmbiguous\tSpliced\tUnspliced\tClipped\tExon_other\tSkipped\tSkippedUnrelated\tWrong_strand\tE_isoform\n".as_bytes();
+    let header_exons = "Contig\tGene\tTranscript\tExon_number\tExon_type\tPosition\tNext\tStrand\tAmbiguous\tSpliced\tUnspliced\tClipped\tExon_other\tSkipped\tSkippedUnrelated\tWrong_strand\tE_isoform\n".as_bytes();
+
+    {
+
+        let file_raw =
+                File::create_new(presorted_raw.clone()).map_err(|e| OmniError::Expect("output file should not exist".to_string()))?;
+        let mut stream_raw = BufWriter::new(file_raw);
+
+        let file_junction = 
+                File::create_new(presorted_junction.clone()).map_err(|e| OmniError::Expect("output file should not exist".to_string()))?;
+        let mut stream_junction = BufWriter::new(file_junction);
+
+        let file_exons = 
+                File::create_new(presorted_exons.clone()).map_err(|e| OmniError::Expect("output file should not exist".to_string()))?;
+        let mut stream_exons = BufWriter::new(file_exons);
+
+        for (contig, subtree) in hash_tree {
+            // get ALL entry
+            for node in subtree.find(i64::MIN..i64::MAX) {
+                if node.data().start.is_some() {
+                    stream_raw.write_all(node.data().dump_counter(false)?.as_bytes());
+                    stream_raw.write_all("\n".as_bytes());
+                }
+                if node.data().end.is_some() {
+                    stream_raw.write_all(node.data().dump_counter(true)?.as_bytes());
+                    stream_raw.write_all("\n".as_bytes());
+                }
+
+                stream_junction.write_all(
+                    node.data()
+                        .dump_junction_counter(junction_ambigious, junction_order)
+                        .as_bytes(),
+                );
+                stream_junction.write_all("\n".as_bytes());
+
+                stream_exons.write_all(
+                    node.data().dump_exon_counter(junction_ambigious, junction_order)?
+                    .as_bytes(),
+
+                );
+                stream_exons.write_all("\n".as_bytes());
+
+
+            }
+        }
+        stream_raw.flush()?;
+        stream_junction.flush()?;
+        stream_exons.flush()?;
+
+    }
+
+    info!("sorting the results files");
+    sort_and_clear_cat(&presorted_raw, out_raw, header_raw);
+    sort_and_clear_junction(&presorted_junction, out_junction, header_junction);
+    sort_and_clear_junction(&presorted_exons, out_exons, header_exons);
+    info!("done");
+
+    Ok(())
+}
 
 pub fn dump_tree_to_cat_results(
     hash_tree: &HashMap<String, interval_tree::IntervalTree<i64, TreeDataIntron>>,
