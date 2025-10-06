@@ -3,6 +3,7 @@ use bio::bio_types::annot::spliced::Spliced;
 use clap::builder::Str;
 use lazy_static::lazy_static;
 use regex::Regex;
+use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::convert::TryFrom;
@@ -13,6 +14,7 @@ use std::io::BufWriter;
 use std::io::Write;
 use std::str::FromStr;
 use strand_specifier_lib::Strand;
+use log::{info, debug, error, trace, warn};
 
 #[derive(Debug)]
 pub struct Intervall {
@@ -70,6 +72,8 @@ macro_rules! get_header {
 }
 
 pub(crate) use get_header;
+
+use crate::common::error::OmniError;
 
 /*macro_rules! create_readfile {
     ($a:expr, $b:expr) => {
@@ -374,6 +378,7 @@ pub enum SplicingEvent {
     ExonOther,
     WrongStrand,
     Skipped,
+    SkippedUnrelated,
     Isoform,
 }
 
@@ -402,15 +407,20 @@ impl SplicingEvent {
             (Some(SplicingEvent::Clipped), _) | (_, Some(SplicingEvent::Clipped)) => {
                 Some(SplicingEvent::Clipped)
             }
+            (Some(SplicingEvent::SkippedUnrelated), _) | (_, Some(SplicingEvent::SkippedUnrelated)) => {
+                Some(SplicingEvent::SkippedUnrelated)
+            }
             (Some(SplicingEvent::WrongStrand), Some(SplicingEvent::WrongStrand)) => {
                 Some(SplicingEvent::WrongStrand)
             }
             (None, None) => None,
             (None, Some(SplicingEvent::WrongStrand) | Some(SplicingEvent::Spliced))
             | (Some(SplicingEvent::WrongStrand) | Some(SplicingEvent::Spliced), None) => {
+                error!("Unreachable code!");
                 unreachable!()
             }
             (_, _) => {
+                error!("Unreachable code!");
                 unreachable!()
             }
         }
@@ -438,6 +448,14 @@ impl SplicingEvent {
                     Some(SplicingEvent::Skipped)
                 }
             }
+            Some(ReadAssign::SkippedUnrelated(n, m)) => {
+                if valid_junction.contains(&(n, m)) || valid_junction.contains(&(m, n)) {
+                    Some(SplicingEvent::Isoform)
+                } else {
+                    // if fe
+                    Some(SplicingEvent::SkippedUnrelated)
+                }
+            }
             Some(ReadAssign::ReadJunction(n, m)) => {
                 if (feature_start.is_some() && feature_end.is_some())
                     && (((n == feature_end.unwrap()) & (m == feature_start.unwrap()))
@@ -456,19 +474,6 @@ impl SplicingEvent {
     }
 }
 
-/*impl fmt::Display for ReadAssign {
-fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-    match self {
-            Spliced,
-            Unspliced,
-            Clipped,
-            ExonOther,
-        WrongStrand,
-        Skipped,
-        Isoform
-        }
-    }
-}*/
 
 #[derive(Clone, Debug, Copy, Eq, Hash, PartialEq)]
 pub enum ReadAssign {
@@ -480,6 +485,7 @@ pub enum ReadAssign {
     FailQc,
     EmptyPileup,
     Skipped(i64, i64),
+    SkippedUnrelated(i64, i64),
     SoftClipped,
     OverhangFail,
     Empty,
@@ -496,6 +502,9 @@ impl fmt::Display for ReadAssign {
             }
             ReadAssign::Skipped(n, m) => {
                 write!(f, "{}", format!("Skipped({}, {})", n, m))
+            }
+            ReadAssign::SkippedUnrelated(n, m) => {
+                write!(f, "{}", format!("SkippedUnrelated({}, {})", n, m))
             }
             ReadAssign::Unexpected => {
                 write!(f, "Unexpected")
@@ -548,9 +557,25 @@ impl From<&str> for ReadAssign {
             "FailQc" => ReadAssign::FailQc,
             "EmptyPileup" => ReadAssign::EmptyPileup,
             //"Skipped" => ReadAssign::Skipped,
+            //"SkippedUnrelated" => ReadAssign::SkippedUnrelated,
             "SoftClipped" => ReadAssign::SoftClipped,
             "OverhangFail" => ReadAssign::OverhangFail,
             "empty" => ReadAssign::Empty,
+            s if s.starts_with("SkippedUnrelated") => {
+                let v = reg_junction.captures(&s).unwrap();
+                ReadAssign::SkippedUnrelated(
+                    v.get(1)
+                        .unwrap()
+                        .as_str()
+                        .parse::<i64>()
+                        .expect("failed to parse junction"), // Should never failed
+                    v.get(2)
+                        .unwrap()
+                        .as_str()
+                        .parse::<i64>()
+                        .expect("failed to parse junction"),
+                )
+            },
             s if s.starts_with("Skipped") => {
                 let v = reg_junction.captures(&s).unwrap();
                 ReadAssign::Skipped(
@@ -593,15 +618,12 @@ pub fn out_of_range(feature: i64, aln_start: i64, aln_end: i64, overhang: i64) -
     if !((aln_start <= feature) & (aln_end >= feature)) {
         return true;
     }
-    // if (aln_end - feature < overhang) | (feature - aln_start < overhang){
-    //         return true
-    //     }
     false
 }
 
-pub fn test_strand(read_strand: &Strand, feature_strand: &Strand) -> Option<ReadAssign> {
-    //println!("in {:?}", *read_strand != *feature_strand);
 
+/// Return Wrong Strand or None if Strand is NA return None. 
+pub fn test_wrong_strand(read_strand: &Strand, feature_strand: &Strand) -> Option<ReadAssign> {
     match read_strand {
         Strand::NA => (None),
         read => {
@@ -612,17 +634,11 @@ pub fn test_strand(read_strand: &Strand, feature_strand: &Strand) -> Option<Read
             }
         }
     }
-
-    /*if (*read_strand == Strand::NA){
-        return None
-    }
-    else if (*read_strand != *feature_strand){
-        return Some(ReadAssign::WrongStrand)
-    }else{
-    return None}*/
 }
 
-fn test_skipped(cigar: &Cigar, aln_start: i64, feature_pos: i64) -> Option<ReadAssign> {
+
+
+fn test_skipped(cigar: &Cigar, aln_start: i64, feature_pos: i64, feature_bis: Option<i64>) -> Option<ReadAssign> {
     let junction = cigar.get_skipped_pos_on_ref(aln_start);
     if let Some(y) = junction {
         if let Some(i) = y
@@ -631,18 +647,27 @@ fn test_skipped(cigar: &Cigar, aln_start: i64, feature_pos: i64) -> Option<ReadA
             .step_by(2)
             .find(|&(ref i, &x)| (x < feature_pos) & (y[i + 1] > feature_pos))
         {
-            return Some(ReadAssign::Skipped(*i.1, y[i.0 + 1]));
+            if feature_bis.is_some(){
+                let (start, end) = match feature_pos.cmp(&feature_bis.unwrap()){ // cannot failed tested just before
+                    Ordering::Less | Ordering::Equal => (feature_pos, feature_bis.unwrap()), // cannot failed tested just before
+                    Ordering::Greater => (feature_bis.unwrap(), feature_pos) // cannot failed tested just before
+                };
+                if cigar.does_it_overlap_an_intervall(aln_start, start, end){ 
+                    return Some(ReadAssign::Skipped(*i.1, y[i.0 + 1]));
+                }
+            }
+            return Some(ReadAssign::SkippedUnrelated(*i.1, y[i.0 + 1]));
         }
     }
     None
 }
 
-//pub fn overhang_fail(feature: i64, aln_start: i64, aln_end: i64, overhang: i64){
-//}
+
 
 pub fn read_toassign(
     feature_strand: Strand,
     feature_pos: Option<i64>,
+    feature_pos_bis: Option<i64>,
     feature_exontype: Option<ExonType>,
     aln_start: i64,
     aln_end: i64,
@@ -650,43 +675,35 @@ pub fn read_toassign(
     //flag: &u16,
     read_strand: &Strand,
     overhang: i64,
-) -> Option<ReadAssign> {
+) -> Result<Option<ReadAssign>, OmniError> {
+
     if feature_pos.is_none() {
-        return None;
+        return Ok(None);
     }
-    // if feature_exontype.is_none(){
-    //    println!("test : {} {:?} {:?} {}", feature_strand, feature_pos, feature_exontype, aln_start)
-    // };
 
-    let feature_pos = feature_pos.unwrap();
-    let feature_exontype = feature_exontype.unwrap();
-    // TODO Should I report it? no...
-    // does that can ever happen?
+    let feature_pos = feature_pos
+            .ok_or(OmniError::Expect("Expected a value for featurePos got None".to_string()))?;
+    let feature_exontype = feature_exontype
+            .ok_or(OmniError::Expect("Expected a value for feature_exontype got None".to_string()))?;
+    /// sanity check 
     if out_of_range(feature_pos, aln_start, aln_end, overhang) {
-        return None;
+        return Ok(None);
     }
 
-    match test_strand(&read_strand, &feature_strand) {
-        Some(x) => return Some(x),
+    match test_wrong_strand(&read_strand, &feature_strand) {
+        Some(x) => return Ok(Some(x)),
         _ => (),
     };
 
-    match test_skipped(&cigar, aln_start, feature_pos) {
-        Some(x) => return Some(x),
+    match test_skipped(&cigar, aln_start, feature_pos, feature_pos_bis) {
+        Some(x) => return Ok(Some(x)),
         _ => (),
     }
-
-    // that prevent any Soft clipped detection!
-    // test read actually ends there. or start there, nor interesting for us.
-    //if cigar.get_end_of_aln(&aln_start) == feature_pos || aln_start == feature_pos {
-    //    return None
-    //}
 
     match (feature_strand, feature_exontype) {
         (Strand::Plus, ExonType::Donnor) | (Strand::Minus, ExonType::Acceptor) => {
             if !cigar.does_it_match_an_intervall(aln_start, feature_pos - overhang, feature_pos) {
-                //println!("end, {} {} {} {} {:?} {:?} {:?}", aln_start, aln_end, feature_pos, feature_pos - overhang, cigar, feature_strand, feature_exontype);
-                return Some(ReadAssign::OverhangFail);
+                return Ok(Some(ReadAssign::OverhangFail));
             }
 
             if cigar.does_it_match_an_intervall(
@@ -694,16 +711,16 @@ pub fn read_toassign(
                 feature_pos - overhang,
                 feature_pos + overhang,
             ) {
-                return Some(ReadAssign::ReadThrough);
+                return Ok(Some(ReadAssign::ReadThrough));
             }
 
             if cigar.soft_clipped_end(&Strand::Plus, 10) && aln_end == feature_pos {
-                return Some(ReadAssign::SoftClipped);
+                return Ok(Some(ReadAssign::SoftClipped));
             }
         }
         (Strand::Plus, ExonType::Acceptor) | (Strand::Minus, ExonType::Donnor) => {
             if !cigar.does_it_match_an_intervall(aln_start, feature_pos, feature_pos + overhang) {
-                return Some(ReadAssign::OverhangFail);
+                return Ok(Some(ReadAssign::OverhangFail));
             }
 
             //if cigar.does_it_match_an_intervall(&aln_start, feature_pos - 1, feature_pos + overhang)
@@ -712,16 +729,16 @@ pub fn read_toassign(
                 feature_pos - overhang,
                 feature_pos + overhang,
             ) {
-                return Some(ReadAssign::ReadThrough);
+                return Ok(Some(ReadAssign::ReadThrough));
             }
 
             if cigar.soft_clipped_end(&Strand::Minus, 10) && aln_start == feature_pos {
-                return Some(ReadAssign::SoftClipped);
+                return Ok(Some(ReadAssign::SoftClipped));
             }
         }
         //feature strand!s
         (Strand::NA, _) => {
-            return None;
+            return Ok(None);
         }
     };
 
@@ -742,10 +759,10 @@ pub fn read_toassign(
                             j[p + 1] + overhang,
                         )))
                     {
-                        return Some(ReadAssign::OverhangFail);
+                        return Ok(Some(ReadAssign::OverhangFail));
                     }
-                    return Some(ReadAssign::ReadJunction(j[p], j[p + 1]));
-                }
+                    return Ok(Some(ReadAssign::ReadJunction(j[p], j[p + 1])));
+                },
 
                 (Some(p), Strand::Plus, ExonType::Acceptor)
                 | (Some(p), Strand::Minus, ExonType::Donnor) => {
@@ -755,16 +772,10 @@ pub fn read_toassign(
                         j[p - 1],
                     )) & (cigar.does_it_match_an_intervall(aln_start, j[p], j[p] + overhang)))
                     {
-                        return Some(ReadAssign::OverhangFail);
+                        return Ok(Some(ReadAssign::OverhangFail));
                     }
-                    return Some(ReadAssign::ReadJunction(j[p - 1], j[p]));
-                }
-                //(Some(p), Strand::Minus, ExonType::Donnor) => {
-                //    return Some(ReadAssign::ReadJunction(j[p - 1], j[p]));
-                //}
-                //(Some(p), Strand::Minus, ExonType::Acceptor) => {
-                //    return Some(ReadAssign::ReadJunction(j[p], j[p + 1]));
-                //}
+                    return Ok(Some(ReadAssign::ReadJunction(j[p - 1], j[p])));
+                },
                 (_, _, _) => {
                     if let Some(i) = j
                         .iter()
@@ -774,17 +785,17 @@ pub fn read_toassign(
                     {
                         //println!("Skipped: {:?} {:?} {:?} {:?} {:?} {:?} {:?} {:?} {:?}",\
                         // j, aln_start ,aln_end, cigar, read_strand, feature_strand, feature_pos, feature_exontype, overhang);
-                        return Some(ReadAssign::Skipped(*i.1, j[i.0 + 1]));
+                        return Ok(Some(ReadAssign::Skipped(*i.1, j[i.0 + 1])));
                     } else {
                         //println!("Unexp: {:?} {:?} {:?} {:?} {:?} {:?} {:?} {:?} {:?}",\
                         // j, aln_start ,aln_end, cigar, read_strand, feature_strand, feature_pos, feature_exontype, overhang);
-                        return Some(ReadAssign::Unexpected);
+                        return Ok(Some(ReadAssign::Unexpected));
                     }
-                }
+                },
             }
         }
         None => {
-            return Some(ReadAssign::Unexpected);
+            return Ok(Some(ReadAssign::Unexpected));
         }
     }
 }
@@ -808,24 +819,24 @@ mod tests_it {
 
     #[test]
     fn parse_strand_1() {
-        // test_strand(read_strand: &Strand, feature_strand: &Strand)  -> Option<ReadAssign>
+        // test_wrong_strand(read_strand: &Strand, feature_strand: &Strand)  -> Option<ReadAssign>
         let read_strand = Strand::Plus;
         let feature_strand = Strand::Plus;
-        assert_eq!(test_strand(&read_strand, &feature_strand), None);
+        assert_eq!(test_wrong_strand(&read_strand, &feature_strand), None);
         let read_strand = Strand::Minus;
         let feature_strand = Strand::Minus;
-        assert_eq!(test_strand(&read_strand, &feature_strand), None);
+        assert_eq!(test_wrong_strand(&read_strand, &feature_strand), None);
 
         let read_strand = Strand::Plus;
         let feature_strand = Strand::Minus;
         assert_eq!(
-            test_strand(&read_strand, &feature_strand),
+            test_wrong_strand(&read_strand, &feature_strand),
             Some(ReadAssign::WrongStrand)
         );
         let read_strand = Strand::Minus;
         let feature_strand = Strand::Plus;
         assert_eq!(
-            test_strand(&read_strand, &feature_strand),
+            test_wrong_strand(&read_strand, &feature_strand),
             Some(ReadAssign::WrongStrand)
         );
     }
@@ -893,7 +904,7 @@ mod tests_it {
     }
 } //21589349, 21589613
 
-/*pub fn test_strand(read_strand: &Strand, feature_strand: &Strand) -> Option<ReadAssign>{
+/*pub fn test_wrong_strand(read_strand: &Strand, feature_strand: &Strand) -> Option<ReadAssign>{
     if (read_strand != feature_strand) & (read_strand != &Strand::NA){
         return Some(ReadAssign::WrongStrand);
     }

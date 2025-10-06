@@ -1,14 +1,13 @@
 #![allow(unused)]
-extern crate CigarParser;
 use clap::Parser;
 
 use CigarParser::cigar::Cigar;
 use rust_htslib::bam::{IndexedReader, Read};
 use strand_specifier_lib::{LibType, check_flag};
-//use rust_htslib::errors::Error;
 use rust_htslib::bam::record::Record;
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::default;
 use std::error::Error;
 use std::fmt::format;
 use std::fs::File;
@@ -19,11 +18,15 @@ use std::io::prelude::*;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
+use std::sync::Arc;
 mod common;
 use common::error::OmniError;
 use std::convert::From;
 use std::fs;
 use std::str;
+
+use log::{info, debug, error, trace, warn};
+use flexi_logger::{Logger, FileSpec, WriteMode};
 
 //use crate::common::utils::ReadAssign;
 use crate::common::gtf_::{
@@ -97,6 +100,10 @@ struct Args {
     ///  rfSecondStrand, rFirstStrand, rSecondStrand, Unstranded, PairedUnstranded
     #[clap(long, value_parser, default_value = "frFirstStrand")]
     libtype: LibType,
+
+    /// loglevel default info, accepted value: info, error, debug, trace, warn
+    #[clap(long, value_parser, default_value = "info")]
+    log_level: String,
 }
 
 /// This run the core of the program, will parse a gtf and a bam file and write a category file and if requested a read file.
@@ -114,28 +121,20 @@ fn main_loop(
     gtf_hashmap: &HashMap<String, HashMap<String, Vec<Exon>>>,
     valid_j_gene: &HashMap<String, HashSet<(i64, i64)>>,
 ) -> Result<(), OmniError> {
+
+
+    info!("Launching the main loop parsing the bam.");
     let bam_file = bam_input;
 
     let gtf_file = gtf;
-    println!("parse gtf file");
-
+    info!("building the interval tree");
     let mut hash_tree =
         interval_tree_from_gtfmap(gtf_hashmap).expect("failed to generate the hash tree from gtf");
 
-    println!("gtf file parsed");
-    println!("building the interval tree");
-    println!("tree built");
-
-    // parse the gtf and return a hashmap<chromosome> -> intervalTree(intron(start, end), associated_data(gene_name...))
-    //let mut hash_tree = gtf_to_tree(gtf_file.as_str()).unwrap();
+    /// TODO duplication here! done that do in MAIN!
     let junction_ambi = get_invalid_pos(&gtf_file)?;
     let junction_ = get_junction_from_gtf(&gtf_file, &librairy_type)?;
-    //let junction_ = match get_junction_from_gtf(&gtf_file, &librairy_type){
-    //    Ok(j) => j,
-    //    Err(e) => {eprintln!("failed to get junction from gtf, aborting, cannot recover from that: {}", e); panic!()}
-    //};
 
-    println!("valid junctions loaded");
 
     update_tree_from_bam(
         &mut hash_tree,
@@ -166,11 +165,13 @@ fn main_loop(
     junction_ambigious: HashSet<(String, i64, i64)>,
     junction_order: Vec<SplicingEvent>, */
     output_write_read_handle.flush();
+    
 
     Ok(())
 }
 
 fn main() -> Result<(), Box<dyn Error>>  {
+
     let args = Args::parse();
 
     match args.libtype {
@@ -178,11 +179,32 @@ fn main() -> Result<(), Box<dyn Error>>  {
         _ => (),
     }
     let mut output_file_prefix = args.output_file_prefix;
+
     let table = format!("{}{}", output_file_prefix, ".table");
     let output = format!("{}{}", output_file_prefix, ".cat");
     let splicing_defect = format!("{}{}", output_file_prefix, ".sd");
     let junction_file = format!("{}{}", output_file_prefix, ".junction");
+    let log_file = format!("{}{}", output_file_prefix, ".log");
+
     let mut clipped = false;
+    
+    let intermediate = output_file_prefix.to_owned();
+    let m =  Path::new(&intermediate);
+
+    Arc::new(Logger::try_with_str(&args.log_level)?             // set the default log level
+            .log_to_file(
+                FileSpec::default()
+                .directory(m.parent().unwrap().to_str().unwrap().to_string())          // create files in folder ./log_files
+                .basename(m.file_stem().unwrap().to_str().unwrap().to_string())
+                .discriminant("OmniSplice")     // use infix in log file name
+                .suffix("log")   
+            ) 
+        .write_mode(WriteMode::Async) 
+        //.format(my_formatter)                  // optional custom format 
+        .write_mode(WriteMode::SupportCapture)
+        .start()
+        .expect("Failed to initialise logger")
+    );
 
     let header_reads_handle = "read_name\tcig\tflag\taln_start\tread_assign\tfeature.pos\tnext_exon\tfeature.exon_type\tfeature.strand\tsequence\n".as_bytes(); //.expect("Unable to write file");
     let mut read_out_handle = ReadToWriteHandle::new();
@@ -193,9 +215,12 @@ fn main() -> Result<(), Box<dyn Error>>  {
         &output_file_prefix,
     );
 
+    info!("Parsing gtf file.");
+    info!("Getting all invalid position");
     let ambigious_position = get_invalid_pos(&args.gtf.clone());
 
-    let gtf_hashmap = gtf_to_hashmap(&args.gtf.clone()).expect("failed to parse gtf");
+    let gtf_hashmap = gtf_to_hashmap(&args.gtf.clone()).expect("failed to parse gtf");    
+    info!("getting all valid junction to identify isoform");
     let valid_j_gene = get_all_junction_for_a_gene(&gtf_hashmap)
             .map_err(|e| format!("failed to get all junctions for genes must abort: {e}"))?;
 
@@ -215,10 +240,11 @@ fn main() -> Result<(), Box<dyn Error>>  {
         &valid_j_gene,
     );
 
+    info!("main loop ended writting results");
+
     let file = File::create_new(table.clone())
     .map_err(|e| OmniError::OutputExists(table.clone(), e))?;
 
-    //.unwrap_or_else(|_| panic!("output file {} should not exist.", &table)); //expect(&format!("output file {} should not exist.", &table));
 
     let mut stream = BufWriter::new(file);
     let _ = stream.write("contig\tgene_name\ttranscript_name\texon_number\tambiguous\tstrand\tpos\tnext\texon_type\tspliced\tunspliced\tclipped\texon_other\tskipped\twrong_strand\te_isoform\n".as_bytes());

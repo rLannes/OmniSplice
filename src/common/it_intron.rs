@@ -4,6 +4,7 @@ use crate::common::error::OmniError;
 use crate::common::utils::{
     Exon, ExonType, ReadAssign, ReadToWriteHandle, SplicingEvent, read_toassign,
 };
+
 use CigarParser::cigar::Cigar;
 use bio::alignment::sparse::HashMapFx;
 use bio::bio_types::annot::contig;
@@ -23,6 +24,7 @@ use std::process::{Command, Stdio};
 use std::str::FromStr;
 use strand_specifier_lib::Strand;
 use strand_specifier_lib::{LibType, check_flag};
+use log::{info, debug, error, trace, warn};
 
 #[derive(Debug)]
 /// This structure is used in the intervall tree HASHMAP(contig) -> IT(intron(start, end)) -> TreeDataIntron
@@ -73,7 +75,7 @@ impl TreeDataIntron {
         sequence: Option<String>,
         valid_junction: &HashMap<(String, i64, i64), Strand>,
         valid_j_gene: &HashMap<String, HashSet<(i64, i64)>>,
-    ) -> () {
+    ) -> Result<(), OmniError> {
 
         let seq = match sequence {
             Some(seq) => seq,
@@ -83,30 +85,33 @@ impl TreeDataIntron {
             Some(seq) => seq,
             _ => "NoSeq".to_string(),
         };
-
+        
+        // TODO thought could delegate that to treeDATA even more. HAve to think about it.
         let start_map = read_toassign(
             self.strand,
             self.start,
+            self.start_bis,
             self.start_type,
             aln_start,
             aln_end,
             cigar,
             read_strand,
             overhang,
-        );
+        )?;
         self.write_to_read_file(start_map, out_file_read_buffer, false, &seq, &r_name, cigar);
         TreeDataIntron::update_counter(&mut self.counter_start, start_map);
 
         let end_map = read_toassign(
             self.strand,
             self.end,
+            self.end_bis,
             self.end_type,
             aln_start,
             aln_end,
             cigar,
             read_strand,
             overhang,
-        );
+        )?;
 
         TreeDataIntron::update_counter(&mut self.counter_end, end_map);
         self.write_to_read_file(end_map, out_file_read_buffer, true, &seq, &r_name, cigar);
@@ -198,7 +203,10 @@ impl TreeDataIntron {
             (None, None) => (),
             (_, _) => (),
         }
+        Ok(())
     }
+
+    /// Update the counter if item is None do Nothing.
     fn update_counter(counter: &mut HashMap<ReadAssign, i32>, item: Option<ReadAssign>) -> () {
         match item {
             Some(read_assign) => {
@@ -271,6 +279,11 @@ impl TreeDataIntron {
     ) -> Result<(), OmniError>{
         match read_assign {
             None => 0,
+            Some(ReadAssign::SkippedUnrelated(_, _)) => match &mut out_file_read_buffer.empty {
+                Some(handle) => handle
+                    .write(self.dump_reads_seq(seq, r_name, end, cigar)?.as_bytes())?,
+                _ => 0,
+            },
             Some(ReadAssign::Empty) => match &mut out_file_read_buffer.empty {
                 Some(handle) => handle
                     .write(self.dump_reads_seq(seq, r_name, end, cigar)?.as_bytes())?,
@@ -678,6 +691,7 @@ pub fn update_tree_from_bam(
     let mut bam = IndexedReader::from_path(bam_file)?;
 
     for (contig, subtree) in hash_tree.iter_mut() {
+        
         match bam.fetch(&contig) {
             Ok(_) => (),
             Err(_) => {
@@ -685,14 +699,15 @@ pub fn update_tree_from_bam(
                 continue;
             }
         }
+        
+        info!("parsing reads mapping to contig: {}", contig);
         while let Some(r) = bam.read(&mut record) {
 
             pos_s = record.pos();
-            // TODO replace eprint by log
             cig = match Cigar::from_str(&record.cigar().to_string()) {
                 Ok(c) => c,
                 Err(_) => {
-                    eprintln!("unproper CigarString skipping this reads");
+                    error!("unproper CigarString skipping this reads");
                     continue;
                 }
             };
@@ -706,9 +721,10 @@ pub fn update_tree_from_bam(
             }
 
             read_name =
-                Some(String::from_utf8(record.qname().to_vec()).expect("cannot parse read name"));
+                Some(String::from_utf8(record.qname().to_vec())?);
+
             seq = record.seq().as_bytes();
-            sequence = Some(String::from_utf8(seq).expect("cannot parse sequence"));
+            sequence = Some(String::from_utf8(seq)?);
 
             if let Some(read_strand) = library_type.get_strand(flag) {
                 for (ref mut exon) in subtree.find_mut((pos_s - 1)..(pos_e + 1)) {
@@ -718,14 +734,14 @@ pub fn update_tree_from_bam(
                         &cig,
                         &read_strand,
                         overhang,
-                        out_file_read_buffer,
+                        out_file_read_buffer, 
                         read_name.clone(),
                         sequence.clone(),
-                        junction_valid,
+                        junction_valid,  
                         valid_j_gene,
                     );
                 }
-            } else {eprintln!("failed to determined strand");}
+            } else {error!("failed to determined strand : {:?} flag:{:?}", read_name, flag);}
         }
     }
     Ok(())
@@ -881,6 +897,7 @@ mod tests_it {
         let x = read_toassign(
             Strand::Minus,
             Some(21681343),
+            Some(21681345),
             Some(ExonType::Donnor),
             21681343,
             21681343 + 188,

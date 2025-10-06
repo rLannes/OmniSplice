@@ -11,7 +11,7 @@ use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::mem;
 use std::sync::Arc;
 use strand_specifier_lib::{LibType, Strand};
-
+use log::{info, debug, error, trace, warn};
 struct ReadtRecord {
     gene_id: String,
     transcript_id: String,

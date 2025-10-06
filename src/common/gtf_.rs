@@ -11,7 +11,7 @@ use std::io::BufRead;
 use std::io::BufReader;
 use strand_specifier_lib::Strand;
 use strand_specifier_lib::{LibType, check_flag};
-
+use log::{info, debug, error, trace, warn};
 
 pub fn get_attr_id(attr: &str, toget: &str) -> Option<String> {
     let mut result: String; 

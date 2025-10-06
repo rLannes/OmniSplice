@@ -1,3 +1,5 @@
+
+
 //use crate::errors::{Error, Result};
 use CigarParser::cigar::CigarError;
 
@@ -28,6 +30,8 @@ pub enum OmniError {
     #[error("ParseIntError error: {0}")]
     ParseIntError(#[from] std::num::ParseIntError),
 
+     #[error("Error converting: {0}")]
+    fromutf8(#[from] std::string::FromUtf8Error),
     //#[error("rust bio error: {0}")]
     //RustBio(#[from] rust_htslib::errors::Error),
 

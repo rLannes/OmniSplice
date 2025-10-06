@@ -26,6 +26,7 @@ use std::fmt::{self, format};
 use std::hash::Hash;
 use std::path::{Path, PathBuf};
 use strand_specifier_lib::{LibType, check_flag};
+use log::{info, debug, error, trace, warn};
 
 fn aln_bw(fa: &str, reference: &str, out_bam: &str) {
     let bowt_child = Command::new("bowtie2")
