@@ -254,19 +254,17 @@ pub fn file_to_table(
     let mut mymap = parse_file(file.as_str());
 
     // ambigious position
-    let invalid_pos = get_invalid_pos(gtf);
+    let invalid_pos = get_invalid_pos(gtf)?;
     //isoform
     let gene_junction_set = get_junction_from_gtf(gtf, &libtype)?;
 
     for (_gene_name, container) in &mut mymap {
 
-        let all_gene_junction = match valid_j_gene.get(_gene_name){
-            Some(x)=> x,
-            None => {
-                        eprintln!("Failed to recover gene junction from the gtf! Cannot recover from that");
-                        return Err(OmniError::GTFParse("failed to recover junction".to_string()))
-                    }
-        };
+
+        let all_gene_junction = valid_j_gene.get(_gene_name)
+                .ok_or(OmniError::GTFParse("failed to recover junction".to_string()))?;
+
+        
         for (_transcript_name, cont) in &mut *container {
             cont.sort();
         }
@@ -387,14 +385,14 @@ fn gtf_to_it(file: &str) -> HashMap<String, IntervalTree<i64, String>> {
     result
 }
 
-fn graph_from_gtf(file: &str) -> HashMap<String, HashMap<Intervall<i64>, HashSet<Intervall<i64>>>> {
+fn graph_from_gtf(file: &str) -> Result<HashMap<String, HashMap<Intervall<i64>, HashSet<Intervall<i64>>>>, OmniError> {
     //  TO remove clutter ca use a hashset to remove identical  exon
     // from same genes
 
     //let file = "genomic.gtf";
     let mut it_dico: HashMap<String, IntervalTree<i64, String>> = gtf_to_it(file);
 
-    let f = File::open(file).unwrap();
+    let f = File::open(file)?;
     let reader = BufReader::new(f);
     let mut this_line: String; //::new();
 
@@ -409,7 +407,7 @@ fn graph_from_gtf(file: &str) -> HashMap<String, HashMap<Intervall<i64>, HashSet
     let mut g: HashMap<String, HashMap<Intervall<i64>, HashSet<Intervall<i64>>>> = HashMap::new();
 
     for line in reader.lines() {
-        this_line = line.unwrap();
+        this_line = line?;
         let spt = this_line.trim().split('\t').collect::<Vec<&str>>();
         if spt.len() < 8 {
             continue;
@@ -420,8 +418,8 @@ fn graph_from_gtf(file: &str) -> HashMap<String, HashMap<Intervall<i64>, HashSet
 
         chr_ = spt[0].to_string();
 
-        start = spt[3].parse::<i64>().unwrap() - 1;
-        end = spt[4].parse::<i64>().unwrap(); //- 1;
+        start = spt[3].parse::<i64>()? - 1;
+        end = spt[4].parse::<i64>()?; //- 1;
 
         if let Some(gene_tmp) = get_attr_id(spt[8], "gene_id") {
             gene_name = gene_tmp;
@@ -447,11 +445,11 @@ fn graph_from_gtf(file: &str) -> HashMap<String, HashMap<Intervall<i64>, HashSet
             }
         }
     }
-    g
+    Ok(g)
 }
 
-fn get_invalid_pos(file: &str) -> HashSet<(String, i64)> {
-    let g = graph_from_gtf(file);
+fn get_invalid_pos(file: &str) -> Result<HashSet<(String, i64)>, OmniError> {
+    let g = graph_from_gtf(file)?;
     let mut seen = HashSet::new();
     let mut inter_vec = Vec::new();
     let mut e1 = 0;
@@ -490,7 +488,8 @@ fn get_invalid_pos(file: &str) -> HashSet<(String, i64)> {
             e1 = inter_vec[0].start;
             if !(inter_vec.iter().all(|x| x.start == e1)) {
                 //println!("{} {:?}", chr_, inter_vec );
-                borne = inter_vec.iter().min_by_key(|x| x.start).unwrap();
+                borne = inter_vec.iter().min_by_key(|x| x.start)
+                        .ok_or(OmniError::Expect("value expected in get_invalid_pos".to_string()))?;
                 for i in &inter_vec {
                     if i == borne {
                         continue;
@@ -503,7 +502,8 @@ fn get_invalid_pos(file: &str) -> HashSet<(String, i64)> {
             e1 = inter_vec[0].end;
             if !(inter_vec.iter().all(|x| x.end == e1)) {
                 //println!("{} {:?}", chr_, inter_vec );
-                borne = inter_vec.iter().max_by_key(|x| x.end).unwrap();
+                borne = inter_vec.iter().max_by_key(|x| x.end)
+                        .ok_or(OmniError::Expect("value expected in get_invalid_pos".to_string()))?;
                 for i in &inter_vec {
                     if i == borne {
                         continue;
@@ -518,5 +518,5 @@ fn get_invalid_pos(file: &str) -> HashSet<(String, i64)> {
         }
     }
 
-    results
+    Ok(results)
 }

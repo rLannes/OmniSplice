@@ -725,7 +725,7 @@ pub fn update_tree_from_bam(
                         valid_j_gene,
                     );
                 }
-            }
+            } else {eprintln!("failed to determined strand");}
         }
     }
     Ok(())
