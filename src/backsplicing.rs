@@ -21,12 +21,12 @@ use crate::common::point::{Point, PointContainer, get_attr_id};
 use crate::common::utils::{ExonType, ReadAssign, read_toassign};
 use itertools::Itertools;
 use lazy_static::lazy_static;
+use log::{debug, error, info, trace, warn};
 use std::cmp::Reverse;
 use std::fmt::{self, format};
 use std::hash::Hash;
 use std::path::{Path, PathBuf};
 use strand_specifier_lib::{LibType, check_flag};
-use log::{info, debug, error, trace, warn};
 
 fn aln_bw(fa: &str, reference: &str, out_bam: &str) {
     let bowt_child = Command::new("bowtie2")
@@ -608,7 +608,7 @@ fn main() {
     let args = Args::parse();
 
     let output_base = args.output_base;
-
+    println!("output will have suffix: {}", &output_base);
     let mut clipped_fasta = PathBuf::from(&output_base);
     clipped_fasta.set_extension("fna");
     let mut bw_bam = PathBuf::from(&output_base);
@@ -644,7 +644,10 @@ fn main() {
     println!("best-map-only option => ignoring: {:?}", to_ignore);
 
     let mut point_cont = get_gtf_clipped(&gtf).expect("Failed to parse GTF"); // transcript is -> point container not optimal but I reuse what exist!
-    let file = File::create_new(output_file).expect("output clipped fasta file should not exist.");
+    let file = File::create_new(&output_file).expect(&format!(
+        "output clipped fasta file should not exist.: {:?}",
+        output_file.clone()
+    ));
     let mut f_out = BufWriter::new(file);
 
     let result = parse_bam(

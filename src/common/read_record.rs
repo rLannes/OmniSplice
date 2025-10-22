@@ -4,6 +4,7 @@ use crate::common::gtf_::{get_attr_id, get_junction_from_gtf};
 use crate::common::utils::{ExonType, ReadAssign};
 use bio::data_structures::interval_tree::IntervalTree;
 use clap::builder::Str;
+use log::{debug, error, info, trace, warn};
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::hash::Hash;
@@ -11,7 +12,6 @@ use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::mem;
 use std::sync::Arc;
 use strand_specifier_lib::{LibType, Strand};
-use log::{info, debug, error, trace, warn};
 struct ReadtRecord {
     gene_id: String,
     transcript_id: String,
@@ -259,12 +259,10 @@ pub fn file_to_table(
     let gene_junction_set = get_junction_from_gtf(gtf, &libtype)?;
 
     for (_gene_name, container) in &mut mymap {
+        let all_gene_junction = valid_j_gene.get(_gene_name).ok_or(OmniError::GTFParse(
+            "failed to recover junction".to_string(),
+        ))?;
 
-
-        let all_gene_junction = valid_j_gene.get(_gene_name)
-                .ok_or(OmniError::GTFParse("failed to recover junction".to_string()))?;
-
-        
         for (_transcript_name, cont) in &mut *container {
             cont.sort();
         }
@@ -385,7 +383,9 @@ fn gtf_to_it(file: &str) -> HashMap<String, IntervalTree<i64, String>> {
     result
 }
 
-fn graph_from_gtf(file: &str) -> Result<HashMap<String, HashMap<Intervall<i64>, HashSet<Intervall<i64>>>>, OmniError> {
+fn graph_from_gtf(
+    file: &str,
+) -> Result<HashMap<String, HashMap<Intervall<i64>, HashSet<Intervall<i64>>>>, OmniError> {
     //  TO remove clutter ca use a hashset to remove identical  exon
     // from same genes
 
@@ -488,8 +488,12 @@ fn get_invalid_pos(file: &str) -> Result<HashSet<(String, i64)>, OmniError> {
             e1 = inter_vec[0].start;
             if !(inter_vec.iter().all(|x| x.start == e1)) {
                 //println!("{} {:?}", chr_, inter_vec );
-                borne = inter_vec.iter().min_by_key(|x| x.start)
-                        .ok_or(OmniError::Expect("value expected in get_invalid_pos".to_string()))?;
+                borne = inter_vec
+                    .iter()
+                    .min_by_key(|x| x.start)
+                    .ok_or(OmniError::Expect(
+                        "value expected in get_invalid_pos".to_string(),
+                    ))?;
                 for i in &inter_vec {
                     if i == borne {
                         continue;
@@ -502,8 +506,12 @@ fn get_invalid_pos(file: &str) -> Result<HashSet<(String, i64)>, OmniError> {
             e1 = inter_vec[0].end;
             if !(inter_vec.iter().all(|x| x.end == e1)) {
                 //println!("{} {:?}", chr_, inter_vec );
-                borne = inter_vec.iter().max_by_key(|x| x.end)
-                        .ok_or(OmniError::Expect("value expected in get_invalid_pos".to_string()))?;
+                borne = inter_vec
+                    .iter()
+                    .max_by_key(|x| x.end)
+                    .ok_or(OmniError::Expect(
+                        "value expected in get_invalid_pos".to_string(),
+                    ))?;
                 for i in &inter_vec {
                     if i == borne {
                         continue;

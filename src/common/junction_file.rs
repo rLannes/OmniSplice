@@ -151,7 +151,7 @@ impl Junction {
     }
 }
 
-pub fn junction_file_from_table(table_file: &str, junction_file: &str) -> Result<(), OmniError>{
+pub fn junction_file_from_table(table_file: &str, junction_file: &str) -> Result<(), OmniError> {
     let mut out_file_open =
         File::create_new(junction_file.clone()) //presorted out_file.clone()
             .unwrap_or_else(|_| panic!("output file {} should not exist.", &junction_file)); //expect(&format!("output file {} should not exist.", &table));

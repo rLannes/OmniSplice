@@ -1,5 +1,6 @@
 use clap::{ArgAction, Command, Parser, arg, command, value_parser};
 use core::panic;
+use log::{debug, error, info, trace, warn};
 use std::collections::{HashMap, HashSet};
 use std::ffi::OsStr;
 use std::fmt::format;
@@ -13,13 +14,13 @@ use std::path::{Path, PathBuf};
 use std::process::{Command as Std_Command, Stdio};
 use std::str::FromStr;
 use strand_specifier_lib::Strand;
-use log::{info, debug, error, trace, warn};
 pub enum SplicingChoice {
     Spliced(usize),
     Unspliced(usize),
     Clipped(usize),
     ExonOther(usize),
     Skipped(usize),
+    SkippedUnrelated(usize),
     WrongStrand(usize),
     Isoform(usize),
 }
@@ -37,8 +38,9 @@ impl FromStr for SplicingChoice {
             "clipped" => Ok(SplicingChoice::Clipped(10)),
             "exon_other" => Ok(SplicingChoice::ExonOther(11)),
             "skipped" => Ok(SplicingChoice::Skipped(12)),
-            "wrong_strand" => Ok(SplicingChoice::WrongStrand(13)),
-            "isoform" => Ok(SplicingChoice::Isoform(14)),
+            "skipped_unrelated" => Ok(SplicingChoice::Skipped(13)),
+            "wrong_strand" => Ok(SplicingChoice::WrongStrand(14)),
+            "isoform" => Ok(SplicingChoice::Isoform(15)),
             _ => Err(SplicingChoiceError),
         }
     }
@@ -52,6 +54,7 @@ impl SplicingChoice {
             SplicingChoice::Clipped(n) => *n,
             SplicingChoice::ExonOther(n) => *n,
             SplicingChoice::Skipped(n) => *n,
+            SplicingChoice::SkippedUnrelated(n) => *n,
             SplicingChoice::WrongStrand(n) => *n,
             SplicingChoice::Isoform(n) => *n,
         }
@@ -184,13 +187,15 @@ pub fn to_se_from_junction(
     unspliced_def: Vec<String>,
 ) -> () {
     let mut hashid: HashMap<usize, &str> = HashMap::new();
+
     hashid.insert(8, "spliced");
     hashid.insert(9, "unspliced");
     hashid.insert(10, "clipped");
     hashid.insert(11, "E_other");
     hashid.insert(12, "skipped");
-    hashid.insert(13, "wrongStrand");
-    hashid.insert(14, "E_Isoform");
+    hashid.insert(13, "skipped_unrelated");
+    hashid.insert(14, "wrongStrand");
+    hashid.insert(15, "E_Isoform");
 
     let g1: Vec<usize> = spliced_def
         .iter()
@@ -435,7 +440,7 @@ struct Args {
     output: String,
     /// space separated list the column to use for "unspliced" for the splicing defect table.
     /// you can regenrate this using the splicing_efficiency exe
-    /// What to consider as unspliced? spliced, unspliced, clipped, exon_other, skipped,
+    /// What to consider as unspliced? spliced, unspliced, clipped, exon_other, skipped, skipped_unrelated
     /// wrong_strand, isoform\n
     /// by default only use "-u unspliced" ->  unspliced (readthrough) reads \n
     /// to use unspliced and clipped : "-u unspliced clipped"

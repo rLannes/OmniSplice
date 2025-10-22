@@ -1,10 +1,10 @@
 #![allow(unused)]
+use clap::CommandFactory;
 use clap::Parser;
 
 use CigarParser::cigar::Cigar;
-use rust_htslib::bam::{IndexedReader, Read};
-use strand_specifier_lib::{LibType, check_flag};
 use rust_htslib::bam::record::Record;
+use rust_htslib::bam::{IndexedReader, Read};
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::default;
@@ -14,6 +14,7 @@ use std::fs::File;
 use std::hash::Hash;
 use std::io::BufWriter;
 use std::io::prelude::*;
+use strand_specifier_lib::{LibType, check_flag};
 
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
@@ -21,16 +22,15 @@ use std::str::FromStr;
 use std::sync::Arc;
 mod common;
 use common::error::OmniError;
+use common::it_intron::dump_tree_into_raw_exon_junction;
 use std::convert::From;
 use std::fs;
 use std::str;
 
-
 use bio::data_structures::interval_tree::IntervalTree;
 
-
-use log::{info, debug, error, trace, warn};
-use flexi_logger::{Logger, FileSpec, WriteMode};
+use flexi_logger::{FileSpec, Logger, WriteMode};
+use log::{debug, error, info, trace, warn};
 
 //use crate::common::utils::ReadAssign;
 use crate::common::gtf_::{
@@ -113,8 +113,8 @@ struct Args {
 
 /// This run the core of the program, will parse a gtf and a bam file and write a category file and if requested a read file.
 fn main_loop(
-    output: String,
-    out_j: String,
+    //output: String,
+    //out_j: String,
     gtf: String,
     bam_input: String,
     overhang: i64,
@@ -126,8 +126,6 @@ fn main_loop(
     gtf_hashmap: &HashMap<String, HashMap<String, Vec<Exon>>>,
     valid_j_gene: &HashMap<String, HashSet<(i64, i64)>>,
 ) -> Result<HashMap<String, IntervalTree<i64, TreeDataIntron>>, OmniError> {
-
-
     info!("Launching the main loop parsing the bam.");
     let bam_file = bam_input;
 
@@ -139,7 +137,6 @@ fn main_loop(
     /// TODO duplication here! done that do in MAIN!
     let junction_ambi = get_invalid_pos(&gtf_file)?;
     let junction_ = get_junction_from_gtf(&gtf_file, &librairy_type)?;
-
 
     update_tree_from_bam(
         &mut hash_tree,
@@ -155,7 +152,6 @@ fn main_loop(
     );
 
     return Ok(hash_tree);
-
 
     /*
     let junction_order: Vec<SplicingEvent> = vec![
@@ -178,45 +174,64 @@ fn main_loop(
     junction_ambigious: HashSet<(String, i64, i64)>,
     junction_order: Vec<SplicingEvent>, */
     output_write_read_handle.flush();
-    
+
     Ok(())*/
 }
 
-fn main() -> Result<(), Box<dyn Error>>  {
-
+fn main() -> Result<(), Box<dyn Error>> {
     let args = Args::parse();
 
     match args.libtype {
         LibType::Invalid => panic!("invalid librairy type"),
         _ => (),
     }
-    let mut output_file_prefix = args.output_file_prefix;
+    let mut output_file_prefix = args.output_file_prefix.clone();
 
-    let table = format!("{}{}", output_file_prefix, ".exons");
-    let output = format!("{}{}", output_file_prefix, ".raw");
+    let out_exons = format!("{}{}", output_file_prefix, ".exons");
+    let out_raw = format!("{}{}", output_file_prefix, ".raw");
     let splicing_defect = format!("{}{}", output_file_prefix, ".sd");
-    let junction_file = format!("{}{}", output_file_prefix, ".junctions");
+    let out_junction = format!("{}{}", output_file_prefix, ".junctions");
     let log_file = format!("{}{}", output_file_prefix, ".log");
 
     let mut clipped = false;
-    
-    let intermediate = output_file_prefix.to_owned();
-    let m =  Path::new(&intermediate);
 
-    Arc::new(Logger::try_with_str(&args.log_level)?             // set the default log level
+    let intermediate = output_file_prefix.to_owned();
+    let m = Path::new(&intermediate);
+
+    let mut log_dir = m.parent().unwrap().to_str().unwrap().to_string();
+    if log_dir.is_empty() {
+        log_dir = "./".to_string();
+    }
+    println!("logging to directory : {} ", log_dir);
+    Arc::new(
+        Logger::try_with_str(&args.log_level)? // set the default log level
             .log_to_file(
                 FileSpec::default()
-                .directory(m.parent().unwrap().to_str().unwrap().to_string())          // create files in folder ./log_files
-                .basename(m.file_stem().unwrap().to_str().unwrap().to_string())
-                .discriminant("OmniSplice")     // use infix in log file name
-                .suffix("log")   
-            ) 
-        .write_mode(WriteMode::Async) 
-        //.format(my_formatter)                  // optional custom format 
-        .write_mode(WriteMode::SupportCapture)
-        .start()
-        .expect("Failed to initialise logger")
+                    .directory(log_dir) //m.parent().unwrap().to_str().unwrap().to_string())          // create files in folder ./log_files
+                    .basename(m.file_stem().unwrap().to_str().unwrap().to_string())
+                    .discriminant("OmniSplice") // use infix in log file name
+                    .suffix("log"),
+            )
+            .write_mode(WriteMode::Async)
+            //.format(my_formatter)                  // optional custom format
+            .write_mode(WriteMode::SupportCapture)
+            .start()
+            .expect("Failed to initialise logger"),
     );
+    info!("ARGS:");
+    info!("\tInput file: {}", args.input);
+    info!("\tOutput prefix: {}", args.output_file_prefix.clone());
+    info!("\tGTF file: {}", args.gtf);
+    info!("\tOverhang: {}", args.overhang);
+    info!("\tFlag in: {}", args.flag_in);
+    info!("\tFlag out: {}", args.flag_out);
+    info!("\tMAPQ: {}", args.mapq);
+    info!("\tReads to write: {:?}", args.readToWrite);
+    info!("\tUnspliced def: {:?}", args.unspliced_def);
+    info!("\tSpliced def: {:?}", args.spliced_def);
+    info!("\tLibrary type: {:?}", args.libtype);
+    info!("\tLog level: {}", args.log_level);
+    info!("END ARGS:");
 
     let header_reads_handle = "read_name\tcig\tflag\taln_start\tread_assign\tfeature.pos\tnext_exon\tfeature.exon_type\tfeature.strand\tsequence\n".as_bytes(); //.expect("Unable to write file");
     let mut read_out_handle = ReadToWriteHandle::new();
@@ -228,18 +243,17 @@ fn main() -> Result<(), Box<dyn Error>>  {
     );
 
     info!("Parsing gtf file.");
-    info!("Getting all invalid position");
-    let ambigious_position = get_invalid_pos(&args.gtf.clone());
+    info!("Getting all ambigious position");
+    let ambigious_position = get_invalid_pos(&args.gtf.clone())?;
 
-    let gtf_hashmap = gtf_to_hashmap(&args.gtf.clone()).expect("failed to parse gtf");    
+    let gtf_hashmap = gtf_to_hashmap(&args.gtf.clone()).expect("failed to parse gtf");
     info!("getting all valid junction to identify isoform");
     let valid_j_gene = get_all_junction_for_a_gene(&gtf_hashmap)
-            .map_err(|e| format!("failed to get all junctions for genes must abort: {e}"))?;
+        .map_err(|e| format!("failed to get all junctions for genes must abort: {e}"))?;
 
-
-    main_loop(
-        output.clone(),
-        junction_file.clone(),
+    let tree = main_loop(
+        // output.clone(),
+        //  junction_file.clone(),
         args.gtf.clone(),
         args.input,
         args.overhang,
@@ -250,7 +264,7 @@ fn main() -> Result<(), Box<dyn Error>>  {
         args.libtype,
         &gtf_hashmap,
         &valid_j_gene,
-    );
+    )?;
 
     info!("main loop ended writting results");
 
@@ -265,7 +279,16 @@ fn main() -> Result<(), Box<dyn Error>>  {
         SplicingEvent::Isoform,
     ];
 
-    let file = File::create_new(table.clone())
+    dump_tree_into_raw_exon_junction(
+        &tree,
+        &out_raw,
+        &out_exons,
+        &out_junction,
+        &ambigious_position,
+        &junction_order,
+    )?;
+
+    /*let file = File::create_new(table.clone())
     .map_err(|e| OmniError::OutputExists(table.clone(), e))?;
 
 
@@ -278,11 +301,11 @@ fn main() -> Result<(), Box<dyn Error>>  {
         args.gtf.as_str(),
         args.libtype,
         &valid_j_gene,
-    );
+    );*/
 
     //junction_file_from_table(&table, &junction_file);
     splicing_efficiency::to_se_from_junction(
-        &junction_file.clone(),
+        &out_junction.clone(),
         &splicing_defect,
         args.spliced_def,
         args.unspliced_def,

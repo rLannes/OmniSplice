@@ -2,6 +2,7 @@ use CigarParser::cigar::Cigar;
 use bio::bio_types::annot::spliced::Spliced;
 use clap::builder::Str;
 use lazy_static::lazy_static;
+use log::{debug, error, info, trace, warn};
 use regex::Regex;
 use std::cmp::Ordering;
 use std::collections::HashMap;
@@ -14,7 +15,6 @@ use std::io::BufWriter;
 use std::io::Write;
 use std::str::FromStr;
 use strand_specifier_lib::Strand;
-use log::{info, debug, error, trace, warn};
 
 #[derive(Debug)]
 pub struct Intervall {
@@ -407,9 +407,8 @@ impl SplicingEvent {
             (Some(SplicingEvent::Clipped), _) | (_, Some(SplicingEvent::Clipped)) => {
                 Some(SplicingEvent::Clipped)
             }
-            (Some(SplicingEvent::SkippedUnrelated), _) | (_, Some(SplicingEvent::SkippedUnrelated)) => {
-                Some(SplicingEvent::SkippedUnrelated)
-            }
+            (Some(SplicingEvent::SkippedUnrelated), _)
+            | (_, Some(SplicingEvent::SkippedUnrelated)) => Some(SplicingEvent::SkippedUnrelated),
             (Some(SplicingEvent::WrongStrand), Some(SplicingEvent::WrongStrand)) => {
                 Some(SplicingEvent::WrongStrand)
             }
@@ -473,7 +472,6 @@ impl SplicingEvent {
         }
     }
 }
-
 
 #[derive(Clone, Debug, Copy, Eq, Hash, PartialEq)]
 pub enum ReadAssign {
@@ -575,7 +573,7 @@ impl From<&str> for ReadAssign {
                         .parse::<i64>()
                         .expect("failed to parse junction"),
                 )
-            },
+            }
             s if s.starts_with("Skipped") => {
                 let v = reg_junction.captures(&s).unwrap();
                 ReadAssign::Skipped(
@@ -621,8 +619,7 @@ pub fn out_of_range(feature: i64, aln_start: i64, aln_end: i64, overhang: i64) -
     false
 }
 
-
-/// Return Wrong Strand or None if Strand is NA return None. 
+/// Return Wrong Strand or None if Strand is NA return None.
 pub fn test_wrong_strand(read_strand: &Strand, feature_strand: &Strand) -> Option<ReadAssign> {
     match read_strand {
         Strand::NA => (None),
@@ -636,9 +633,12 @@ pub fn test_wrong_strand(read_strand: &Strand, feature_strand: &Strand) -> Optio
     }
 }
 
-
-
-fn test_skipped(cigar: &Cigar, aln_start: i64, feature_pos: i64, feature_bis: Option<i64>) -> Option<ReadAssign> {
+fn test_skipped(
+    cigar: &Cigar,
+    aln_start: i64,
+    feature_pos: i64,
+    feature_bis: Option<i64>,
+) -> Option<ReadAssign> {
     let junction = cigar.get_skipped_pos_on_ref(aln_start);
     if let Some(y) = junction {
         if let Some(i) = y
@@ -647,12 +647,13 @@ fn test_skipped(cigar: &Cigar, aln_start: i64, feature_pos: i64, feature_bis: Op
             .step_by(2)
             .find(|&(ref i, &x)| (x < feature_pos) & (y[i + 1] > feature_pos))
         {
-            if feature_bis.is_some(){
-                let (start, end) = match feature_pos.cmp(&feature_bis.unwrap()){ // cannot failed tested just before
+            if feature_bis.is_some() {
+                let (start, end) = match feature_pos.cmp(&feature_bis.unwrap()) {
+                    // cannot failed tested just before
                     Ordering::Less | Ordering::Equal => (feature_pos, feature_bis.unwrap()), // cannot failed tested just before
-                    Ordering::Greater => (feature_bis.unwrap(), feature_pos) // cannot failed tested just before
+                    Ordering::Greater => (feature_bis.unwrap(), feature_pos), // cannot failed tested just before
                 };
-                if cigar.does_it_overlap_an_intervall(aln_start, start, end){ 
+                if cigar.does_it_overlap_an_intervall(aln_start, start, end) {
                     return Some(ReadAssign::Skipped(*i.1, y[i.0 + 1]));
                 }
             }
@@ -661,8 +662,6 @@ fn test_skipped(cigar: &Cigar, aln_start: i64, feature_pos: i64, feature_bis: Op
     }
     None
 }
-
-
 
 pub fn read_toassign(
     feature_strand: Strand,
@@ -676,16 +675,17 @@ pub fn read_toassign(
     read_strand: &Strand,
     overhang: i64,
 ) -> Result<Option<ReadAssign>, OmniError> {
-
     if feature_pos.is_none() {
         return Ok(None);
     }
 
-    let feature_pos = feature_pos
-            .ok_or(OmniError::Expect("Expected a value for featurePos got None".to_string()))?;
-    let feature_exontype = feature_exontype
-            .ok_or(OmniError::Expect("Expected a value for feature_exontype got None".to_string()))?;
-    /// sanity check 
+    let feature_pos = feature_pos.ok_or(OmniError::Expect(
+        "Expected a value for featurePos got None".to_string(),
+    ))?;
+    let feature_exontype = feature_exontype.ok_or(OmniError::Expect(
+        "Expected a value for feature_exontype got None".to_string(),
+    ))?;
+    /// sanity check
     if out_of_range(feature_pos, aln_start, aln_end, overhang) {
         return Ok(None);
     }
@@ -762,7 +762,7 @@ pub fn read_toassign(
                         return Ok(Some(ReadAssign::OverhangFail));
                     }
                     return Ok(Some(ReadAssign::ReadJunction(j[p], j[p + 1])));
-                },
+                }
 
                 (Some(p), Strand::Plus, ExonType::Acceptor)
                 | (Some(p), Strand::Minus, ExonType::Donnor) => {
@@ -775,7 +775,7 @@ pub fn read_toassign(
                         return Ok(Some(ReadAssign::OverhangFail));
                     }
                     return Ok(Some(ReadAssign::ReadJunction(j[p - 1], j[p])));
-                },
+                }
                 (_, _, _) => {
                     if let Some(i) = j
                         .iter()
@@ -787,14 +787,27 @@ pub fn read_toassign(
                         // j, aln_start ,aln_end, cigar, read_strand, feature_strand, feature_pos, feature_exontype, overhang);
                         return Ok(Some(ReadAssign::Skipped(*i.1, j[i.0 + 1])));
                     } else {
+                        // TODO this should be in the overhang?
+                        // right now this is overhang 0 edge case.
+                        if (aln_start == feature_pos) | (aln_end == feature_pos) {
+                            return Ok(None);
+                        }
                         //println!("Unexp: {:?} {:?} {:?} {:?} {:?} {:?} {:?} {:?} {:?}",\
                         // j, aln_start ,aln_end, cigar, read_strand, feature_strand, feature_pos, feature_exontype, overhang);
+                        warn!(
+                            "read unexpected alignment -> cigar:{:?} feature_strand:{:?}, read_strand: {:?}, feature_pos:{:?}, aln_start:{:?}, aln_end:{:?}",
+                            cigar, feature_strand, read_strand, feature_pos, aln_start, aln_end
+                        );
                         return Ok(Some(ReadAssign::Unexpected));
                     }
-                },
+                }
             }
         }
         None => {
+            warn!(
+                "read unexpected alignment -> cigar:{:?} feature_strand:{:?}, read_strand: {:?}, feature_pos:{:?}, aln_start:{:?}, aln_end:{:?}",
+                cigar, feature_strand, read_strand, feature_pos, aln_start, aln_end
+            );
             return Ok(Some(ReadAssign::Unexpected));
         }
     }
@@ -902,11 +915,31 @@ mod tests_it {
         println!("{:?}", cigar.get_skipped_pos_on_ref(aln_start));
         assert_eq!(true, true);
     }
-} //21589349, 21589613
 
-/*pub fn test_wrong_strand(read_strand: &Strand, feature_strand: &Strand) -> Option<ReadAssign>{
-    if (read_strand != feature_strand) & (read_strand != &Strand::NA){
-        return Some(ReadAssign::WrongStrand);
+    #[test]
+    fn test_read_toassign() {
+        let aln_start = 21597482;
+        let feature_pos = 21611098;
+        let overhang = 5;
+
+        let x = read_toassign(
+            Strand::Minus,
+            Some(5334258),
+            Some(5334402),
+            Some(ExonType::Donnor),
+            5333978,
+            5334283,
+            &Cigar::from("225M55N26M"),
+            &Strand::Minus,
+            1,
+        );
+
+        info!("read assign {:?}", x);
+        println!("read assign {:?}", x);
+
+        let y = Cigar::from("225M55N26M").get_skipped_pos_on_ref(5333978);
+        println!(" {:?}", y);
+
+        assert_eq!(true, true);
     }
-    return None
-} */
+} //21589349, 21589613

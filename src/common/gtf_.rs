@@ -1,8 +1,9 @@
-use crate::common::utils::Exon;
 use crate::common::error::OmniError;
+use crate::common::utils::Exon;
 use CigarParser::cigar::{Cigar, CigarError};
 use bio::data_structures::interval_tree::IntervalTree;
 use itertools::Itertools;
+use log::{debug, error, info, trace, warn};
 use std::collections::{HashMap, HashSet};
 use std::error::Error;
 use std::fs::{File, OpenOptions};
@@ -11,10 +12,9 @@ use std::io::BufRead;
 use std::io::BufReader;
 use strand_specifier_lib::Strand;
 use strand_specifier_lib::{LibType, check_flag};
-use log::{info, debug, error, trace, warn};
 
 pub fn get_attr_id(attr: &str, toget: &str) -> Option<String> {
-    let mut result: String; 
+    let mut result: String;
     let x = attr.split(';').collect::<Vec<&str>>();
     for e in x {
         let spl = e.trim().split(' ').collect::<Vec<&str>>();
@@ -34,15 +34,15 @@ pub fn gtf_to_hashmap(
 
     let f = File::open(gtf_file)?;
     let reader = BufReader::new(f);
-    let mut this_line: String; 
+    let mut this_line: String;
 
-    let mut chr_: String; 
-    let mut start: i64; 
-    let mut end: i64; 
+    let mut chr_: String;
+    let mut start: i64;
+    let mut end: i64;
     let mut strand: Strand;
 
-    let mut gene_name: String; 
-    let mut transcript_id: String; 
+    let mut gene_name: String;
+    let mut transcript_id: String;
     let mut spt: Vec<&str> = Vec::new();
 
     for line in reader.lines() {
@@ -92,7 +92,10 @@ pub fn gtf_to_hashmap(
 }
 
 //TODO likely will need refactor
-pub fn get_junction_from_gtf(file: &str, libtype: &LibType) -> Result<HashMap<(String, i64, i64), Strand>, OmniError> {
+pub fn get_junction_from_gtf(
+    file: &str,
+    libtype: &LibType,
+) -> Result<HashMap<(String, i64, i64), Strand>, OmniError> {
     let f = File::open(file)?;
     let reader = BufReader::new(f);
     let mut this_line: String;
@@ -214,13 +217,13 @@ pub fn get_all_junction_for_a_gene(
             if tmp.len() > 1 {
                 tmp.sort_by(|x, y| x.cmp(&y));
                 for i in 0..=(tmp.len() - 2) {
-
-
-
                     res.get_mut(gene)
-                        .ok_or_else(|| OmniError::Expect("gene unfound in hashmap, cannot recover from this".to_string()))?
+                        .ok_or_else(|| {
+                            OmniError::Expect(
+                                "gene unfound in hashmap, cannot recover from this".to_string(),
+                            )
+                        })?
                         .insert((tmp[i].1, tmp[i + 1].0));
-
                 }
             }
             tmp.clear();
@@ -297,7 +300,9 @@ fn gtf_to_it(file: &str) -> Result<HashMap<String, IntervalTree<i64, String>>, O
     Ok(result)
 }
 
-fn graph_from_gtf(file: &str) -> Result<HashMap<String, HashMap<Intervall<i64>, HashSet<Intervall<i64>>>>, OmniError> {
+fn graph_from_gtf(
+    file: &str,
+) -> Result<HashMap<String, HashMap<Intervall<i64>, HashSet<Intervall<i64>>>>, OmniError> {
     //  TO remove clutter ca use a hashset to remove identical  exon
     // from same genes
 
@@ -404,8 +409,12 @@ pub fn get_invalid_pos(file: &str) -> Result<HashSet<(String, i64)>, OmniError> 
             e1 = inter_vec[0].start;
             if !(inter_vec.iter().all(|x| x.start == e1)) {
                 //println!("{} {:?}", chr_, inter_vec );
-                borne = inter_vec.iter().min_by_key(|x| x.start)
-                    .ok_or( OmniError::Expect("get invalid pos expecting value".to_string()))?;
+                borne = inter_vec
+                    .iter()
+                    .min_by_key(|x| x.start)
+                    .ok_or(OmniError::Expect(
+                        "get invalid pos expecting value".to_string(),
+                    ))?;
 
                 for i in &inter_vec {
                     if i == borne {
@@ -419,8 +428,12 @@ pub fn get_invalid_pos(file: &str) -> Result<HashSet<(String, i64)>, OmniError> 
             e1 = inter_vec[0].end;
             if !(inter_vec.iter().all(|x| x.end == e1)) {
                 //println!("{} {:?}", chr_, inter_vec );
-                borne = inter_vec.iter().max_by_key(|x| x.end)
-                .ok_or( OmniError::Expect("get invalid pos expecting value".to_string()))?;
+                borne = inter_vec
+                    .iter()
+                    .max_by_key(|x| x.end)
+                    .ok_or(OmniError::Expect(
+                        "get invalid pos expecting value".to_string(),
+                    ))?;
                 for i in &inter_vec {
                     if i == borne {
                         continue;

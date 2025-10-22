@@ -5,6 +5,7 @@ use crate::common::utils::{
     Exon, ExonType, ReadAssign, ReadToWriteHandle, SplicingEvent, read_toassign,
 };
 
+use clap::builder::Str;
 use CigarParser::cigar::Cigar;
 use bio::alignment::sparse::HashMapFx;
 use bio::bio_types::annot::contig;
@@ -102,6 +103,11 @@ impl TreeDataIntron {
         self.write_to_read_file(start_map, out_file_read_buffer, false, &seq, &r_name, cigar);
         TreeDataIntron::update_counter(&mut self.counter_start, start_map);
 
+        match start_map{
+            Some(ReadAssign::Unexpected) => {warn!("unexpected: contig {} gene: {}", self.contig, self.gene_name)}
+            _ =>()
+        };
+
         let end_map = read_toassign(
             self.strand,
             self.end,
@@ -117,6 +123,10 @@ impl TreeDataIntron {
         TreeDataIntron::update_counter(&mut self.counter_end, end_map);
         self.write_to_read_file(end_map, out_file_read_buffer, true, &seq, &r_name, cigar);
 
+        match end_map{
+            Some(ReadAssign::Unexpected) => {warn!("unexpected: contig {} gene: {}", self.contig, self.gene_name)}
+            _ =>()
+        };
 
 
         match (
@@ -450,20 +460,6 @@ impl TreeDataIntron {
         };
 
 
-/*    gene_name: String,
-    transcript_intron: Vec<(String, i32)>,
-
-    start_bis: Option<i64>,
-    start: Option<i64>,
-    end: Option<i64>,
-    end_bis: Option<i64>,
-
-    strand: Strand,
-    contig: String,
-    start_type: Option<ExonType>,
-    end_type: Option<ExonType>,
-*/
-
         // Contig Gene Transcript Exon_number Exon_type Position Next Strand Ambiguous
       
     if end == true{
@@ -481,11 +477,11 @@ impl TreeDataIntron {
                 match self.end_type{
                     Some(ExonType::Acceptor) => *intron + 1,
                     Some(ExonType::Donnor) => *intron,
-                    None => {error!("expected value for end type found None"); return Err(OmniError::Expect("value expected None found".to_string()))}
+                    None => {error!("expected value for end type found None"); return Err(OmniError::Expect("value expected for self end type None found".to_string()))}
                 },
-                self.end_type.ok_or(OmniError::Expect("value expected None found".to_string()))?,
-                self.end.ok_or(OmniError::Expect("value expected None found".to_string()))?,
-                self.start.ok_or(OmniError::Expect("value expected None found".to_string()))?,
+                self.end_type.ok_or_else(|| {error!("expected value for end type found None"); OmniError::Expect("value expected None found".to_string())})?,
+                self.end.ok_or_else(|| {error!("expected value for end found None"); OmniError::Expect("value expected None found".to_string())})?,
+                self.start.unwrap_or(0),//ok_or(|| {error!("expected value for start found None"); OmniError::Expect("value expected None found".to_string())})?,
                 self.strand,
                 ambigious.to_string()
             ));
@@ -507,9 +503,9 @@ impl TreeDataIntron {
                     Some(ExonType::Donnor) => *intron,
                     None => {error!("expected value for start type found None"); return Err(OmniError::Expect("value expected None found".to_string()))}
                 },
-                self.start_type.ok_or(OmniError::Expect("value expected None found".to_string()))?,
-                self.start.ok_or(OmniError::Expect("value expected None found".to_string()))?,
-                self.end.ok_or(OmniError::Expect("value expected None found".to_string()))?,
+                self.start_type.ok_or_else(|| {error!("expected value for start type found None"); OmniError::Expect("value expected None found".to_string())})?,
+                self.start.ok_or_else(|| {error!("expected value for start position found None"); OmniError::Expect("value expected None found".to_string())})?,
+                self.end.unwrap_or(0),
                 
                 self.strand,
                 ambigious.to_string()
@@ -545,7 +541,6 @@ impl TreeDataIntron {
                 for (assign, value) in &self.counter_start {
                     for base in &base_vec {
                         results.push(format!("{}\t{}\t{}", base, assign, value))
-                        //base.push_str(&format!("\t{}\t{}", assign, value))
                     }
                 }
             }
@@ -557,6 +552,7 @@ impl TreeDataIntron {
 
 /// we reads a gtf to generate an interval tree
 /// HASHMAP(contig) -> IT(intron(start, end)) -> TreeDataIntron
+/// TODO need fix!
 pub fn interval_tree_from_gtfmap(
     gtf_map: &HashMap<String, HashMap<String, Vec<Exon>>>,
 ) -> Result<HashMap<String, interval_tree::IntervalTree<i64, TreeDataIntron>>, Box<dyn Error>> {
@@ -584,13 +580,13 @@ pub fn interval_tree_from_gtfmap(
                 .collect::<Vec<&Exon>>();
 
             let mut cpt = 0;
-                let mut start_ = Some(0);
-                let mut end_ = Some(0);
-                let mut start_b = Some(0);
-                let mut end_b_ = Some(0);
-                let mut start_i = 0;
-                let mut end_i = 0;
-                let mut s = 0;
+            let mut start_ = Some(0);
+            let mut end_ = Some(0);
+            let mut start_b = Some(0);
+            let mut end_b_ = Some(0);
+            let mut start_i = 0;
+            let mut end_i = 0;
+            let mut s = 0;
 
             while cpt < exons.len() {
                 let mut end_type = Some(ExonType::Acceptor);
@@ -607,6 +603,7 @@ pub fn interval_tree_from_gtfmap(
 
 
                 if cpt == 0 {
+
                     start_i = exons[cpt].start - 1;
                     end_i = exons[cpt].start + 1;
                     end_ = Some(exons[cpt].start);
@@ -614,7 +611,8 @@ pub fn interval_tree_from_gtfmap(
                     start_type = None;
                     start_ = None;
                     start_b = None;
-
+                    // TODO ! That depend on the strand!!!
+                    //if (strand == Strand::Plus) | (strand == Strand::NA) {
                     update_tree(
                         &mut results,
                         &contig,
@@ -629,8 +627,13 @@ pub fn interval_tree_from_gtfmap(
                         tr_id.clone(),
                         start_type,
                         end_type,
-                        Some(0),
+                match &strand {
+                            Strand::Minus => Some(1000),
+                            _ => Some(0)
+                        },
                     );
+                
+
                 } else if cpt == exons.len() - 1 {
                     start_i = exons[cpt].end;
                     end_i = exons[cpt].end + 1;
@@ -654,7 +657,10 @@ pub fn interval_tree_from_gtfmap(
                         tr_id.clone(),
                         start_type,
                         end_type,
-                        Some(1000),
+                        match &strand {
+                            Strand::Minus => Some(0),
+                            _ => Some(1000)
+                        }
                     );
                     cpt += 1;
                     continue;
@@ -830,7 +836,7 @@ pub fn update_tree_from_bam(
             cig = match Cigar::from_str(&record.cigar().to_string()) {
                 Ok(c) => c,
                 Err(_) => {
-                    error!("unproper CigarString skipping this reads");
+                    warn!("unproper CigarString skipping this reads");
                     continue;
                 }
             };
@@ -864,7 +870,7 @@ pub fn update_tree_from_bam(
                         valid_j_gene,
                     );
                 }
-            } else {error!("failed to determined strand : {:?} flag:{:?}", read_name, flag);}
+            } else {warn!("failed to determined strand : {:?} flag:{:?}", read_name, flag);}
         }
     }
     Ok(())
@@ -926,6 +932,8 @@ pub fn dump_tree_into_raw_exon_junction(
 
     {
 
+        info!("creating presorted file");
+
         let file_raw =
                 File::create_new(presorted_raw.clone()).map_err(|e| OmniError::Expect("output file should not exist".to_string()))?;
         let mut stream_raw = BufWriter::new(file_raw);
@@ -938,7 +946,9 @@ pub fn dump_tree_into_raw_exon_junction(
                 File::create_new(presorted_exons.clone()).map_err(|e| OmniError::Expect("output file should not exist".to_string()))?;
         let mut stream_exons = BufWriter::new(file_exons);
 
+        
         for (contig, subtree) in hash_tree {
+            info!("writting info for contig: {}", contig);
             // get ALL entry
             for node in subtree.find(i64::MIN..i64::MAX) {
                 if node.data().start.is_some() {
@@ -974,9 +984,16 @@ pub fn dump_tree_into_raw_exon_junction(
     }
 
     info!("sorting the results files");
+
+    info!("{} -> {}", presorted_raw, out_raw);
     sort_and_clear_cat(&presorted_raw, out_raw, header_raw);
+
+    info!("{} -> {}", presorted_junction, out_junction);
     sort_and_clear_junction(&presorted_junction, out_junction, header_junction);
+
+    info!("{} -> {}", presorted_exons, out_exons);
     sort_and_clear_junction(&presorted_exons, out_exons, header_exons);
+
     info!("done");
 
     Ok(())
