@@ -56,16 +56,16 @@ if __name__ == "__main__":
     treat = " ".join(args.treatment)
     if args.ambigious:
         for defect in ["CLIPPED", "EXON_OTHER", "SKIPPED", "WRONG_STRAND", "E_ISOFORM"]:
-            child = subprocess.Popen(f"python3 {compare_} -c {ctr} --spliced SPLICED \
-                                    --defect {defect} -t {treat} --out {args.out}_{defect}.tsv --ambigious --logging_level {args.logging_level}", shell=True)
+            child = subprocess.Popen(f"python3 {compare_} -c {ctr} --spliced SPLICED --stat {args.stat} \
+                                     --defect {defect} -t {treat} --out {args.out}_{defect}.tsv --ambigious --logging_level {args.logging_level}", shell=True)
             child.wait()
     else:
         for defect in ["CLIPPED", "EXON_OTHER", "SKIPPED", "WRONG_STRAND", "E_ISOFORM"]:
-            child = subprocess.Popen(f"python3 {compare_} -c {ctr} --spliced SPLICED \
+            child = subprocess.Popen(f"python3 {compare_} -c {ctr} --spliced SPLICED --stat {args.stat} \
                                     --defect {defect} -t {treat} --out {args.out}_{defect}.tsv --logging_level {args.logging_level}", shell=True)
             child.wait()
 
-    child = subprocess.Popen(f"python3 {compare_} -c {ctr} --spliced SPLICED \
+    child = subprocess.Popen(f"python3 {compare_} -c {ctr} --spliced SPLICED --stat {args.stat} \
                              --defect UNSPLICED -t {treat} --out {args.out}_UNSPLICED.tsv --logging_level {args.logging_level}", shell=True)
     child.wait()
 
