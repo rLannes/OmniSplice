@@ -153,29 +153,6 @@ fn main_loop(
 
     return Ok(hash_tree);
 
-    /*
-    let junction_order: Vec<SplicingEvent> = vec![
-        SplicingEvent::Spliced,
-        SplicingEvent::Unspliced,
-        SplicingEvent::Clipped,
-        SplicingEvent::ExonOther,
-        SplicingEvent::Skipped,
-        SplicingEvent::SkippedUnrelated,
-        SplicingEvent::WrongStrand,
-        SplicingEvent::Isoform,
-    ];
-
-
-
-    dump_tree_to_cat_results(&hash_tree, &output, &out_j, &junction_ambi, &junction_order);
-    /* hash_tree: &HashMap<String, interval_tree::IntervalTree<i64, TreeDataIntron>>,
-    out_cat: &str,
-    out_junction: &str,
-    junction_ambigious: HashSet<(String, i64, i64)>,
-    junction_order: Vec<SplicingEvent>, */
-    output_write_read_handle.flush();
-
-    Ok(())*/
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -288,20 +265,6 @@ fn main() -> Result<(), Box<dyn Error>> {
         &junction_order,
     )?;
 
-    /*let file = File::create_new(table.clone())
-    .map_err(|e| OmniError::OutputExists(table.clone(), e))?;
-
-
-    let mut stream = BufWriter::new(file);
-    let _ = stream.write("contig\tgene_name\ttranscript_name\texon_number\tambiguous\tstrand\tpos\tnext\texon_type\tspliced\tunspliced\tclipped\texon_other\tskipped\twrong_strand\te_isoform\n".as_bytes());
-
-    file_to_table(
-        output.clone(),
-        &mut stream,
-        args.gtf.as_str(),
-        args.libtype,
-        &valid_j_gene,
-    );*/
 
     //junction_file_from_table(&table, &junction_file);
     splicing_efficiency::to_se_from_junction(
@@ -309,6 +272,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         &splicing_defect,
         args.spliced_def,
         args.unspliced_def,
+        false
     );
     Ok(())
 }

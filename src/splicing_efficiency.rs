@@ -108,15 +108,7 @@ impl Intron {
         }
     }
 
-    /*fn update(&mut self, spt: &Vec<String>, counter: &Counter) {
-        let (_, unspliced) = counter.count(spt);
 
-        if spt[8] == "Acceptor" {
-            self.unspliced_acceptor;
-        } else {
-            self.unspliced_donnor = unspliced;
-        }
-    }*/
 
     fn dump(&self) -> String {
         if self.spliced + self.unspliced == 0 {
@@ -185,6 +177,7 @@ pub fn to_se_from_junction(
     out_file: &str,
     spliced_def: Vec<String>,
     unspliced_def: Vec<String>,
+    ambigious: bool
 ) -> () {
     let mut hashid: HashMap<usize, &str> = HashMap::new();
 
@@ -236,7 +229,7 @@ pub fn to_se_from_junction(
         if spt.len() <= 1 {
             continue;
         }
-        if spt[7] == "true" {
+        if (!ambigious) && (spt[7] == "true") {
             continue;
         }
         if (spt[4] == ".") || (spt[5] == ".") {
@@ -308,126 +301,6 @@ pub fn to_se_from_junction(
         .wait();
 }
 
-/*
-
-pub fn to_se_from_table(
-    table_file: &str,
-    out_file: &str,
-    spliced_def: Vec<String>,
-    unspliced_def: Vec<String>,
-) -> () {
-    println!("{}", table_file);
-    let mut hashid: HashMap<usize, &str> = HashMap::new();
-    hashid.insert(9, "spliced");
-    hashid.insert(10, "unspliced");
-    hashid.insert(11, "clipped");
-    hashid.insert(12, "E_other");
-    hashid.insert(13, "skipped");
-    hashid.insert(14, "wrongStrand");
-    hashid.insert(15, "E_Isoform");
-
-    let g1: Vec<usize> = spliced_def
-        .iter()
-        .map(|x| SplicingChoice::from_str(x).unwrap().index())
-        .collect();
-    let g2: Vec<usize> = unspliced_def
-        .iter()
-        .map(|x| SplicingChoice::from_str(x).unwrap().index())
-        .collect();
-
-    let counter = Counter::new(g1.clone(), g2.clone());
-    //let test_amb= true;
-
-    let mut line: String; // = "".to_string();
-    let file = table_file;
-    let presorted = format!("{}.presorted", &out_file);
-
-    let mut out_file_open = File::create_new(presorted.clone())
-        .unwrap_or_else(|_| panic!("output file {} should not exist.", &presorted));
-
-    let mut dict: HashMap<String, Intron> = HashMap::new();
-
-    let mut donnor: u32; // = 0;
-    let mut acceptor: u32; // = 0;
-
-    let f = File::open(file).unwrap();
-    let reader = BufReader::with_capacity(64 * 1024, f);
-
-    let mut key: String; //= "".to_string();
-    for (_i, l) in reader.lines().enumerate().skip(1) {
-        line = l.unwrap();
-        // println!("{}: {}", i,  line);
-        let spt = line
-            .trim()
-            .split('\t')
-            .map(|s| s.to_owned())
-            .collect::<Vec<String>>();
-        if spt.len() <= 1 {
-            continue;
-        }
-        if spt[4] == "true" {
-            continue;
-        }
-        if spt[6] == "." {
-            continue;
-        }
-        if spt[7] == "." {
-            continue;
-        }
-
-        if spt[8] == "Acceptor" {
-            donnor = spt[7].parse::<u32>().unwrap();
-            acceptor = spt[6].parse::<u32>().unwrap();
-        } else {
-            donnor = spt[6].parse::<u32>().unwrap();
-            acceptor = spt[7].parse::<u32>().unwrap();
-        }
-
-        key = format!("{}_{}_{}_{}_{}", spt[0], spt[1], spt[2], donnor, acceptor);
-        dict.entry(key)
-            .and_modify(|x| x.update(&spt, &counter))
-            .or_insert(Intron::new(&spt, &counter));
-    }
-
-    for value in dict.values() {
-        let _ = out_file_open.write_all(value.dump().as_bytes());
-    }
-    let _ = out_file_open.flush();
-
-    {
-        let mut out_final = File::create_new(out_file)
-            .unwrap_or_else(|_| panic!("output file {} should not exist.", &out_file));
-        let header=format!("# spliced definition: {};\n# unspliced definition: {};\nContig\tstart\tend\tstrand\tgeneID\tRatio\tspliced\tUnspliceDonnor\tUnsplicedAcceptor\ttranscriptID\tintronN\n",
-
-          g1.iter().map(|x| hashid.get(x).unwrap().to_string()).collect::<Vec<String>>().join(" "),
-          g2.iter().map(|x| hashid.get(x).unwrap().to_string()).collect::<Vec<String>>().join(" "));
-
-        out_final.write_all(header.as_bytes()).unwrap();
-    }
-
-    {
-        let output_cmd = Std_Command::new("sort")
-            .args(["-k", "1g", "-k", "5,5", "-k", "2n", &presorted])
-            .output()
-            .expect(" sort command failed to start");
-
-        let mut file = OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(out_file)
-            .unwrap();
-
-        // Write the output to file
-        file.write_all(&output_cmd.stdout).unwrap();
-    }
-
-    let _ = Std_Command::new("rm")
-        .args([&presorted.clone()])
-        .spawn()
-        .expect(" rm command failed to start")
-        .wait();
-}
-*/
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -453,6 +326,10 @@ struct Args {
     /// to use spliced and isoform : "-u spliced isoform"
     #[clap(long, value_parser, default_value = "spliced", value_delimiter = ' ', num_args = 1..)]
     spliced_def: Vec<String>,
+    /// if set will consider ambigious junction.
+    /// An ambigious junction is an exon intron junction that overlap with an exon.
+    #[clap(long, action)]
+    ambigious: bool,
 }
 
 fn main() {
@@ -462,5 +339,6 @@ fn main() {
         &args.output,
         args.spliced_def,
         args.unspliced_def,
+        args.ambigious
     );
 }

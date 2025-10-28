@@ -75,12 +75,6 @@ pub(crate) use get_header;
 
 use crate::common::error::OmniError;
 
-/*macro_rules! create_readfile {
-    ($a:expr, $b:expr) => {
-        *$b.get($a).expect(&format!("cannot find {} in header", $a ))
-    }
-}*/
-
 /// Enum representing all the differents reads at a splicing junction
 #[derive(clap::ValueEnum, Clone, Debug)]
 pub enum ReadsToWrite {
@@ -813,16 +807,6 @@ pub fn read_toassign(
     }
 }
 
-/*
-feature_strand: Strand,
-feature_pos: i64,
-feature_exontype: ExonType,
-aln_start: i64,
-aln_end: i64,
-cigar: &Cigar,
-//flag: &u16,
-read_strand: &Strand,
-overhang: i64 */
 
 #[cfg(test)]
 mod tests_it {
@@ -854,14 +838,6 @@ mod tests_it {
         );
     }
 
-    /*
-
-               if cigar.soft_clipped_end(&Strand::Plus, 10) && aln_end == feature_pos {
-
-               return Some(ReadAssign::SoftClipped);
-           }
-
-    */
 
     #[test]
     fn parse_clipped_1() {
@@ -934,10 +910,33 @@ mod tests_it {
             1,
         );
 
+
+        assert_eq!(true, true);
+    }
+
+
+     #[test]
+    fn test_read_toassign11() {
+        let aln_start = 21597482;
+        let feature_pos = 21611098;
+        let overhang = 5;
+
+        let x = read_toassign(
+            Strand::Plus,
+            Some(883160),
+            Some(883060),
+            Some(ExonType::Donnor),
+            883134,
+            929452,
+            &Cigar::from("27M54N99M46014N125M"),
+            &Strand::Plus,
+            1,
+        );
+
         info!("read assign {:?}", x);
         println!("read assign {:?}", x);
 
-        let y = Cigar::from("225M55N26M").get_skipped_pos_on_ref(5333978);
+        let y = Cigar::from("27M54N99M46014N125M").get_skipped_pos_on_ref(883134);
         println!(" {:?}", y);
 
         assert_eq!(true, true);
