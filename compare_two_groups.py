@@ -6,7 +6,7 @@ import logging
 import time
 from common_python.counter_junction import Counter
 from common_python.junction_class import Junction, parse_js_file
-from common_python.tester import Chi2, Fischer_test, GLM_model
+from common_python.tester import FisherTest, GLMModel
 
 
 logging.basicConfig(format='%(asctime)s %(levelname)s => %(message)s', level=logging.INFO, datefmt='%m/%d/%Y %I:%M:%S %p')
@@ -82,8 +82,8 @@ def main(condition_1, condition_2, successes, failures, tester, out_file,
 
     junctions = sorted(junctions, key = lambda x: x.q_value if x.q_value else 2)
         
-    header = ["chr", "strand", "start", "end", "statistic",
-               "control_success", "control_failures", "control_ratio", "treatment_success", "treatment_failures", "treatment_ratio", "p_value", "q_value", "gene_transcript_intron\n"]
+    header = ["chr", "strand", "start", "end", "statistic", "p_value", "q_value", "status", 
+               "control_success", "control_failures", "control_ratio", "treatment_success", "treatment_failures", "treatment_ratio", "gene_transcript_intron\n"]
     
     with open(out_file, "w") as fo:
         fo.write("#successes: {}\n".format(','.join(successes)))
@@ -94,14 +94,13 @@ def main(condition_1, condition_2, successes, failures, tester, out_file,
             #print([junction.dump(), junction.data_stats, str(junction.p_value), str(junction.q_value) ])
             d = junction.dump()
             try:
-                fo.write("\t".join([d[0], d[1], d[3], d[4], junction.data_stats, str(junction.p_value), str(junction.q_value), d[2] ]) + "\n" )
+                fo.write("\t".join([d[0], d[1], d[3], d[4], str(junction.testResult.statistics), \
+                                    str(junction.p_value), str(junction.q_value), junction.testResult.status.value, \
+                                    junction.testResult.control_prop.dump(), junction.testResult.treatment_prop.dump(),  \
+                                    d[2] ]) + "\n" )
             except:
                 print("failed", junction.__dict__)
                 continue
-
-#         l = [self.contig, self.gene,
-#            self.transcript, self.strand, "intron:{}".format(self.intron_number),
-#           self.pos, self.next]
 
 # filter => start simple at least X principal in one condition.
 # the 
@@ -143,6 +142,7 @@ if __name__ == "__main__":
                                            "UNSPLICED", 
                                            "CLIPPED",  
                                            "SKIPPED",
+                                           "SKIPPEDUNRELATED",
                                            "EXON_OTHER",
                                            "WRONG_STRAND",
                                            "E_ISOFORM"])
@@ -151,10 +151,11 @@ if __name__ == "__main__":
                                            "CLIPPED", 
                                            "EXON_OTHER",
                                            "SKIPPED",
+                                            "SKIPPEDUNRELATED",
                                            "WRONG_STRAND",
                                            "E_ISOFORM"])
     
-    parse.add_argument("--stat", required=True, choices=["GLM", "FISCHER"])
+    parse.add_argument("--stat", required=True, choices=["GLM", "FISHER"])
     parse.add_argument("--signif_level", "-s", help="if set filter junction with q_vlaue higher than this option" )
     parse.add_argument("--out", required=True)
     #parse.add_argument("--control_name", default="control", help="replace control condition by the name of your choice")
@@ -201,10 +202,10 @@ if __name__ == "__main__":
             raise AssertionError
         except:
             raise
-        tester = GLM_model()
+        tester = GLMModel()
 
-    elif args.stat == "FISCHER":
-        tester = Fischer_test()
+    elif args.stat == "FISHER":
+        tester = FisherTest()
 
     #elif args.stat == "CHI2":
     #    print("CHI2 test not yet avalaible")
@@ -214,7 +215,7 @@ if __name__ == "__main__":
         print("cannot find {} please checks your input".format(args.stat))
         raise AssertionError
 
-    tester = Fischer_test()
+    #tester = FisherTest()
     
     logger.debug("control file: {}".format(args.control))
     logger.debug("treatment file: {}".format(args.treatment))

@@ -7,7 +7,7 @@ import os
 import time
 from common_python.counter_junction import Counter
 from common_python.junction_class import Junction, parse_js_file
-from common_python.tester import Chi2, Fischer_test, GLM_model
+from common_python.tester import FisherTest, GLMModel
 import subprocess
 from pathlib import Path
 
@@ -32,7 +32,7 @@ if __name__ == "__main__":
                         help="space separated list of treatment file. eg: --treatment treatment_1.junction treatment_2.junction",
                         nargs="+")
     
-    parse.add_argument("--stat", required=True, choices=["GLM", "FISCHER"])
+    parse.add_argument("--stat", required=True, choices=["GLM", "FISHER"], help="GLM option expect 3 replicates and it is quite slow to run. Fisher will sum count and make a 2x2 Fisher Test")
     parse.add_argument("--signif_level", "-s", help="if set filter junction with q_vlaue higher than this option" )
     parse.add_argument("--out", required=True, help="basename")
     #parse.add_argument("--control_name", default="control", help="replace control condition by the name of your choice")
@@ -55,12 +55,12 @@ if __name__ == "__main__":
     ctr = " ".join(args.control)
     treat = " ".join(args.treatment)
     if args.ambigious:
-        for defect in ["CLIPPED", "EXON_OTHER", "SKIPPED", "WRONG_STRAND", "E_ISOFORM"]:
+        for defect in ["CLIPPED", "EXON_OTHER", "SKIPPED", "WRONG_STRAND", "E_ISOFORM", "SKIPPEDUNRELATED"]:
             child = subprocess.Popen(f"python3 {compare_} -c {ctr} --spliced SPLICED --stat {args.stat} \
                                      --defect {defect} -t {treat} --out {args.out}_{defect}.tsv --ambigious --logging_level {args.logging_level}", shell=True)
             child.wait()
     else:
-        for defect in ["CLIPPED", "EXON_OTHER", "SKIPPED", "WRONG_STRAND", "E_ISOFORM"]:
+        for defect in ["CLIPPED", "EXON_OTHER", "SKIPPED", "WRONG_STRAND", "E_ISOFORM", "SKIPPEDUNRELATED"]:
             child = subprocess.Popen(f"python3 {compare_} -c {ctr} --spliced SPLICED --stat {args.stat} \
                                     --defect {defect} -t {treat} --out {args.out}_{defect}.tsv --logging_level {args.logging_level}", shell=True)
             child.wait()

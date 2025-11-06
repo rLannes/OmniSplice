@@ -161,8 +161,39 @@ Options:
           Print version
 ```
 
+## Strandness and libtype
+
+Omnisplice by default expect reverse pair end reads.
+
+the libtype argument can be confusing. But it represent your librairy layout and if relevant is helpfull to determine the strandedness of your reads.
+
+- **fr** imply that your paired reads are oriented towards each other (most/majority of modern layout uses this)
+
+    --> <--
+
+- **ff**
+
+    --> -->
+
+- **rf**
+
+    <-- -->
+
+
+- **FirstStrand** imply that your sequencing reads ar reverse complemented compare to the reference genome
+
+- **SecondStrand** imply that your sequencing reads are NOT reverse complemented compared to the reference genome
+
+### In case of **unstranded** data uses:
+- Unstranded (for single end layout)
+- PairedUnstranded (for pair end)
+
+OmniSplice uses the flag from the alignment + the layout information (libtype argument) to determine the strandedness of a reads. It does that using a library I made you can check up the code here: https://github.com/rLannes/BAMstrandSpecifier
+
+
+
 ## Context and discussion.
-    OmniSplice surprisingly does not consume much ressource. Execution time will depend on the size of the bam and memory consumption will depend on the number of "exon" Feature in the gtf .
+    OmniSplice surprisingly does not consume much ressource. Execution time will depend on the size of the bam, and the number of chromosome in the gtf. Memory time will depend on the number of "exon" Feature in the gtf .
 
 
 

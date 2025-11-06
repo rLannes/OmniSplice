@@ -8,8 +8,11 @@ class ReadJunction(Enum):
     CLIPPED = 2 
     EXON_OTHER = 3
     SKIPPED = 4
-    WRONG_STRAND = 5
-    E_ISOFORM = 6
+    SKIPPEDUNRELATED = 5
+    WRONG_STRAND = 6
+    E_ISOFORM = 7
+
+    #  Spliced Unspliced       Clipped Exon_other      Skipped SkippedUnrelated        Wrong_strand    E_isoform
 
 
 class Counter():
@@ -46,6 +49,8 @@ class Counter():
                 res.append(ReadJunction.EXON_OTHER.value)
             elif e == "skipped":
                 res.append(ReadJunction.SKIPPED.value)
+            elif e == "skippedunrelated":
+                res.append(ReadJunction.SKIPPEDUNRELATED.value)
             elif e == "wrong_strand":
                 res.append(ReadJunction.WRONG_STRAND.value)
             elif e == "e_isoform":

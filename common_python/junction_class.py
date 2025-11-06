@@ -6,6 +6,8 @@ import logging
 import functools
 
 logger = logging.getLogger("compare_conditions")
+
+
 class Junction():
 
     def __init__(self, spt, header, basename, genotype):
@@ -25,12 +27,13 @@ class Junction():
         self.intron_number = [spt[header["Intron"]]]
         
         self.count = {genotype:  {basename:{}}}
-        self.count[genotype][basename] = list(map( int, spt[8:]))
+        self.count[genotype][basename] = list(map( int, spt[header["Spliced"]:]))
 
         self.p_value = -1
         self.data_stats = None
         self.q_value = None
 
+        self.testResult = None
         self.arbitrary = {} # used to store arbitrary data 
     
 
@@ -74,9 +77,9 @@ class Junction():
         if not self.ambigious  and spt[header["Ambiguous"]] == "true":
             logger.debug("{}; {}".format(self.ambigious, spt[header["Ambiguous"]]))
         if genotype not in self.count:
-            self.count[genotype] = {basename: list(map( int, spt[8:]))}
+            self.count[genotype] = {basename: list(map( int, spt[header["Spliced"]:]))}
         elif basename not in self.count[genotype]:
-            self.count[genotype][basename] =  list(map( int, spt[8:]))
+            self.count[genotype][basename] =  list(map( int, spt[header["Spliced"]:]))
 
         if spt[header["Transcript"]] not in self.transcript:
             self.gene.append(spt[header["Gene"]])
@@ -124,11 +127,14 @@ class Junction():
             logging.warning(self.__dict__, (-1, -1))
             return 
         try:
-            (self.p_value, self.data_stats) = tester.test_sample(counts["control"], counts['treatment'])
+            self.testResult = tester.test_sample(counts["control"], counts['treatment'])
+            self.p_value = self.testResult.pvalue
+            self.data_stats = self.testResult.dump()
+            #(self.p_value, self.data_stats) 
         except:
             print("failed to parse: ", counts)
             raise 
-
+#self.testResult
 
     def pass_threshold(self, ):
         """
