@@ -16,8 +16,11 @@ itertools = "*"
 log = "0.4"
 flexi_logger = { version = "0.31", features = ["async", "specfile"] }
 thiserror = "2"
-
-
+nalgebra = "*"
+statrs = "0.18.0"
+adjustp = "*"
+rayon = "1.10"
+fishers_exact ="*"
 
 [[bin]]
 name = "omni_splice"
@@ -31,3 +34,6 @@ path = "src/backsplicing.rs"
 name = "splicing_efficiency"
 path = "src/splicing_efficiency.rs"
 
+[[bin]]
+name = "compare_conditions"
+path = "src/compare_conditions.rs"

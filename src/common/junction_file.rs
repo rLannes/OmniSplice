@@ -8,12 +8,12 @@ use std::collections::HashMap;
 use std::fmt::format;
 use std::fs;
 use std::fs::File;
-use std::hash::Hash;
+use std::hash::{Hash, Hasher};
 use std::io::prelude::*;
 use std::io::{BufReader, BufWriter};
 use strand_specifier_lib::Strand;
 
-struct Counts {
+pub struct Counts {
     spliced: u32,
     unspliced: u32,
     clipped: u32,
@@ -81,7 +81,27 @@ struct Junction {
     counts: Counts,
 }
 
+impl PartialEq for Junction {
+    fn eq(&self, other: &Self) -> bool {
+        self.contig == other.contig
+            && self.donnor == other.donnor
+            && self.acceptor == other.acceptor
+            && self.strand == other.strand
+    }
+}
+
+impl Hash for Junction{
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.contig.hash(state); 
+        self.strand.hash(state);
+        self.donnor.hash(state); 
+        self.acceptor.hash(state);  
+    }
+}
+
 impl Junction {
+
+   
     fn dump(&self) -> String {
         format!(
             "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
