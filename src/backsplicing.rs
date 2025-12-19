@@ -54,7 +54,7 @@ fn aln_bw(fa: &str, reference: &str, out_bam: &str) {
         .expect("samtools index command failed to start");
 }
 
-fn get_ambigious_multimapper(bam_file: &PathBuf, reg: &regex::Regex) -> HashSet<String> {
+fn get_ambiguous_multimapper(bam_file: &PathBuf, reg: &regex::Regex) -> HashSet<String> {
     let mut bam_ = Path::new(bam_file);
     let sam_ = bam_.with_extension(".sam");
     let mut sort_ = Command::new("samtools")
@@ -639,7 +639,7 @@ fn main() {
 
     let mut to_ignore: HashSet<String> = HashSet::new();
     if best_only {
-        to_ignore = get_ambigious_multimapper(&bw_bam, &reg_AS);
+        to_ignore = get_ambiguous_multimapper(&bw_bam, &reg_AS);
     }
     println!("best-map-only option => ignoring: {:?}", to_ignore);
 

@@ -14,6 +14,8 @@ use flexi_logger::{FileSpec, Logger, WriteMode};
 use log::{debug, error, info, trace, warn};
 
 
+use crate::common::utils::ReadAssign;
+
 use super::super::common::error::OmniError;
 use super::errors::LogisticRegressionError;
  #[derive(Debug)]
@@ -78,17 +80,23 @@ pub enum SplicingCategory{
     EIsoform
 }
 
-/*impl TryFrom<&str> for SplicingCategory {
-    type Error = ();
 
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        if value % 2 == 0 {
-            Ok(EvenNumber(value))
-        } else {
-            Err(())
+impl TryFrom<&str> for SplicingCategory {
+    type Error = &'static str;
+    fn try_from(item: &str) -> Result<Self, Self::Error> {
+        match item {
+            "Spliced" | "SPLICED" => Ok(SplicingCategory::Spliced),
+            "Unspliced" | "UNSPLICED" => Ok(SplicingCategory::Unspliced),
+            "Clipped" | "CLIPPED" => Ok(SplicingCategory::Clipped),
+            "Exon_other" | "EXONOTHER" => Ok(SplicingCategory::ExonOther),
+            "Skipped" | "SKIPPED" => Ok(SplicingCategory::Skipped),
+            "SkippedUnrelated"| "SKIPPEDUNRELATED" => Ok(SplicingCategory::SkippedUnrelated),
+            "Wrong_strand" | "WRONGSTRAND" => Ok(SplicingCategory::WrongStrand),
+            "E_isoform" | "EISOFORM" => Ok(SplicingCategory::EIsoform),
+            _ => Err("input does not match one of the accepted values: Spliced Unspliced Clipped Exon_other Skipped SkippedUnrelated Wrong_strand  E_isoform")
         }
     }
-}*/
+}
 
 impl fmt::Display for SplicingCategory {
     // This trait requires `fmt` with this exact signature.
@@ -113,7 +121,7 @@ pub struct JunctionStats{
     pub start: String, 
     pub end: String, 
     pub strand: String,
-    pub ambigious: bool,
+    pub ambiguous: bool,
     pub control_count: Vec<CountsStats>,
     pub treat_count: Vec<CountsStats>,
     pub gene_tr: HashSet<String>,
@@ -187,7 +195,7 @@ pub fn parse_js_file(file_path: &str, result: &mut HashMap<String, JunctionStats
             spt = trimed.split("\t").collect::<Vec<&str>>();
 
             let ambi = if spt[*header.get("Ambiguous").unwrap()] == "true" {true} else {false}; 
-            //if (ambigious == false) && (ambi == true){
+            //if (ambiguous == false) && (ambi == true){
             //    continue
             //}
             gene = format!("{}_{}_{}", spt[*header.get("Gene").unwrap()], spt[*header.get("Transcript").unwrap()], spt[*header.get("Intron").unwrap()]);
@@ -225,7 +233,7 @@ pub fn parse_js_file(file_path: &str, result: &mut HashMap<String, JunctionStats
                         start: start, 
                         end: end, 
                         strand: strand,
-                        ambigious: ambi,
+                        ambiguous: ambi,
                         control_count: Vec::new(),
                         treat_count: Vec::new(),
                         gene_tr: HashSet::new(),
@@ -367,7 +375,7 @@ pub trait Tester{
         (ctrl_suc.join(","), ctrl_fail.join(","), treat_suc.join(","), treat_fail.join(","))
     }
 
-    fn test(&self, donotrun: bool) -> TestResults; // donotrun in case we just need to recover prop data but not run test i.e. ambigious sample
+    fn test(&self, donotrun: bool) -> TestResults; // donotrun in case we just need to recover prop data but not run test i.e. ambiguous sample
     fn success(&self) -> &Vec<u32>;
     fn success_mut(&mut self) -> &mut Vec<u32>;
     fn failures(&self) -> &Vec<u32>;
@@ -385,7 +393,7 @@ pub enum TestStatus {
     DimensionMistmatch,
     InvalidData,
     InsufficientObservation,
-    Ambigious,
+    ambiguous,
     EmptyData,
     ControlIsNull,
     TreatmentIsNull,
@@ -393,7 +401,7 @@ pub enum TestStatus {
     NumericalInstability,
     SingularMatrix,
     PerfectSeparation,
-    FISCHERFallBack
+    FisherFallBack
 }
 
 
@@ -407,7 +415,7 @@ impl fmt::Display for TestStatus {
             TestStatus::DimensionMistmatch => { write!(f, "DimensionMistmatch") },
             TestStatus::InvalidData => { write!(f, "InvalidData") },
             TestStatus::InsufficientObservation => { write!(f, "InsufficientObservation") },
-            TestStatus::Ambigious => { write!(f, "Ambigious") },
+            TestStatus::ambiguous => { write!(f, "ambiguous") },
             TestStatus::EmptyData => { write!(f, "EmptyData") },
             TestStatus::ControlIsNull => { write!(f, "ControlIsNull") },
 
@@ -417,7 +425,7 @@ impl fmt::Display for TestStatus {
             TestStatus::NumericalInstability => { write!(f, "NumericalInstability") },
             TestStatus::SingularMatrix => { write!(f, "SingularMatrix") },
             TestStatus::PerfectSeparation => { write!(f, "PerfectSeparation") },
-            TestStatus::FISCHERFallBack => { write!(f, "FischerTest")}
+            TestStatus::FisherFallBack => { write!(f, "FisherTest")}
         }
     }
 }
@@ -454,10 +462,10 @@ impl From<LogisticRegressionError> for TestStatus {
 #[derive(Debug)]
 pub struct TestResults{
 
-    pub control_sucess: u32,
+    pub control_success: u32,
     pub control_failure: u32,
     pub control_prop: Option<f32>,
-    pub treatment_sucess: u32,
+    pub treatment_success: u32,
     pub treatment_failure: u32,
     pub treatment_prop: Option<f32>,
     pub status: Option<TestStatus>,
@@ -472,8 +480,8 @@ pub struct TestResults{
 
 impl TestResults{
     pub fn get_empty() -> Self{
-        TestResults { control_sucess: 0, control_failure: 0, control_prop: None,
-                      treatment_sucess: 0, treatment_failure: 0, treatment_prop: None,
+        TestResults { control_success: 0, control_failure: 0, control_prop: None,
+                      treatment_success: 0, treatment_failure: 0, treatment_prop: None,
                       status: None, p_value: None,
                       odd_ratio: None, or_ci_lower: None, or_ci_upper: None, string_count: ("".to_string(), "".to_string(), "".to_string(), "".to_string())}
     }

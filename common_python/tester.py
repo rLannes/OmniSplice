@@ -93,7 +93,7 @@ try:
     from fast_fisher import fast_fisher_exact_compatibility
     fisher = fast_fisher_exact_compatibility
 except ImportError:
-    logger.info("fast_fischer is not installed, using scipy Fisher test instead (much slower)")
+    logger.info("fast_Fisher is not installed, using scipy Fisher test instead (much slower)")
 
 """
 Abstract base class for statistical tests comparing control and treatment groups.
@@ -418,7 +418,7 @@ class GLMModel(StatTest):
 class TestTester(unittest.TestCase):
 
 
-    def test_zeroes_Fischer(self):
+    def test_zeroes_Fisher(self):
         ctrl = {"successes": [0,0,0,0], "failures": [0,0,0,0]}
         treatment = {"successes": [0,0,0,0], "failures": [0,0,0,0]}
 
@@ -427,7 +427,7 @@ class TestTester(unittest.TestCase):
         self.assertEqual(x, TestResult(np.nan, np.nan, ProportionResult.failed(),ProportionResult.failed(), TestStatus.EMPTY, {}))
 
 
-    def test_empty_Fischer(self):
+    def test_empty_Fisher(self):
         ctrl = {"successes": [], "failures": []}
         treatment = {"successes": [10,10,0,0], "failures": [10,10,0,0]}
 

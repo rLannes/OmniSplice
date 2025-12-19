@@ -20,7 +20,7 @@ class Junction():
         self.next = spt[header["Acceptor"]] if spt[header["Strand"]] == "+" else spt[header["Donnor"]]
 
 
-        self.ambigious = True if spt[header["Ambiguous"]] == "true" else False
+        self.ambiguous = True if spt[header["Ambiguous"]] == "true" else False
 
         self.gene = [spt[header["Gene"]]]
         self.transcript = [spt[header["Transcript"]]]
@@ -73,9 +73,9 @@ class Junction():
 
     def update_count(self, spt, genotype, header, basename):
 
-        self.ambigious = True if (spt[header["Ambiguous"]] == "true" or self.ambigious) else self.ambigious
-        if not self.ambigious  and spt[header["Ambiguous"]] == "true":
-            logger.debug("{}; {}".format(self.ambigious, spt[header["Ambiguous"]]))
+        self.ambiguous = True if (spt[header["Ambiguous"]] == "true" or self.ambiguous) else self.ambiguous
+        if not self.ambiguous  and spt[header["Ambiguous"]] == "true":
+            logger.debug("{}; {}".format(self.ambiguous, spt[header["Ambiguous"]]))
         if genotype not in self.count:
             self.count[genotype] = {basename: list(map( int, spt[header["Spliced"]:]))}
         elif basename not in self.count[genotype]:
@@ -111,11 +111,11 @@ class Junction():
                 dico_count[genotype] = {"successes": [], "failures": []} # = {"control": [], "treatment": [], "file": []}
             for file, data in file_dict.items():
                 try:
-                    (sucesses, failures) = counter.get_count(junction=data)
+                    (successes, failures) = counter.get_count(junction=data)
                 except:
                     print(self.__dict__)
                     raise
-                dico_count[genotype]["successes"].append(sucesses)
+                dico_count[genotype]["successes"].append(successes)
                 dico_count[genotype]["failures"].append(failures)
     
         return dico_count
@@ -144,7 +144,7 @@ class Junction():
 
 
 
-def parse_js_file(file, results, genotype, ambigious=False, gene_list=None, transcript_list=None):
+def parse_js_file(file, results, genotype, ambiguous=False, gene_list=None, transcript_list=None):
     basename = Path(file).stem
     with open(file) as fi:
         header= fi.readline()
@@ -156,7 +156,7 @@ def parse_js_file(file, results, genotype, ambigious=False, gene_list=None, tran
                 continue
             spt = l.split('\t')
             
-            if not ambigious and spt[header["Ambiguous"]] == "true":
+            if not ambiguous and spt[header["Ambiguous"]] == "true":
                 continue
 
             if gene_list and spt[header["Gene"]] not in gene_list:

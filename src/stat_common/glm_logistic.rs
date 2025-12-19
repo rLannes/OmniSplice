@@ -47,13 +47,13 @@ impl Tester for GLM {
         let mut test_res = TestResults::get_empty();
         let (ctrl_suc, ctrl_fail, treat_suc, treat_fail) = self.get_proportion();
         test_res.control_failure = ctrl_fail;
-        test_res.control_sucess = ctrl_suc;
+        test_res.control_success = ctrl_suc;
         test_res.treatment_failure = treat_fail;
-        test_res.treatment_sucess = treat_suc;
+        test_res.treatment_success = treat_suc;
 
         test_res.string_count = self.get_proportion_string();
 
-        //info!("Counts prop: {} {} {} {}", test_res.control_failure, test_res.control_sucess, test_res.treatment_failure, test_res.treatment_sucess);
+        //info!("Counts prop: {} {} {} {}", test_res.control_failure, test_res.control_success, test_res.treatment_failure, test_res.treatment_success);
         
 
         let treat_trial = treat_suc + treat_fail;
@@ -75,7 +75,7 @@ impl Tester for GLM {
             test_res.treatment_prop = Some(treat_suc as f32 / treat_trial as f32);
             
             if donotrun == true{
-                test_res.status = Some(TestStatus::Ambigious);
+                test_res.status = Some(TestStatus::ambiguous);
                 return test_res;
             }
 
@@ -116,21 +116,21 @@ impl GLM{
         let mut successes: Vec<f64> = self.success().into_iter().map(|x|  *x as f64).collect();
         let mut failures: Vec<f64> = self.failures().into_iter().map(|x|  *x as f64).collect();
 
-        // if low count we fallback to Fischer Test instead:
-        let contegency: Vec<u64> = self.to_contengency();
-        if (*contegency.iter().min().unwrap_or(&0) < 5) || 
-            (contegency.iter().sum::<u64>() < 30 ) || 
-            (contegency[0] + contegency[1] < 10) || (contegency[2] + contegency[3] < 10) || 
-            (contegency[0] + contegency[2] < 10) || (contegency[1] + contegency[3] < 10)
+        // if low count we fallback to Fisher Test instead:
+        let contingency: Vec<u64> = self.to_contengency();
+        if (*contingency.iter().min().unwrap_or(&0) < 5) || 
+            (contingency.iter().sum::<u64>() < 30 ) || 
+            (contingency[0] + contingency[1] < 10) || (contingency[2] + contingency[3] < 10) || 
+            (contingency[0] + contingency[2] < 10) || (contingency[1] + contingency[3] < 10)
             {
-                warn!("low count, fall back to Fischer {:?}", contegency);
-                //println!("low count, fall back to Fischer {:?}", contegency);
-                let p = fishers_exact(&vec_to_array(contegency.clone()), Alternative::TwoSided).unwrap();
+                warn!("low count, fall back to Fisher {:?}", contingency);
+                //println!("low count, fall back to Fisher {:?}", contingency);
+                let p = fishers_exact(&vec_to_array(contingency.clone()), Alternative::TwoSided).unwrap();
                 let mut odd_ratio = 0. ;
-                if  (contegency[1] != 0) && (contegency[3] != 0){
-                    odd_ratio = (contegency[0] as f64 / contegency[1] as f64 ) /(contegency[2] as f64 / contegency[3] as f64 );
+                if  (contingency[1] != 0) && (contingency[3] != 0){
+                    odd_ratio = (contingency[0] as f64 / contingency[1] as f64 ) /(contingency[2] as f64 / contingency[3] as f64 );
                 }
-            return Ok((TestStatus::FISCHERFallBack, p, odd_ratio,  0. as f64 , 0. as f64)); 
+            return Ok((TestStatus::FisherFallBack, p, odd_ratio,  0. as f64 , 0. as f64)); 
         }
 
 
@@ -191,19 +191,19 @@ impl GLM{
     let se = GLM::standard_errors(&x_full, &beta_full, &n);
     let (or, or_lower, or_upper) = GLM::odds_ratio_with_ci(beta_full[1], se[1]);
 
-    // if or is really big > 100 most likely model collapsed fall back to Fischer
-    if or > 100. || or < 0.01 {
-                warn!("odd ratio extrem value, fall back to Fischer {:?}", contegency);
-                //println!("low count, fall back to Fischer {:?}", contegency);
-                let p = fishers_exact(&vec_to_array(contegency.clone()), Alternative::TwoSided).unwrap();
+    // if it is really big > 100 most likely model collapsed fall back to Fisher
+    if or > 100. || or < 0.001 {
+                warn!("odd ratio extrem value, fall back to Fisher {:?}", contingency);
+                //println!("low count, fall back to Fisher {:?}", contingency);
+                let p = fishers_exact(&vec_to_array(contingency.clone()), Alternative::TwoSided).unwrap();
                 let mut odd_ratio = 0. ;
-                if  (contegency[1] != 0) && (contegency[3] != 0){
-                    odd_ratio = (contegency[0] as f64 / contegency[1] as f64 ) /(contegency[2] as f64 / contegency[3] as f64 );
+                if  (contingency[1] != 0) && (contingency[3] != 0){
+                    odd_ratio = (contingency[0] as f64 / contingency[1] as f64 ) /(contingency[2] as f64 / contingency[3] as f64 );
                 }
                 else{
                     odd_ratio = f64::NAN;
                 }
-            return Ok((TestStatus::FISCHERFallBack, p
+            return Ok((TestStatus::FisherFallBack, p
                 , odd_ratio,  0. as f64 , 0. as f64)); 
     }
     //let elapsed_time = now.elapsed();

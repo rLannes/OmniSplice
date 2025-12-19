@@ -35,9 +35,9 @@ omni_splice --gtf <gtf file> --input <indexBamFile> -o <outFilePrefix> --read-to
 # then you need bowtie 2 in your OS path, plus a bowtie 2 reference for your genome
 backsplicing -i <omnisplice_out.clipped> -o <outputPrefix>> -b <bowtie2 ref> -g <gtf> -m <min clipped size, default 20> 
 
-# for comparison (Fischer test, GLM is available but we are still testing it)
+# for comparison (Fisher test, GLM is available but we are still testing it)
 # select defect as appropriate for your study
-python omnisplice/compare_conditions.py --control control1.junction control2.junction --treatment treatment1.junction treatment2.junction --stat FISCHER --defect  SPLICED UNSPLICED CLIPPED EXON_OTHER SKIPPED  --out <out file>
+python omnisplice/compare_conditions.py --control control1.junction control2.junction --treatment treatment1.junction treatment2.junction --stat Fisher --defect  SPLICED UNSPLICED CLIPPED EXON_OTHER SKIPPED  --out <out file>
 
 
 # quick plot of genes (same as in manuscript)

@@ -367,7 +367,7 @@ impl TreeDataIntron {
         return (right, left);
     }
 
-    fn dump_junction_base(&self, ambigious_set: &HashSet<(String, i64)>) -> Vec<String> {
+    fn dump_junction_base(&self, ambiguous_set: &HashSet<(String, i64)>) -> Vec<String> {
         let mut res = Vec::new();
         let mut exontype = ExonType::Acceptor;
         // get acceptor donnor!
@@ -375,8 +375,8 @@ impl TreeDataIntron {
         let mut pos = 0;
         let (donnor, acceptor) = self.get_acceptor_donor();
 
-        let ambigious = if ambigious_set.contains(&(self.contig.clone(), self.start.unwrap_or(0)))
-            | ambigious_set.contains(&(self.contig.clone(), self.end.unwrap_or(0)))
+        let ambiguous = if ambiguous_set.contains(&(self.contig.clone(), self.start.unwrap_or(0)))
+            | ambiguous_set.contains(&(self.contig.clone(), self.end.unwrap_or(0)))
         {
             true
         } else {
@@ -393,7 +393,7 @@ impl TreeDataIntron {
                 donnor,
                 acceptor,
                 self.strand,
-                ambigious.to_string()
+                ambiguous.to_string()
             ));
         }
         res
@@ -401,10 +401,10 @@ impl TreeDataIntron {
 
     fn dump_junction_counter(
         &self,
-        ambigious_set: &HashSet<(String, i64)>,
+        ambiguous_set: &HashSet<(String, i64)>,
         junction_order: &Vec<SplicingEvent>,
     ) -> String {
-        let base_vec = self.dump_junction_base(ambigious_set);
+        let base_vec = self.dump_junction_base(ambiguous_set);
         let mut results = Vec::new();
         let mut sub = Vec::new();
 
@@ -427,21 +427,21 @@ impl TreeDataIntron {
 //dump_exon_counter_loop(counter: &HashMap<SplicingEvent, i32>, base_vec: &Vec<String>, results: &mut Vec<String>, sub: &mut Vec<String>, junction_order: &Vec<SplicingEvent>)
 
     fn dump_exon_counter(&self,
-                        ambigious_set: &HashSet<(String, i64)>,
+                        ambiguous_set: &HashSet<(String, i64)>,
                         junction_order: &Vec<SplicingEvent>
                     ) -> Result<String, OmniError> {
 
-        let base_vec_end = self.dump_exon_base(ambigious_set, true)?;
+        let base_vec_end = self.dump_exon_base(ambiguous_set, true)?;
         let mut results = Vec::new();
         let mut sub = Vec::new();
-        dump_exon_counter_loop(&self.counter_splicingevent_end, &self.dump_exon_base(ambigious_set, true)?, &mut results, &mut sub, junction_order);
-        dump_exon_counter_loop(&self.counter_splicingevent_start, &self.dump_exon_base(ambigious_set, false)?, &mut results, &mut sub, junction_order);
+        dump_exon_counter_loop(&self.counter_splicingevent_end, &self.dump_exon_base(ambiguous_set, true)?, &mut results, &mut sub, junction_order);
+        dump_exon_counter_loop(&self.counter_splicingevent_start, &self.dump_exon_base(ambiguous_set, false)?, &mut results, &mut sub, junction_order);
 
         Ok(results.join("\n"))
 
     }
 
-    fn dump_exon_base(&self, ambigious_set: &HashSet<(String, i64)>, end: bool) -> Result<Vec<String>, OmniError> {
+    fn dump_exon_base(&self, ambiguous_set: &HashSet<(String, i64)>, end: bool) -> Result<Vec<String>, OmniError> {
 
 
         let mut res = Vec::new();
@@ -451,8 +451,8 @@ impl TreeDataIntron {
         let mut pos = 0;
         //let (donnor, acceptor) = self.get_acceptor_donor();
 
-        let ambigious = if ambigious_set.contains(&(self.contig.clone(), self.start.unwrap_or(0)))
-            | ambigious_set.contains(&(self.contig.clone(), self.end.unwrap_or(0)))
+        let ambiguous = if ambiguous_set.contains(&(self.contig.clone(), self.start.unwrap_or(0)))
+            | ambiguous_set.contains(&(self.contig.clone(), self.end.unwrap_or(0)))
         {
             true
         } else {
@@ -483,7 +483,7 @@ impl TreeDataIntron {
                 self.end.ok_or_else(|| {error!("expected value for end found None"); OmniError::Expect("value expected None found".to_string())})?,
                 self.start.unwrap_or(0),//ok_or(|| {error!("expected value for start found None"); OmniError::Expect("value expected None found".to_string())})?,
                 self.strand,
-                ambigious.to_string()
+                ambiguous.to_string()
             ));
         }
     }
@@ -508,7 +508,7 @@ impl TreeDataIntron {
                 self.end.unwrap_or(0),
                 
                 self.strand,
-                ambigious.to_string()
+                ambiguous.to_string()
             ));
         }
 
@@ -732,7 +732,7 @@ pub fn update_tree(
         for (ref mut node) in this_tree.find_mut(interval_start..interval_end) {
             if (node.interval().start == interval_start) && (node.interval().end == interval_end) {
                 // TODO FIX this
-                // THIS cause a bug in case of ambigious junction that are very close to each others
+                // THIS cause a bug in case of ambiguous junction that are very close to each others
                 if let n = node.data() {
                     if n.gene_name == gene_name && n.start == start && n.end == end {
                         n.transcript_intron
@@ -895,7 +895,7 @@ pub fn dump_tree_junction (hash_tree: &HashMap<String, interval_tree::IntervalTr
 /*pub fn dump_raw(    hash_tree: &HashMap<String, interval_tree::IntervalTree<i64, TreeDataIntron>>,
     out_cat: &str,
     out_junction: &str,
-    junction_ambigious: &HashSet<(String, i64)>,
+    junction_ambiguous: &HashSet<(String, i64)>,
     junction_order: &Vec<SplicingEvent>) -> Result<(), OmniError>{Ok(())}
 
 
@@ -908,7 +908,7 @@ pub fn dump_tree_into_raw_exon_junction(
     out_raw: &str,
     out_exons: &str,
     out_junction: &str,
-    junction_ambigious: &HashSet<(String, i64)>,
+    junction_ambiguous: &HashSet<(String, i64)>,
     junction_order: &Vec<SplicingEvent>,) -> Result<(), OmniError> {
     
     let presorted_raw = format!("{}.presorted", out_raw);
@@ -962,13 +962,13 @@ pub fn dump_tree_into_raw_exon_junction(
 
                 stream_junction.write_all(
                     node.data()
-                        .dump_junction_counter(junction_ambigious, junction_order)
+                        .dump_junction_counter(junction_ambiguous, junction_order)
                         .as_bytes(),
                 );
                 stream_junction.write_all("\n".as_bytes());
 
                 stream_exons.write_all(
-                    node.data().dump_exon_counter(junction_ambigious, junction_order)?
+                    node.data().dump_exon_counter(junction_ambiguous, junction_order)?
                     .as_bytes(),
 
                 );
@@ -1003,7 +1003,7 @@ pub fn dump_tree_to_cat_results(
     hash_tree: &HashMap<String, interval_tree::IntervalTree<i64, TreeDataIntron>>,
     out_cat: &str,
     out_junction: &str,
-    junction_ambigious: &HashSet<(String, i64)>,
+    junction_ambiguous: &HashSet<(String, i64)>,
     junction_order: &Vec<SplicingEvent>,
 ) -> Result<(), OmniError> {
     let presorted_cat = format!("{}.presorted", out_cat);
@@ -1036,7 +1036,7 @@ pub fn dump_tree_to_cat_results(
 
                 stream_j.write_all(
                     node.data()
-                        .dump_junction_counter(junction_ambigious, junction_order)
+                        .dump_junction_counter(junction_ambiguous, junction_order)
                         .as_bytes(),
                 );
                 stream_j.write_all("\n".as_bytes());

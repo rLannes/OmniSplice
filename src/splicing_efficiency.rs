@@ -177,7 +177,7 @@ pub fn to_se_from_junction(
     out_file: &str,
     spliced_def: Vec<String>,
     unspliced_def: Vec<String>,
-    ambigious: bool
+    ambiguous: bool
 ) -> () {
     let mut hashid: HashMap<usize, &str> = HashMap::new();
 
@@ -229,7 +229,7 @@ pub fn to_se_from_junction(
         if spt.len() <= 1 {
             continue;
         }
-        if (!ambigious) && (spt[7] == "true") {
+        if (!ambiguous) && (spt[7] == "true") {
             continue;
         }
         if (spt[4] == ".") || (spt[5] == ".") {
@@ -326,10 +326,10 @@ struct Args {
     /// to use spliced and isoform : "-u spliced isoform"
     #[clap(long, value_parser, default_value = "spliced", value_delimiter = ' ', num_args = 1..)]
     spliced_def: Vec<String>,
-    /// if set will consider ambigious junction.
-    /// An ambigious junction is an exon intron junction that overlap with an exon.
+    /// if set will consider ambiguous junction.
+    /// An ambiguous junction is an exon intron junction that overlap with an exon.
     #[clap(long, action)]
-    ambigious: bool,
+    ambiguous: bool,
 }
 
 fn main() {
@@ -339,6 +339,6 @@ fn main() {
         &args.output,
         args.spliced_def,
         args.unspliced_def,
-        args.ambigious
+        args.ambiguous
     );
 }

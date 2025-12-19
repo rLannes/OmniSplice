@@ -37,7 +37,7 @@ if __name__ == "__main__":
     parse.add_argument("--out", required=True, help="basename")
     #parse.add_argument("--control_name", default="control", help="replace control condition by the name of your choice")
     #parse.add_argument("--treatment_name", default="treatment", help="replace treatment condition by the name of your choice")
-    parse.add_argument("--ambigious", action='store_true', help="flag, do you want to take into account abigious junction, default is False. to set to true add '--amigious' to the command")
+    parse.add_argument("--ambiguous", action='store_true', help="flag, do you want to take into account abigious junction, default is False. to set to true add '--amigious' to the command")
     parse.add_argument("--logging_level", "-v", default="ERROR",choices=["DEBUG", "INFO", "ERROR"] )
     args = parse.parse_args()
 
@@ -54,10 +54,10 @@ if __name__ == "__main__":
     compare_ = script_dir / "compare_two_groups.py"
     ctr = " ".join(args.control)
     treat = " ".join(args.treatment)
-    if args.ambigious:
+    if args.ambiguous:
         for defect in ["CLIPPED", "EXON_OTHER", "SKIPPED", "WRONG_STRAND", "E_ISOFORM", "SKIPPEDUNRELATED"]:
             child = subprocess.Popen(f"python3 {compare_} -c {ctr} --spliced SPLICED --stat {args.stat} \
-                                     --defect {defect} -t {treat} --out {args.out}_{defect}.tsv --ambigious --logging_level {args.logging_level}", shell=True)
+                                     --defect {defect} -t {treat} --out {args.out}_{defect}.tsv --ambiguous --logging_level {args.logging_level}", shell=True)
             child.wait()
     else:
         for defect in ["CLIPPED", "EXON_OTHER", "SKIPPED", "WRONG_STRAND", "E_ISOFORM", "SKIPPEDUNRELATED"]:

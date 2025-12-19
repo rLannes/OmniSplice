@@ -229,13 +229,13 @@ if __name__ == "__main__":
     dico_result = {}
 
     for file in args.group1:
-        parse_js_file(file=file, results=dico_result, genotype=args.group1_name, ambigious=True, gene_list=args.gene_list, transcript_list=args.transcript_list)
+        parse_js_file(file=file, results=dico_result, genotype=args.group1_name, ambiguous=True, gene_list=args.gene_list, transcript_list=args.transcript_list)
     for file in args.group2:
-        parse_js_file(file=file, results=dico_result, genotype=args.group2_name, ambigious=True, gene_list=args.gene_list, transcript_list=args.transcript_list)
+        parse_js_file(file=file, results=dico_result, genotype=args.group2_name, ambiguous=True, gene_list=args.gene_list, transcript_list=args.transcript_list)
     if args.group3:
             logging.debug("group3")
             for file in args.group3:
-                parse_js_file(file=file, results=dico_result, genotype=args.group3_name, ambigious=True, gene_list=args.gene_list, transcript_list=args.transcript_list)
+                parse_js_file(file=file, results=dico_result, genotype=args.group3_name, ambiguous=True, gene_list=args.gene_list, transcript_list=args.transcript_list)
 
     dico_j = {}
 

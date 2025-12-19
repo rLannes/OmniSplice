@@ -469,17 +469,32 @@ impl SplicingEvent {
 
 #[derive(Clone, Debug, Copy, Eq, Hash, PartialEq)]
 pub enum ReadAssign {
+    /// The reads is unspliced
     ReadThrough,
+    /// the read is a read junction that splice precisly at the current exon end. 
     ReadJunction(i64, i64),
+    /// read doesn't match any category
     Unexpected,
+    /// reads are recovered by an intervall tree, this is a defensive case in case of an error
     FailPosFilter,
+    /// read is from the wrong strand
     WrongStrand,
+    /// read fail QC
     FailQc,
+    /// No pileup
     EmptyPileup,
+    /// read is a read junction (sub category)
+    /// that skipp the current exon end
     Skipped(i64, i64),
+    /// read is a read junction (sub category)
+    /// that skipp the current exon end
+    /// but the reads do not align any exon of this gene
     SkippedUnrelated(i64, i64),
+    /// read is soft clipped
     SoftClipped,
+    /// overhang failed
     OverhangFail,
+    /// defensive
     Empty,
 }
 
@@ -534,8 +549,7 @@ lazy_static! {
     static ref reg_junction: Regex =
         Regex::new(r"(\d+),\s+(\d+)").expect("Failed to compile junction regexp");
 }
-//L/azyLock<Regex> =
-//LazyLock::new(||
+
 
 impl From<&str> for ReadAssign {
     fn from(item: &str) -> Self {
@@ -607,7 +621,7 @@ impl From<&str> for ReadAssign {
 }
 
 pub fn out_of_range(feature: i64, aln_start: i64, aln_end: i64, overhang: i64) -> bool {
-    if !((aln_start <= feature) & (aln_end >= feature)) {
+    if !((aln_start - overhang <= feature) & (aln_end + overhang >= feature)) {
         return true;
     }
     false
@@ -657,6 +671,7 @@ fn test_skipped(
     None
 }
 
+
 pub fn read_toassign(
     feature_strand: Strand,
     feature_pos: Option<i64>,
@@ -665,10 +680,10 @@ pub fn read_toassign(
     aln_start: i64,
     aln_end: i64,
     cigar: &Cigar,
-    //flag: &u16,
     read_strand: &Strand,
     overhang: i64,
 ) -> Result<Option<ReadAssign>, OmniError> {
+
     if feature_pos.is_none() {
         return Ok(None);
     }
@@ -676,6 +691,7 @@ pub fn read_toassign(
     let feature_pos = feature_pos.ok_or(OmniError::Expect(
         "Expected a value for featurePos got None".to_string(),
     ))?;
+
     let feature_exontype = feature_exontype.ok_or(OmniError::Expect(
         "Expected a value for feature_exontype got None".to_string(),
     ))?;
@@ -806,6 +822,8 @@ pub fn read_toassign(
         }
     }
 }
+
+
 
 
 #[cfg(test)]

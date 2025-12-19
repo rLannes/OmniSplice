@@ -253,7 +253,7 @@ pub fn file_to_table(
 ) -> Result<(), OmniError> {
     let mut mymap = parse_file(file.as_str());
 
-    // ambigious position
+    // ambiguous position
     let invalid_pos = get_invalid_pos(gtf)?;
     //isoform
     let gene_junction_set = get_junction_from_gtf(gtf, &libtype)?;

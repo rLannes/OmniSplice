@@ -7,6 +7,9 @@ pub enum OmniError {
     Io(#[from] std::io::Error),
 
     #[error("Parse error: {0}")]
+    WrongFile(String),
+
+    #[error("Parse error: {0}")]
     Parse(String),
 
     #[error("Value absent when expected: {0}")]

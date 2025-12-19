@@ -12,7 +12,9 @@ use std::io::{BufReader, BufWriter};
 use std::time::Instant;
 
 use clap::CommandFactory;
-use clap::Parser;
+use clap::{Parser, Subcommand};
+use std::path::PathBuf;
+
 
 use rayon::ThreadPoolBuilder;
 use rayon::prelude::*;
@@ -38,8 +40,8 @@ use log::{debug, error, info, trace, warn};
 
 
 
-/// keep fischer in python?
-pub struct FISCHER{
+/// keep Fisher in python?
+pub struct Fisher{
     
 }
 //}
@@ -137,7 +139,7 @@ fn run_one_test(junction: &HashMap<String, JunctionStats>, successes_cat: Vec<Sp
                                                 &successes_cat,
                                                 &failures_cat,
                                             k.to_owned());
-        if ambi == false && j.ambigious == true{
+        if ambi == false && j.ambiguous == true{
             x = glm.test(true);
         }
         else {
@@ -175,7 +177,7 @@ fn run_one_test(junction: &HashMap<String, JunctionStats>, successes_cat: Vec<Sp
             .unwrap_or_else(|_| panic!("output file {} should not exist.", &out_file_path)); //expect(&format!("output file {} should not exist.", &table));
     let mut out_stream = BufWriter::new(out_file_open);
 
-    out_stream.write("#sucess: spliced\n".to_string().as_bytes());
+    out_stream.write("#success: spliced\n".to_string().as_bytes());
     out_stream.write("#failures: unspliced\n".to_string().as_bytes());
     out_stream.write("#test: GLM Binomial: (successes + failures) ~ group\n".to_string().as_bytes());
     let header = vec!["chr", "strand", "start", "end", "statistic", "p_value", "q_value", "status", "control_success", "control_failures", "control_ratio", "treatment_success", "treatment_failures", "treatment_ratio",  "gene_transcript_intron"];
@@ -188,13 +190,198 @@ fn run_one_test(junction: &HashMap<String, JunctionStats>, successes_cat: Vec<Sp
     Ok(())
 }
 
-fn main() -> () {
+
+
+
+#[derive(Parser)]
+#[command(name = "compare")]
+#[command(about = "Allows to compare condition from Omnisplice junction file", long_about = None)]
+struct Cli {
+    #[command(subcommand)]
+    command: Commands,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    /// Run a single comparison
+    Run {
+        /// Output file prefix path
+        #[arg(short, long,  required = true)]
+        outfile: PathBuf,
+
+        /// Control Condition
+        #[arg(short, long, num_args = 1.., required = true)]
+        control_files: Vec<PathBuf>,
+
+        /// Control Condition
+        #[arg(short, long, num_args = 1.., required = true)]
+        treatment_files: Vec<PathBuf>,
+
+        /// Splicing type considered as good
+        /// must be one or more of the follwing: Spliced Unspliced  Clipped Exon_other Skipped SkippedUnrelated Wrong_strand  E_isoform
+        #[arg(short, long, num_args = 1.., required = true)]
+        splicing_ok: Vec<String>,
+
+        /// Splicing type considered as failures
+        /// must be one or more of the follwing: Spliced Unspliced       Clipped Exon_other      Skipped SkippedUnrelated        Wrong_strand    E_isoform
+        #[arg(short, long, num_args = 1.., required = true)]
+        splicing_fail: Vec<String>,
+
+       /// Do you want to consider ambigious junction (overlaping exon)
+       #[arg( long,)]
+       ambigious: bool,
+
+
+    },
+    /// Run all comparisons against splices
+    RunAll {
+        /// Output file path
+        #[arg(short, long, required = true)]
+        outfile_prefix: String,
+
+        /// Control Condition
+        #[arg(short, long, num_args = 1.., required = true)]
+        control_files: Vec<PathBuf>,
+
+        /// Control Condition
+        #[arg(short, long, num_args = 1.., required = true)]
+        treatment_files: Vec<PathBuf>,
+    },
+}
+
+fn parse_cat(input: Vec<String>) -> Result<Vec<SplicingCategory>, &'static str >{
+    let mut res = Vec::new();
+    for e in input{
+        if e.trim().is_empty(){
+            continue
+        }
+        res.push(SplicingCategory::try_from(e.trim())?)
+    }
+    Ok(res)
+}
+
+fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
 
     Logger::try_with_str("error").unwrap().start().unwrap();
 
 
-    let junction_file_ctrl = vec!["/lab/solexa_yamashita/people/Romain/Projets/OmniSplice/TDP43/omniSplice/SRR22002170_R1_001.out.sorted.bam.junctions",
+    let cli = Cli::parse();
+
+    match cli.command {
+        Commands::Run { outfile, control_files, treatment_files, splicing_ok, splicing_fail, ambigious } => {
+        
+            println!("Running comparison, output: {:?}", outfile);
+            let control = parse_cat(splicing_ok)?;
+            let treatment = parse_cat(splicing_fail)?;
+    
+            let mut res:  HashMap<String, JunctionStats> = HashMap::with_capacity(1_000_000);
+
+            for file in control_files{
+                    info!("parsing {:?}", file);
+                    parse_js_file(file.to_str().unwrap(), &mut res, Genotype::CONTROL).unwrap();
+                    info!("done reading");
+                }
+
+            for file in treatment_files{
+                    info!("parsing {:?}", file);
+                    parse_js_file(file.to_str().unwrap(), &mut res, Genotype::TREATMENT).unwrap();
+                    info!("done reading");
+                }
+
+
+        run_one_test( &res, control,
+                 treatment,  outfile.to_str().unwrap(),  ambigious)?;
+                //run_one_test
+            // Your run logic here
+        }
+        Commands::RunAll { control_files, treatment_files, outfile_prefix } => {
+            println!("Running all single comparisons, output: {:?}", outfile_prefix);
+                
+            let mut res:  HashMap<String, JunctionStats> = HashMap::with_capacity(1_000_000);
+
+            for file in control_files{
+                    info!("parsing {:?}", file);
+                    parse_js_file(file.to_str().unwrap(), &mut res, Genotype::CONTROL).unwrap();
+                    info!("done reading");
+                }
+
+            for file in treatment_files{
+                    info!("parsing {:?}", file);
+                    parse_js_file(file.to_str().unwrap(), &mut res, Genotype::TREATMENT).unwrap();
+                    info!("done reading");
+                }
+
+            ThreadPoolBuilder::new()
+        .num_threads(6)          // ← set the limit here
+        .build_global()
+        .expect("Failed to initialise Rayon thread‑pool");
+
+    info!("All junction file parsed");
+    let shared = Arc::new(res);
+
+    let mut p = Path::new(&outfile_prefix).to_path_buf();
+
+
+    let mut jobs: Vec<(Vec<SplicingCategory>, Vec<SplicingCategory>, &str, bool)> = Vec::new();
+    let mut p = Path::new(&outfile_prefix).to_path_buf();
+
+    let _ = p.set_extension("Unspliced.tsv");
+    jobs.push((vec![SplicingCategory::Spliced], vec![SplicingCategory::Unspliced],
+       p.to_str().unwrap() , false));
+
+    let mut p = Path::new(&outfile_prefix).to_path_buf();
+    let _ = p.set_extension("WrongStrand.tsv");
+    jobs.push((vec![SplicingCategory::Spliced], vec![SplicingCategory::WrongStrand],
+       p.to_str().unwrap() , false));
+
+    let mut p = Path::new(&outfile_prefix).to_path_buf();
+    let _ = p.set_extension("Skipped.tsv");
+    jobs.push((vec![SplicingCategory::Spliced], vec![SplicingCategory::Skipped],
+       p.to_str().unwrap() , false));
+    
+    let mut p = Path::new(&outfile_prefix).to_path_buf();
+    let _ = p.set_extension("SkippedUnrelated.tsv");
+    jobs.push((vec![SplicingCategory::Spliced], vec![SplicingCategory::SkippedUnrelated],
+       p.to_str().unwrap() , false));
+    
+    let mut p = Path::new(&outfile_prefix).to_path_buf();
+    let _ = p.set_extension("Clipped.tsv");
+    jobs.push((vec![SplicingCategory::Spliced], vec![SplicingCategory::Clipped],
+       p.to_str().unwrap() , false));
+
+    let mut p = Path::new(&outfile_prefix).to_path_buf();
+    let _ = p.set_extension("ExonOther.tsv");
+    jobs.push((vec![SplicingCategory::Spliced], vec![SplicingCategory::ExonOther],
+       p.to_str().unwrap() , false));
+       
+    let mut p = Path::new(&outfile_prefix).to_path_buf();
+    let _ = p.set_extension("Isoform.tsv");
+    jobs.push((vec![SplicingCategory::Spliced], vec![SplicingCategory::EIsoform],
+       p.to_str().unwrap() , false));
+
+
+    //println!("{:?}", );
+    let now = Instant::now();
+    let ok = jobs.into_par_iter().
+    try_for_each(|(a, b, c, d)| {
+        let shared_ref = Arc::clone(&shared);
+        run_one_test(&shared_ref, a, b, c, d)
+    });
+    match ok {
+        Ok(()) => println!("All four tests finished successfully."),
+        Err(e) => eprintln!("A test failed: {}", e),
+    }
+
+    let elapsed_time = now.elapsed();
+    println!("Running slow_function() took {} seconds.", elapsed_time.as_secs());   
+
+        }
+    }
+
+    Ok(())
+}
+    /* let junction_file_ctrl = vec!["/lab/solexa_yamashita/people/Romain/Projets/OmniSplice/TDP43/omniSplice/SRR22002170_R1_001.out.sorted.bam.junctions",
                                          "/lab/solexa_yamashita/people/Romain/Projets/OmniSplice/TDP43/omniSplice/SRR22002171_R1_001.out.sorted.bam.junctions", 
                                         "/lab/solexa_yamashita/people/Romain/Projets/OmniSplice/TDP43/omniSplice/SRR22002172_R1_001.out.sorted.bam.junctions"];
     let junction_file_treat = vec!["/lab/solexa_yamashita/people/Romain/Projets/OmniSplice/TDP43/omniSplice/SRR22002167_R1_001.out.sorted.bam.junctions",
@@ -228,13 +415,13 @@ fn main() -> () {
     let shared = Arc::new(res);
 
     let jobs: Vec<(Vec<SplicingCategory>, Vec<SplicingCategory>, &str, bool)> = vec![
-    (vec![SplicingCategory::Spliced], vec![SplicingCategory::Unspliced], "/lab/solexa_yamashita/people/Romain/Projets/OmniSplice/omnisplice/test/test.Unspliced.tsv", false),
-    (vec![SplicingCategory::Spliced], vec![SplicingCategory::WrongStrand], "/lab/solexa_yamashita/people/Romain/Projets/OmniSplice/omnisplice/test/test.WrongStrand.tsv", true),
-    (vec![SplicingCategory::Spliced], vec![SplicingCategory::Skipped], "/lab/solexa_yamashita/people/Romain/Projets/OmniSplice/omnisplice/test/test.Skipped.tsv", true),
-    (vec![SplicingCategory::Spliced], vec![SplicingCategory::SkippedUnrelated], "/lab/solexa_yamashita/people/Romain/Projets/OmniSplice/omnisplice/test/test.SkippedUnrelated.tsv", true),
-    (vec![SplicingCategory::Spliced], vec![SplicingCategory::Clipped], "/lab/solexa_yamashita/people/Romain/Projets/OmniSplice/omnisplice/test/test.Clipped.tsv", true),
-    (vec![SplicingCategory::Spliced], vec![SplicingCategory::ExonOther], "/lab/solexa_yamashita/people/Romain/Projets/OmniSplice/omnisplice/test/test.ExonOther.tsv", true),
-    (vec![SplicingCategory::Spliced], vec![SplicingCategory::EIsoform], "/lab/solexa_yamashita/people/Romain/Projets/OmniSplice/omnisplice/test/test.Isoform.tsv", true),
+    (vec![SplicingCategory::Spliced], vec![SplicingCategory::Unspliced], "/lab/solexa_yamashita/people/Romain/Projets/OmniSplice/TDP43/OS_run_oh3/test/tdp43_omni_female_Cortex.Unspliced.tsv", false),
+    (vec![SplicingCategory::Spliced], vec![SplicingCategory::WrongStrand], "/lab/solexa_yamashita/people/Romain/Projets/OmniSplice/TDP43/OS_run_oh3/test/tdp43_omni_female_Cortex.WrongStrand.tsv", true),
+    (vec![SplicingCategory::Spliced], vec![SplicingCategory::Skipped], "/lab/solexa_yamashita/people/Romain/Projets/OmniSplice/TDP43/OS_run_oh3/test/tdp43_omni_female_Cortex.Skipped.tsv", true),
+    (vec![SplicingCategory::Spliced], vec![SplicingCategory::SkippedUnrelated], "/lab/solexa_yamashita/people/Romain/Projets/OmniSplice/TDP43/OS_run_oh3/test/tdp43_omni_female_Cortex.SkippedUnrelated.tsv", true),
+    (vec![SplicingCategory::Spliced], vec![SplicingCategory::Clipped], "/lab/solexa_yamashita/people/Romain/Projets/OmniSplice/TDP43/OS_run_oh3/test/tdp43_omni_female_Cortex.Clipped.tsv", true),
+    (vec![SplicingCategory::Spliced], vec![SplicingCategory::ExonOther], "/lab/solexa_yamashita/people/Romain/Projets/OmniSplice/TDP43/OS_run_oh3/test/tdp43_omni_female_Cortex.ExonOther.tsv", true),
+    (vec![SplicingCategory::Spliced], vec![SplicingCategory::EIsoform], "/lab/solexa_yamashita/people/Romain/Projets/OmniSplice/TDP43/OS_run_oh3/test/tdp43_omni_female_Cortex.Isoform.tsv", true),
     ];
     let now = Instant::now();
     let ok = jobs.into_par_iter().
@@ -248,7 +435,6 @@ fn main() -> () {
     }
 
     let elapsed_time = now.elapsed();
-    println!("Running slow_function() took {} seconds.", elapsed_time.as_secs());   
+    println!("Running slow_function() took {} seconds.", elapsed_time.as_secs());   */
 
        
-}

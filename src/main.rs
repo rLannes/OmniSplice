@@ -71,7 +71,7 @@ struct Args {
     /// you may want to subset genes / features you are interested in.
     #[arg(short, long, required = true)]
     gtf: String,
-    /// size of overhang
+    /// size of overhang, must be strictly >= 1, this is enforced. default 1
     #[arg(long, default_value_t = 1)]
     overhang: i64,
 
@@ -155,7 +155,7 @@ fn main_loop(
 
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let args = Args::parse();
 
     match args.libtype {
@@ -210,6 +210,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     info!("\tLog level: {}", args.log_level);
     info!("END ARGS:");
 
+    if args.overhang < 1{
+        Err::<(), OmniError>(OmniError::Expect("Overhang expect strictly positive value >=1".to_string()));
+    }
     let header_reads_handle = "read_name\tcig\tflag\taln_start\tread_assign\tfeature.pos\tnext_exon\tfeature.exon_type\tfeature.strand\tsequence\n".as_bytes(); //.expect("Unable to write file");
     let mut read_out_handle = ReadToWriteHandle::new();
     update_read_to_write_handle(
@@ -220,8 +223,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     );
 
     info!("Parsing gtf file.");
-    info!("Getting all ambigious position");
-    let ambigious_position = get_invalid_pos(&args.gtf.clone())?;
+    info!("Getting all ambiguous position");
+    let ambiguous_position = get_invalid_pos(&args.gtf.clone())?;
 
     let gtf_hashmap = gtf_to_hashmap(&args.gtf.clone()).expect("failed to parse gtf");
     info!("getting all valid junction to identify isoform");
@@ -261,7 +264,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         &out_raw,
         &out_exons,
         &out_junction,
-        &ambigious_position,
+        &ambiguous_position,
         &junction_order,
     )?;
 

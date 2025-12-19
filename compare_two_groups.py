@@ -26,10 +26,10 @@ def timer_decorator(func):
 
 
 def main(condition_1, condition_2, successes, failures, tester, out_file,
-          ambigious=False):
+          ambiguous=False):
     """
     This program test if a set of category(ies) (successes) has different proportion in the population
-    successes + failures. Fischer Test, glm binomial, (chi2 not implemented)
+    successes + failures. Fisher Test, glm binomial, (chi2 not implemented)
     - Condition_1 and 2 are list of OmniSplice table files(s).
 
     In the results condition 1 is named Control and condition 2 is named treatment.
@@ -48,17 +48,17 @@ def main(condition_1, condition_2, successes, failures, tester, out_file,
     results = {}
     for file in condition_1:
         logging.info("parsing control file {}; ".format(file))
-        parse_js_file(file, results, genotype="control", ambigious=ambigious)
+        parse_js_file(file, results, genotype="control", ambiguous=ambiguous)
     
     for file in condition_2:
         logging.info("parsing treatment file {}; ".format(file))
-        parse_js_file(file, results, genotype="treatment", ambigious=ambigious)
+        parse_js_file(file, results, genotype="treatment", ambiguous=ambiguous)
 
     # now filter and test!
     
     dico_r = {}
     for e, v in sorted(results.items(), key=lambda x: (x[0][2], x[0][3])):
-        if ambigious or not v.ambigious:
+        if ambiguous or not v.ambiguous:
             try:
                 v.stat_test(counter, tester)
             except:
@@ -160,7 +160,7 @@ if __name__ == "__main__":
     parse.add_argument("--out", required=True)
     #parse.add_argument("--control_name", default="control", help="replace control condition by the name of your choice")
     #parse.add_argument("--treatment_name", default="treatment", help="replace treatment condition by the name of your choice")
-    parse.add_argument("--ambigious", action='store_true', help="flag, do you want to take into account abigious junction, default is False. to set to true add '--amigious' to the command")
+    parse.add_argument("--ambiguous", action='store_true', help="flag, do you want to take into account abigious junction, default is False. to set to true add '--amigious' to the command")
     parse.add_argument("--logging_level", "-v", default="ERROR",choices=["DEBUG", "INFO", "ERROR"] )
     args = parse.parse_args()
 
@@ -221,6 +221,6 @@ if __name__ == "__main__":
     logger.debug("treatment file: {}".format(args.treatment))
     main(condition_1=args.control,condition_2=args.treatment, successes=cond1, failures=cond2,
           tester=tester,
-           ambigious=args.ambigious, out_file=args.out)
+           ambiguous=args.ambiguous, out_file=args.out)
     
 
