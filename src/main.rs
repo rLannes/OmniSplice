@@ -60,29 +60,38 @@ mod splicing_efficiency;
 #[command(version, about, long_about = None)]
 struct Args {
     /// Name of Input file
-    #[arg(short, long, required = true)]
+    #[arg(short, long, required = true, help_heading = "Input Options")]
     input: String,
     /// Prefix name  to be used for Output file
-    #[arg(short, long, required = true)]
+    #[arg(short, long, required = true, help_heading = "Output Options")]
     output_file_prefix: String,
     /// Name of GTF Input file define the feature to look at
     /// (v1) only consider feature annotated as exon
     /// if you use output_write_read with the whole genome the output can be very large,
     /// you may want to subset genes / features you are interested in.
-    #[arg(short, long, required = true)]
+    #[arg(short, long, required = true, help_heading = "Input Options")]
     gtf: String,
-    /// size of overhang, must be strictly >= 1, this is enforced. default 1
-    #[arg(long, default_value_t = 1)]
-    overhang: i64,
 
-    #[arg(long, default_value_t = 0)]
+
+    /// OmniSplice first identifies reads that align to exon ends and requires them to align at least X contiguous bases before the exon boundary. Then, for reads identified as unspliced, it requires at least X contiguous bases extending from the exon end into the intron.
+    /// Default for both: 1.
+    /// Use --anchor to set both values, or set them individually with --anchor_exon and --anchor_intron.
+    /// must be stricly > 0;
+    #[arg(long, help_heading = "Anchor Options")]
+    anchor: Option<i64>,
+    #[arg(long, help_heading = "Anchor Options")]
+    anchor_exon: Option<i64>,
+    #[arg(long, help_heading = "Anchor Options")]
+    anchor_intron: Option<i64>,
+
+    #[arg(long, default_value_t = 0, help_heading = "QC Options")]
     flag_in: u16,
-    #[arg(long, default_value_t = 3840)]
+    #[arg(long, default_value_t = 3840, help_heading = "QC Options")]
     flag_out: u16,
-    #[arg(long, default_value_t = 13)]
+    #[arg(long, default_value_t = 13, help_heading = "QC Options")]
     mapq: u8,
     /// space separated list of the annotated read you want to extract; i.e. all clipped read or all spliced read ...
-    #[clap(long, value_parser, value_delimiter = ' ', num_args = 1..)]
+    #[clap(long, value_parser, value_delimiter = ' ', num_args = 1.., help_heading = "Output Options")]
     readToWrite: Vec<ReadsToWrite>,
     /// space separated list the column to use for "unspliced" for the splicing defect table.
     /// you can regenrate this using the splicing_efficiency exe
@@ -90,24 +99,24 @@ struct Args {
     /// wrong_strand, isoform\n
     /// by default only use "-u unspliced" ->  unspliced (readthrough) reads \n
     /// to use unspliced and clipped : "-u unspliced clipped"
-    #[clap(long, value_parser, default_value = "unspliced", value_delimiter = ' ', num_args = 1..)]
+    #[clap(long, value_parser, default_value = "unspliced", value_delimiter = ' ', num_args = 1.., help_heading = "Output Options")]
     unspliced_def: Vec<String>,
 
     /// What to consider as spliced? spliced, unspliced, clipped, exon_other, skipped,
     /// wrong_strand, isoform\n
     /// by default only use "-u spliced" -> spliced (readthrough) reads \n
     /// to use spliced and isoform : "-u spliced isoform"
-    #[clap(long, value_parser, default_value = "spliced", value_delimiter = ' ', num_args = 1..)]
+    #[clap(long, value_parser, default_value = "spliced", value_delimiter = ' ', num_args = 1.., help_heading = "Output Options")]
     spliced_def: Vec<String>,
 
     /// Librairy types used for the RNAseq most modern stranded RNAseq are frFirstStrand which is the default value.
     /// acceptable value: frFirstStrand, frSecondStrand, fFirstStrand, fSecondStrand, ffFirstStrand, ffSecondStrand, rfFirstStrand,
     ///  rfSecondStrand, rFirstStrand, rSecondStrand, Unstranded, PairedUnstranded
-    #[clap(long, value_parser, default_value = "frFirstStrand")]
+    #[clap(long, value_parser, default_value = "frFirstStrand", help_heading = "Input Options")]
     libtype: LibType,
 
     /// loglevel default info, accepted value: info, error, debug, trace, warn
-    #[clap(long, value_parser, default_value = "info")]
+    #[clap(long, value_parser, default_value = "info", help_heading = "Output Options")]
     log_level: String,
 }
 
@@ -117,7 +126,8 @@ fn main_loop(
     //out_j: String,
     gtf: String,
     bam_input: String,
-    overhang: i64,
+    anchor_exon: i64,
+    anchor_intron: i64,
     flag_in: u16,
     flag_out: u16,
     mapq: u8,
@@ -138,11 +148,15 @@ fn main_loop(
     let junction_ambi = get_invalid_pos(&gtf_file)?;
     let junction_ = get_junction_from_gtf(&gtf_file, &librairy_type)?;
 
+
+
+
     update_tree_from_bam(
         &mut hash_tree,
         &bam_file,
         librairy_type, //LibType::frFirstStrand,
-        overhang,
+        anchor_exon,
+        anchor_intron,
         flag_in,
         flag_out,
         mapq,
@@ -169,6 +183,23 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let splicing_defect = format!("{}{}", output_file_prefix, ".sd");
     let out_junction = format!("{}{}", output_file_prefix, ".junctions");
     let log_file = format!("{}{}", output_file_prefix, ".log");
+
+        // anchor option
+    let anchor = match args.anchor{
+        Some(x) => x,
+        None => 1 as i64
+    };
+    let anchor_exon = match args.anchor_exon{
+        Some(x) => x,
+        None => anchor,
+    };
+    let anchor_intron = match  args.anchor_intron{
+        Some(x) => x,
+        None => anchor,
+    };
+
+
+
 
     let mut clipped = false;
 
@@ -199,7 +230,9 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     info!("\tInput file: {}", args.input);
     info!("\tOutput prefix: {}", args.output_file_prefix.clone());
     info!("\tGTF file: {}", args.gtf);
-    info!("\tOverhang: {}", args.overhang);
+    info!("\tAnchor: {}", anchor);
+    info!("\tAnchor_exon: {}", anchor_exon);
+    info!("\tAnchor_intron: {}", anchor_intron);
     info!("\tFlag in: {}", args.flag_in);
     info!("\tFlag out: {}", args.flag_out);
     info!("\tMAPQ: {}", args.mapq);
@@ -210,9 +243,11 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     info!("\tLog level: {}", args.log_level);
     info!("END ARGS:");
 
-    if args.overhang < 1{
-        Err::<(), OmniError>(OmniError::Expect("Overhang expect strictly positive value >=1".to_string()));
+    if anchor <= 0 || anchor_exon <= 0 || anchor_intron <= 0 {
+        error!("anchors options must be stricltly positive > 0");
+        Err::<(), OmniError>(OmniError::Expect("Error: Overhang expect strictly positive value >=1".to_string()));
     }
+    
     let header_reads_handle = "read_name\tcig\tflag\taln_start\tread_assign\tfeature.pos\tnext_exon\tfeature.exon_type\tfeature.strand\tsequence\n".as_bytes(); //.expect("Unable to write file");
     let mut read_out_handle = ReadToWriteHandle::new();
     update_read_to_write_handle(
@@ -236,7 +271,8 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         //  junction_file.clone(),
         args.gtf.clone(),
         args.input,
-        args.overhang,
+        anchor_exon,
+        anchor_intron,
         args.flag_in,
         args.flag_out,
         args.mapq,

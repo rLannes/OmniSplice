@@ -1,5 +1,7 @@
 use CigarParser::cigar::Cigar;
+use bio::bio_types::annot::pos::Pos;
 use bio::bio_types::annot::spliced::Spliced;
+use bio::bio_types::genome::Position;
 use clap::builder::Str;
 use lazy_static::lazy_static;
 use log::{debug, error, info, trace, warn};
@@ -672,6 +674,64 @@ fn test_skipped(
 }
 
 
+pub enum ExonPos{
+    Start,
+    End
+}
+
+fn is_read_through(cigar: &Cigar, aln_start:i64, feature_pos: i64, anchor_exon: i64, anchor_intron: i64, position: &ExonPos) -> bool {
+    
+    match position {
+        ExonPos::Start => {
+            cigar.does_it_match_an_intervall(
+                aln_start,
+                feature_pos - anchor_exon,
+                feature_pos + anchor_intron,
+            )
+        },
+        ExonPos::End => {
+            cigar.does_it_match_an_intervall(
+                aln_start,
+                feature_pos - anchor_intron,
+                feature_pos + anchor_exon,
+            )
+        }   
+    }
+}
+
+fn is_soft_clipped(cigar: &Cigar, aln_start:i64, feature_pos: i64, aln_end: i64, position: &ExonPos) -> bool {
+
+    match position {
+        ExonPos::Start => {cigar.soft_clipped_end(&Strand::Plus, 10) && aln_end == feature_pos},
+        ExonPos::End => {cigar.soft_clipped_end(&Strand::Minus, 10) && aln_start == feature_pos}
+    }
+}
+
+
+fn is_read_junction(cigar: &Cigar, aln_start:i64, feature_pos: i64, position: &ExonPos) -> Option<ReadAssign> {
+
+
+    match cigar.get_skipped_pos_on_ref(aln_start) {
+        Some(j) => {
+            match (
+                j.iter().position(|&x| x == feature_pos),
+                position,
+            ) {
+                (Some(p), ExonPos::Start) => {
+                    Some(ReadAssign::ReadJunction(j[p], j[p + 1]))
+                },
+                (Some(p), ExonPos::End) => {
+                    Some(ReadAssign::ReadJunction(j[p-1], j[p]))
+                },
+                // no junction match the exon end
+                (None, _) => {None}
+            }
+        }
+        // the read have no junction
+        None => None
+    }
+}
+
 pub fn read_toassign(
     feature_strand: Strand,
     feature_pos: Option<i64>,
@@ -681,7 +741,10 @@ pub fn read_toassign(
     aln_end: i64,
     cigar: &Cigar,
     read_strand: &Strand,
-    overhang: i64,
+    anchor_exon: i64,
+    anchor_intron: i64,
+    exon_pos: ExonPos
+
 ) -> Result<Option<ReadAssign>, OmniError> {
 
     if feature_pos.is_none() {
@@ -695,8 +758,9 @@ pub fn read_toassign(
     let feature_exontype = feature_exontype.ok_or(OmniError::Expect(
         "Expected a value for feature_exontype got None".to_string(),
     ))?;
+
     /// sanity check
-    if out_of_range(feature_pos, aln_start, aln_end, overhang) {
+    if out_of_range(feature_pos, aln_start, aln_end, 1) {
         return Ok(None);
     }
 
@@ -705,12 +769,54 @@ pub fn read_toassign(
         _ => (),
     };
 
-    match test_skipped(&cigar, aln_start, feature_pos, feature_pos_bis) {
-        Some(x) => return Ok(Some(x)),
-        _ => (),
-    }
 
-    match (feature_strand, feature_exontype) {
+    // test if it match exons end
+    // here I need to know if it is start or end
+    let  map_exon_end = match exon_pos{
+        ExonPos::Start => {
+            cigar.does_it_match_an_intervall(aln_start, feature_pos - anchor_exon, feature_pos)
+        },
+        ExonPos::End => {
+            cigar.does_it_match_an_intervall(aln_start, feature_pos, feature_pos + anchor_exon)
+        }
+    };
+
+
+    // if it map exon end we test readthrough, clipped and junction
+    if map_exon_end{
+        if is_read_through(&cigar, aln_start, feature_pos, anchor_exon, anchor_intron, &exon_pos){
+            return Ok(Some(ReadAssign::ReadThrough));
+        }   
+
+        if is_soft_clipped(&cigar, aln_start, feature_pos, aln_end, &exon_pos){
+            return Ok(Some(ReadAssign::SoftClipped))
+        }
+
+        // here we will repeat some computation, but the logic will be more streamlined!
+        if let Some(assign) = is_read_junction(&cigar, aln_start, feature_pos, &exon_pos){
+            return Ok(Some(assign))
+        }
+
+    } // else test skipped
+    else{
+
+    match test_skipped(&cigar, aln_start, feature_pos, feature_pos_bis) {
+            Some(x) => return Ok(Some(x)),
+            _ => (),
+        }
+        
+    }
+    warn!(
+        "read unexpected alignment -> cigar:{:?} feature_strand:{:?}, read_strand: {:?}, feature_pos:{:?}, aln_start:{:?}, aln_end:{:?}",
+        cigar, feature_strand, read_strand, feature_pos, aln_start, aln_end
+        );
+    return Ok(Some(ReadAssign::Unexpected));
+
+
+
+
+
+    /* match (feature_strand, feature_exontype) {
         (Strand::Plus, ExonType::Donnor) | (Strand::Minus, ExonType::Acceptor) => {
             if !cigar.does_it_match_an_intervall(aln_start, feature_pos - overhang, feature_pos) {
                 return Ok(Some(ReadAssign::OverhangFail));
@@ -820,7 +926,7 @@ pub fn read_toassign(
             );
             return Ok(Some(ReadAssign::Unexpected));
         }
-    }
+    }*/
 }
 
 
@@ -926,6 +1032,8 @@ mod tests_it {
             &Cigar::from("225M55N26M"),
             &Strand::Minus,
             1,
+            1,
+            ExonPos::End
         );
 
 
@@ -949,6 +1057,8 @@ mod tests_it {
             &Cigar::from("27M54N99M46014N125M"),
             &Strand::Plus,
             1,
+            1,
+            ExonPos::Start
         );
 
         info!("read assign {:?}", x);

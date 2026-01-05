@@ -2,7 +2,7 @@
 use crate::common::error::OmniError;
 //use crate::common::point::{get_attr_id, InsideCounter};
 use crate::common::utils::{
-    Exon, ExonType, ReadAssign, ReadToWriteHandle, SplicingEvent, read_toassign,
+    Exon, ExonType, ReadAssign, ReadToWriteHandle, SplicingEvent, read_toassign, ExonPos
 };
 
 use clap::builder::Str;
@@ -71,7 +71,8 @@ impl TreeDataIntron {
         aln_end: i64,
         cigar: &Cigar,
         read_strand: &Strand,
-        overhang: i64,
+        anchor_exon: i64,
+        anchor_intron: i64,
         out_file_read_buffer: &mut ReadToWriteHandle,
         read_name: Option<String>,
         sequence: Option<String>,
@@ -89,6 +90,7 @@ impl TreeDataIntron {
         };
         
         // TODO thought could delegate that to treeDATA even more. HAve to think about it.
+        /// TODO because we do start end, check if those are strand independant (i.e. always order ascending, if so could be easy to test dowstream)
         let start_map = read_toassign(
             self.strand,
             self.start,
@@ -98,7 +100,9 @@ impl TreeDataIntron {
             aln_end,
             cigar,
             read_strand,
-            overhang,
+            anchor_exon,
+            anchor_intron,
+             ExonPos::Start
         )?;
         self.write_to_read_file(start_map, out_file_read_buffer, false, &seq, &r_name, cigar);
         TreeDataIntron::update_counter(&mut self.counter_start, start_map);
@@ -117,7 +121,9 @@ impl TreeDataIntron {
             aln_end,
             cigar,
             read_strand,
-            overhang,
+            anchor_exon,
+            anchor_intron,
+             ExonPos::End
         )?;
 
         TreeDataIntron::update_counter(&mut self.counter_end, end_map);
@@ -794,7 +800,8 @@ pub fn update_tree_from_bam(
     bam_file: &str,
     // required parameter
     library_type: LibType,
-    overhang: i64,
+    anchor_exon: i64,
+    anchor_intron: i64,
 
     // TODO not yet implemented QC optional option (None for no filter) // TODO
     // default 0
@@ -856,13 +863,14 @@ pub fn update_tree_from_bam(
             sequence = Some(String::from_utf8(seq)?);
 
             if let Some(read_strand) = library_type.get_strand(flag) {
-                for (ref mut exon) in subtree.find_mut((pos_s - 1)..(pos_e + 1)) {
-                    exon.data().parse_read(
+                for (ref mut intron) in subtree.find_mut((pos_s - 1)..(pos_e + 1)) {
+                    intron.data().parse_read(
                         pos_s,
                         pos_e,
                         &cig,
                         &read_strand,
-                        overhang,
+                        anchor_exon,
+                        anchor_intron,
                         out_file_read_buffer, 
                         read_name.clone(),
                         sequence.clone(),
@@ -876,32 +884,6 @@ pub fn update_tree_from_bam(
     Ok(())
 }
 
-/*
-pub fn dump_tree_junction (hash_tree: &HashMap<String, interval_tree::IntervalTree<i64, TreeDataIntron>>,
-        out_file: &str,
-        ) -> () {
-            let presorted = format!("{}.presorted", out_file);
-            let header = "Contig\tGene\tTranscript\tIntron\tDonnor\tAcceptor\tStrand\tAmbiguous\tspliced\tunspliced\tclipped\texon_other\tskipped\twrong_strand\te_isoform\n".as_bytes();
-
-            for (contig, subtree) in hash_tree {
-                for node in subtree.find(i64::MIN..i64::MAX) {
-
-            }
-        }
-    }
-*/
-
-
-/*pub fn dump_raw(    hash_tree: &HashMap<String, interval_tree::IntervalTree<i64, TreeDataIntron>>,
-    out_cat: &str,
-    out_junction: &str,
-    junction_ambiguous: &HashSet<(String, i64)>,
-    junction_order: &Vec<SplicingEvent>) -> Result<(), OmniError>{Ok(())}
-
-
-pub fn dump_exons() -> Result<(), OmniError>{Ok(())}
-pub fn dump_junctions() -> Result<(), OmniError>{Ok(())}*/
-
 
 pub fn dump_tree_into_raw_exon_junction(    
     hash_tree: &HashMap<String, interval_tree::IntervalTree<i64, TreeDataIntron>>,
@@ -914,15 +896,6 @@ pub fn dump_tree_into_raw_exon_junction(
     let presorted_raw = format!("{}.presorted", out_raw);
     let presorted_junction = format!("{}.presorted", out_junction);
     let presorted_exons = format!("{}.presorted", out_exons);
-
-    /*        SplicingEvent::Spliced,
-        SplicingEvent::Unspliced,
-        SplicingEvent::Clipped,
-        SplicingEvent::ExonOther,
-        SplicingEvent::Skipped,
-        SplicingEvent::SkippedUnrelated,
-        SplicingEvent::WrongStrand,
-        SplicingEvent::Isoform, */
 
     let header_raw =
         "Contig\tPosition\tGeneID\tTranscriptID\tstrand\tExonEndType\tCategory\tReadCount\n"
@@ -1141,6 +1114,8 @@ mod tests_it {
             &Cigar::from("63S188M"),
             &Strand::Minus,
             1,
+            1,
+            ExonPos::Start
         );
     }
 } 
