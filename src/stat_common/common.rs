@@ -375,7 +375,7 @@ pub trait Tester{
         (ctrl_suc.join(","), ctrl_fail.join(","), treat_suc.join(","), treat_fail.join(","))
     }
 
-    fn test(&self, donotrun: bool) -> TestResults; // donotrun in case we just need to recover prop data but not run test i.e. ambiguous sample
+    fn test(&self, donotrun: bool, min_read: u32) -> TestResults; // donotrun in case we just need to recover prop data but not run test i.e. ambiguous sample
     fn success(&self) -> &Vec<u32>;
     fn success_mut(&mut self) -> &mut Vec<u32>;
     fn failures(&self) -> &Vec<u32>;
@@ -401,7 +401,8 @@ pub enum TestStatus {
     NumericalInstability,
     SingularMatrix,
     PerfectSeparation,
-    FisherFallBack
+    FisherFallBack,
+    HyperGeom
 }
 
 
@@ -418,7 +419,9 @@ impl fmt::Display for TestStatus {
             TestStatus::ambiguous => { write!(f, "ambiguous") },
             TestStatus::EmptyData => { write!(f, "EmptyData") },
             TestStatus::ControlIsNull => { write!(f, "ControlIsNull") },
+            
 
+            TestStatus::HyperGeom =>  { write!(f, "HyperGeomError") },
             TestStatus::TreatmentIsNull => { write!(f, "TreatmentIsNull") },
 
             TestStatus::ConvergenceFailed => { write!(f, "ConvergenceFailed") },
@@ -434,6 +437,8 @@ impl fmt::Display for TestStatus {
 impl From<LogisticRegressionError> for TestStatus {
     fn from(item: LogisticRegressionError) -> Self {
         match item{
+
+            LogisticRegressionError::HyperGeomError => TestStatus::HyperGeom,
 
             LogisticRegressionError::PerfectSeparation{message: _} => TestStatus::PerfectSeparation,
             
@@ -505,13 +510,63 @@ impl TestResults{
         }
     }
     
-    pub fn dump_stats(&self, q_val: Option<f32>) -> Vec<String>{
+    pub fn dump_stats(&self, q_val: Option<f64>) -> Vec<String>{
 
         //format!("{}\t{}\t{}\t{}", 
          vec![           Self::helper_6(self.odd_ratio),
                     Self::helper_6(self.p_value),
-                    Self::helper_(q_val),
+                    Self::helper_6(q_val),
                     Self::helper_t(&self.status)]
         //        )
     }
+}
+
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn checking_parse_js() {
+        ()
+        // I have some weird behavious just checkincg a junction is actulaly picked up by this f()
+        /*let mut res : HashMap<String, JunctionStats> = HashMap::new();
+        // 
+        //
+        //
+        let control_file = vec!["/lab/solexa_yamashita/people/Romain/Projets/OmniSplice/Testv04/OmniSpliceRun_TDP43_anchor3/SRR22002170_R1_001..junctions".to_string(),
+        "/lab/solexa_yamashita/people/Romain/Projets/OmniSplice/Testv04/OmniSpliceRun_TDP43_anchor3/SRR22002171_R1_001..junctions".to_string(),
+        "/lab/solexa_yamashita/people/Romain/Projets/OmniSplice/Testv04/OmniSpliceRun_TDP43_anchor3/SRR22002172_R1_001..junctions".to_string()];
+        let treatment_file = vec!["/lab/solexa_yamashita/people/Romain/Projets/OmniSplice/Testv04/OmniSpliceRun_TDP43_anchor3/SRR22002156_R1_001..junctions".to_string(),
+        "/lab/solexa_yamashita/people/Romain/Projets/OmniSplice/Testv04/OmniSpliceRun_TDP43_anchor3/SRR22002157_R1_001..junctions".to_string(),
+        "/lab/solexa_yamashita/people/Romain/Projets/OmniSplice/Testv04/OmniSpliceRun_TDP43_anchor3/SRR22002158_R1_001..junctions".to_string()];
+
+        for file in control_file{
+            info!("parsing {:?}", file);
+            parse_js_file(&file, &mut res, Genotype::CONTROL).unwrap();
+            info!("done reading");
+        }
+
+        for file in treatment_file{
+                info!("parsing {:?}", file);
+                parse_js_file(&file, &mut res, Genotype::TREATMENT).unwrap();
+                info!("done reading");
+        }
+
+        let key = format!("{} {} {} {}", "7", "+", "127173138",	"127176706");
+        println!("{:?}", res.get(&key));
+
+        let j = res.get(&key).unwrap();
+        //for (k, j) in junction.iter(){
+        let mut glm = GLM::new(  &j.control_count,
+                                        &j.treat_count,
+                                                &successes_cat,
+                                                &failures_cat,
+                                            k.to_owned());
+        x = glm.test(true);
+        
+    }*/}
+
+//key = format!("{} {} {} {}", contig, strand, start, end);
 }

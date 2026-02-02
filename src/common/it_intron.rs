@@ -1,15 +1,18 @@
 #![allow(irrefutable_let_patterns)]
 use crate::common::error::OmniError;
+use crate::common::gtf_::ExonData;
 //use crate::common::point::{get_attr_id, InsideCounter};
 use crate::common::utils::{
-    Exon, ExonType, ReadAssign, ReadToWriteHandle, SplicingEvent, read_toassign, ExonPos
+    Exon, ExonType, ReadAssign, ReadToWriteHandle, ReadToWriteHandleJunc,
+    SplicingEvent, read_toassign, ExonPos
 };
 
+use bio::io::fasta::FastaRead;
 use clap::builder::Str;
 use CigarParser::cigar::Cigar;
 use bio::alignment::sparse::HashMapFx;
 use bio::bio_types::annot::contig;
-use bio::data_structures::interval_tree;
+use bio::data_structures::interval_tree::{self, IntervalTree};
 use bio::seq_analysis;
 use bio::utils::Interval;
 use itertools::Itertools;
@@ -70,10 +73,12 @@ impl TreeDataIntron {
         aln_start: i64,
         aln_end: i64,
         cigar: &Cigar,
+        flag: u16,
         read_strand: &Strand,
         anchor_exon: i64,
         anchor_intron: i64,
         out_file_read_buffer: &mut ReadToWriteHandle,
+        out_file_read_buffer_junc: &mut ReadToWriteHandleJunc,
         read_name: Option<String>,
         sequence: Option<String>,
         valid_junction: &HashMap<(String, i64, i64), Strand>,
@@ -164,13 +169,17 @@ impl TreeDataIntron {
                     Some(x),
                 );
                 TreeDataIntron::update_splicing_counter(&mut self.counter_intron, Some(x));
+                // missing end argument cause this is a junction!
+                // TODO fix that
+                self.write_to_read_file_splicing_event(x, out_file_read_buffer_junc, &seq, &r_name, aln_start, cigar, flag);
             }
             (None, Some(x)) => {
                 TreeDataIntron::update_splicing_counter(
                     &mut self.counter_splicingevent_end,
                     Some(x),
                 );
-                TreeDataIntron::update_splicing_counter(&mut self.counter_intron, Some(x))
+                TreeDataIntron::update_splicing_counter(&mut self.counter_intron, Some(x));
+                self.write_to_read_file_splicing_event(x, out_file_read_buffer_junc, &seq, &r_name, aln_start, cigar, flag);
             }
             (Some(SplicingEvent::Spliced), Some(SplicingEvent::Spliced)) => {
                 TreeDataIntron::update_splicing_counter(
@@ -185,7 +194,8 @@ impl TreeDataIntron {
                 TreeDataIntron::update_splicing_counter(
                     &mut self.counter_intron,
                     Some(SplicingEvent::Spliced),
-                )
+                );
+                self.write_to_read_file_splicing_event(SplicingEvent::Spliced, out_file_read_buffer_junc, &seq, &r_name, aln_start, cigar, flag);
             }
             (Some(SplicingEvent::Unspliced), Some(SplicingEvent::Unspliced)) => {
                 TreeDataIntron::update_splicing_counter(
@@ -200,7 +210,8 @@ impl TreeDataIntron {
                 TreeDataIntron::update_splicing_counter(
                     &mut self.counter_intron,
                     Some(SplicingEvent::Unspliced),
-                )
+                );
+                self.write_to_read_file_splicing_event(SplicingEvent::Unspliced, out_file_read_buffer_junc, &seq, &r_name, aln_start, cigar, flag);
             }
             (Some(left), Some(right)) => {
                 TreeDataIntron::update_splicing_counter(
@@ -215,7 +226,8 @@ impl TreeDataIntron {
                 TreeDataIntron::update_splicing_counter(
                     &mut self.counter_intron,
                     SplicingEvent::merge(Some(left), Some(right)),
-                )
+                );
+                self.write_to_read_file_splicing_event(SplicingEvent::merge(Some(left), Some(right)).unwrap(), out_file_read_buffer_junc, &seq, &r_name, aln_start, cigar, flag);
             }
             (None, None) => (),
             (_, _) => (),
@@ -273,6 +285,31 @@ impl TreeDataIntron {
         Ok(res)
     }
 
+    fn dump_base_junc(&self) -> Result<Vec<String>, OmniError> {
+        let mut res = Vec::new();
+        let mut exontype = ExonType::Acceptor;
+        let end = match self.end{Some(x)=> x.to_string(), None=> "None".to_string()};
+        let start = match self.start{Some(x)=> x.to_string(), None=> "None".to_string()};
+        for (tr, intron) in &self.transcript_intron {
+            res.push(format!(
+                "{}\t{}\t{}\t{}\t{}\t{}\t",
+                self.contig, self.gene_name, tr, self.strand, start, end
+            ));
+        }
+        Ok(res)
+    }
+
+    fn dump_junction_and_reads(&self, sequence: &str, seqname: &str, cigar: &Cigar, start:i64, flag: u16) -> Result<String, OmniError> {
+        let mut base_vec = self.dump_base_junc()?;
+        for e in &mut base_vec{
+            e.push_str(&format!(
+                "{}\t{}\t{}\t{}\t{}\t", 
+                seqname, start, cigar, flag , sequence
+            ));
+        };
+        return Ok(format!("{}\n", base_vec.join("\n")));
+    }
+
     fn dump_reads_seq(&self, sequence: &str, seqname: &str, end: bool, cigar: &Cigar) -> Result<String, OmniError> {
         ///
         /// :param end: if set to true look at the end of the sequence (end > start)
@@ -283,6 +320,62 @@ impl TreeDataIntron {
         }
 
         return Ok(format!("{}\n", base_vec.join("\n")));
+    }
+
+    /// Spagetti code to be able to extract exon_others, spliced and isoforms
+    fn write_to_read_file_splicing_event( &self,
+        splicing_event: SplicingEvent,
+        out_file_read_buffer: &mut ReadToWriteHandleJunc,
+        seq: &str,
+        r_name: &str,
+        start: i64,
+        cigar: &Cigar,
+        flag: u16
+    ) -> Result<(), OmniError>{
+        match splicing_event{
+            SplicingEvent::ExonOther => { match &mut out_file_read_buffer.exon_other {
+                Some(handle) => handle.write(self.dump_junction_and_reads(seq, r_name, cigar, start, flag)?.as_bytes())?,
+                _ =>0
+                    }
+                },
+            SplicingEvent::Isoform => {match &mut out_file_read_buffer.isoform {
+                Some(handle) => handle.write(self.dump_junction_and_reads(seq, r_name, cigar, start, flag)?.as_bytes())?,
+                _ =>0
+                    }
+                },
+            SplicingEvent::Spliced => {match &mut out_file_read_buffer.spliced {
+                Some(handle) => handle.write(self.dump_junction_and_reads(seq, r_name, cigar, start, flag)?.as_bytes())?,
+                _ =>0
+                    }
+                },
+            SplicingEvent::Clipped => {match &mut out_file_read_buffer.clipped {
+                Some(handle) => handle.write(self.dump_junction_and_reads(seq, r_name, cigar, start, flag)?.as_bytes())?,
+                _ =>0
+                    }
+                },
+            SplicingEvent::Unspliced => {match &mut out_file_read_buffer.unspliced {
+                Some(handle) => handle.write(self.dump_junction_and_reads(seq, r_name, cigar, start, flag)?.as_bytes())?,
+                _ =>0
+                    }
+                },
+            SplicingEvent::WrongStrand => {match &mut out_file_read_buffer.wrong_strand {
+                Some(handle) => handle.write(self.dump_junction_and_reads(seq, r_name, cigar, start, flag)?.as_bytes())?,
+                _ =>0
+                    }
+                },
+            SplicingEvent::Skipped => {match &mut out_file_read_buffer.skipped {
+                Some(handle) => handle.write(self.dump_junction_and_reads(seq, r_name, cigar, start, flag)?.as_bytes())?,
+                _ =>0
+                    }
+                },
+            SplicingEvent::SkippedUnrelated => {match &mut out_file_read_buffer.skipped_unrelated {
+                Some(handle) => handle.write(self.dump_junction_and_reads(seq, r_name, cigar, start, flag)?.as_bytes())?,
+                _ =>0
+                    }
+                },
+            _ => 0
+        };
+        Ok(())
     }
 
     fn write_to_read_file(
@@ -296,7 +389,7 @@ impl TreeDataIntron {
     ) -> Result<(), OmniError>{
         match read_assign {
             None => 0,
-            Some(ReadAssign::SkippedUnrelated(_, _)) => match &mut out_file_read_buffer.empty {
+            Some(ReadAssign::SkippedUnrelated(_, _)) => match &mut out_file_read_buffer.skipped_unrelated {
                 Some(handle) => handle
                     .write(self.dump_reads_seq(seq, r_name, end, cigar)?.as_bytes())?,
                 _ => 0,
@@ -373,7 +466,7 @@ impl TreeDataIntron {
         return (right, left);
     }
 
-    fn dump_junction_base(&self, ambiguous_set: &HashSet<(String, i64)>) -> Vec<String> {
+    fn dump_junction_base(&self, ambiguous: bool) -> Vec<String> {
         let mut res = Vec::new();
         let mut exontype = ExonType::Acceptor;
         // get acceptor donnor!
@@ -381,13 +474,13 @@ impl TreeDataIntron {
         let mut pos = 0;
         let (donnor, acceptor) = self.get_acceptor_donor();
 
-        let ambiguous = if ambiguous_set.contains(&(self.contig.clone(), self.start.unwrap_or(0)))
+        /*let ambiguous = if ambiguous_set.contains(&(self.contig.clone(), self.start.unwrap_or(0)))
             | ambiguous_set.contains(&(self.contig.clone(), self.end.unwrap_or(0)))
         {
             true
         } else {
             false
-        };
+        };*/
 
         for (tr, intron) in &self.transcript_intron {
             res.push(format!(
@@ -407,10 +500,10 @@ impl TreeDataIntron {
 
     fn dump_junction_counter(
         &self,
-        ambiguous_set: &HashSet<(String, i64)>,
+        ambiguous_: bool,
         junction_order: &Vec<SplicingEvent>,
     ) -> String {
-        let base_vec = self.dump_junction_base(ambiguous_set);
+        let base_vec = self.dump_junction_base(ambiguous_);
         let mut results = Vec::new();
         let mut sub = Vec::new();
 
@@ -433,21 +526,22 @@ impl TreeDataIntron {
 //dump_exon_counter_loop(counter: &HashMap<SplicingEvent, i32>, base_vec: &Vec<String>, results: &mut Vec<String>, sub: &mut Vec<String>, junction_order: &Vec<SplicingEvent>)
 
     fn dump_exon_counter(&self,
-                        ambiguous_set: &HashSet<(String, i64)>,
+                        //ambiguous_set: &HashSet<(String, i64)>,
+                        left_ambigious: bool, right_ambigious: bool,
                         junction_order: &Vec<SplicingEvent>
                     ) -> Result<String, OmniError> {
 
-        let base_vec_end = self.dump_exon_base(ambiguous_set, true)?;
+        let base_vec_end = self.dump_exon_base(right_ambigious, true)?;
         let mut results = Vec::new();
         let mut sub = Vec::new();
-        dump_exon_counter_loop(&self.counter_splicingevent_end, &self.dump_exon_base(ambiguous_set, true)?, &mut results, &mut sub, junction_order);
-        dump_exon_counter_loop(&self.counter_splicingevent_start, &self.dump_exon_base(ambiguous_set, false)?, &mut results, &mut sub, junction_order);
+        dump_exon_counter_loop(&self.counter_splicingevent_end, &self.dump_exon_base(left_ambigious, true)?, &mut results, &mut sub, junction_order);
+        dump_exon_counter_loop(&self.counter_splicingevent_start, &self.dump_exon_base(right_ambigious, false)?, &mut results, &mut sub, junction_order);
 
         Ok(results.join("\n"))
 
     }
 
-    fn dump_exon_base(&self, ambiguous_set: &HashSet<(String, i64)>, end: bool) -> Result<Vec<String>, OmniError> {
+    fn dump_exon_base(&self, ambiguous: bool, end: bool) -> Result<Vec<String>, OmniError> {
 
 
         let mut res = Vec::new();
@@ -456,15 +550,6 @@ impl TreeDataIntron {
 
         let mut pos = 0;
         //let (donnor, acceptor) = self.get_acceptor_donor();
-
-        let ambiguous = if ambiguous_set.contains(&(self.contig.clone(), self.start.unwrap_or(0)))
-            | ambiguous_set.contains(&(self.contig.clone(), self.end.unwrap_or(0)))
-        {
-            true
-        } else {
-            false
-        };
-
 
         // Contig Gene Transcript Exon_number Exon_type Position Next Strand Ambiguous
       
@@ -811,6 +896,7 @@ pub fn update_tree_from_bam(
     // mapq (must be) >=   default 13
     mapq: u8,
     out_file_read_buffer: &mut ReadToWriteHandle,
+    out_file_read_buffer_junc: &mut ReadToWriteHandleJunc,
     junction_valid: &HashMap<(String, i64, i64), Strand>,
     valid_j_gene: &HashMap<String, HashSet<(i64, i64)>>,
 ) -> Result<(), OmniError> {
@@ -868,10 +954,12 @@ pub fn update_tree_from_bam(
                         pos_s,
                         pos_e,
                         &cig,
+                        flag,
                         &read_strand,
                         anchor_exon,
                         anchor_intron,
                         out_file_read_buffer, 
+                        out_file_read_buffer_junc,
                         read_name.clone(),
                         sequence.clone(),
                         junction_valid,  
@@ -884,6 +972,38 @@ pub fn update_tree_from_bam(
     Ok(())
 }
 
+/// overlap if point strictly inside! ignore border
+fn overlap_point(p: i64, start:i64, end:i64) -> bool {
+    if p > start && p < end {
+        return true;
+    }
+    false
+}
+
+
+fn test_ambigious(node: &TreeDataIntron, tree: &IntervalTree<i64, ExonData>) -> (bool, bool) {
+    let mut left = false;
+    let mut right = false;
+
+    if let Some(start) = node.start {
+        for overlap in tree.find((start-2)..(start+2)){
+            if overlap_point(start, overlap.data().start, overlap.data().end){
+                left = true
+            }
+        }
+    }
+    if let Some(end) = node.end{
+        for overlap in tree.find((end-2)..(end+2)){
+            if overlap_point(end, overlap.data().start, overlap.data().end){
+                right = true
+            }
+        }
+    }
+    (left, right)
+    }
+
+
+    
 
 pub fn dump_tree_into_raw_exon_junction(    
     hash_tree: &HashMap<String, interval_tree::IntervalTree<i64, TreeDataIntron>>,
@@ -891,6 +1011,7 @@ pub fn dump_tree_into_raw_exon_junction(
     out_exons: &str,
     out_junction: &str,
     junction_ambiguous: &HashSet<(String, i64)>,
+    exon_it: &HashMap<String, IntervalTree<i64, ExonData>>,
     junction_order: &Vec<SplicingEvent>,) -> Result<(), OmniError> {
     
     let presorted_raw = format!("{}.presorted", out_raw);
@@ -921,9 +1042,12 @@ pub fn dump_tree_into_raw_exon_junction(
 
         
         for (contig, subtree) in hash_tree {
+            let sub_it_exon = exon_it.get(contig);
             info!("writting info for contig: {}", contig);
             // get ALL entry
             for node in subtree.find(i64::MIN..i64::MAX) {
+
+                // dump to the category file
                 if node.data().start.is_some() {
                     stream_raw.write_all(node.data().dump_counter(false)?.as_bytes());
                     stream_raw.write_all("\n".as_bytes());
@@ -933,15 +1057,19 @@ pub fn dump_tree_into_raw_exon_junction(
                     stream_raw.write_all("\n".as_bytes());
                 }
 
+                
+                let (left_ambigious, right_ambigious) =  test_ambigious(&node.data(), sub_it_exon.unwrap());
+                let junction_amb = left_ambigious || right_ambigious;
+                
                 stream_junction.write_all(
                     node.data()
-                        .dump_junction_counter(junction_ambiguous, junction_order)
+                        .dump_junction_counter(junction_amb, junction_order)
                         .as_bytes(),
                 );
                 stream_junction.write_all("\n".as_bytes());
 
                 stream_exons.write_all(
-                    node.data().dump_exon_counter(junction_ambiguous, junction_order)?
+                    node.data().dump_exon_counter(left_ambigious, right_ambigious, junction_order)?
                     .as_bytes(),
 
                 );
@@ -977,6 +1105,7 @@ pub fn dump_tree_to_cat_results(
     out_cat: &str,
     out_junction: &str,
     junction_ambiguous: &HashSet<(String, i64)>,
+    exon_it: &HashMap<String, IntervalTree<i64, ExonData>>,
     junction_order: &Vec<SplicingEvent>,
 ) -> Result<(), OmniError> {
     let presorted_cat = format!("{}.presorted", out_cat);
@@ -997,6 +1126,7 @@ pub fn dump_tree_to_cat_results(
 
         for (contig, subtree) in hash_tree {
             // get ALL entry
+            let sub_it_exon = exon_it.get("contig");
             for node in subtree.find(i64::MIN..i64::MAX) {
                 if node.data().start.is_some() {
                     stream_cat.write_all(node.data().dump_counter(false)?.as_bytes());
@@ -1007,9 +1137,13 @@ pub fn dump_tree_to_cat_results(
                     stream_cat.write_all("\n".as_bytes());
                 }
 
+                let (left_ambigious, right_ambigious) =  test_ambigious(&node.data(), sub_it_exon.unwrap());
+                let junction_amb = left_ambigious || right_ambigious;
+
+
                 stream_j.write_all(
                     node.data()
-                        .dump_junction_counter(junction_ambiguous, junction_order)
+                        .dump_junction_counter(junction_amb, junction_order)
                         .as_bytes(),
                 );
                 stream_j.write_all("\n".as_bytes());

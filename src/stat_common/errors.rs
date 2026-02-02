@@ -4,6 +4,10 @@ use thiserror::Error;
 
 #[derive(Error, Debug, Clone)]
 pub enum LogisticRegressionError {
+    
+    #[error("hypergeom error")]
+    HyperGeomError,
+
     /// Perfect or quasi-complete separation detected
     #[error("SeparationError: Perfect or quasi-complete separation detected: {message}")]
     PerfectSeparation { message: String },

@@ -5,6 +5,11 @@ use super::common::{Genotype, Tester, CountsStats, SplicingCategory, JunctionSta
 use statrs::stats_tests::fishers_exact;
 use statrs::stats_tests::Alternative;
 use statrs::stats_tests::fishers_exact_with_odds_ratio;
+use statrs::distribution::{Discrete, DiscreteCDF, Hypergeometric};
+use statrs::statistics::Distribution;
+use statrs::prec;
+use statrs::statistics::{Min, Max};
+
 
 use core::f64;
 use std::collections::{HashMap, HashSet};
@@ -25,12 +30,24 @@ use flexi_logger::{FileSpec, Logger, WriteMode};
 use log::{debug, error, info, trace, warn};
 
 pub struct GLM{
-
     success: Vec<u32>,
     failures: Vec<u32>,
     groups: Vec<Genotype>,
     identifier: String
+}
 
+impl GLM {
+
+    fn pass_min_read(&self, min_read: u32) -> bool{
+        
+        if self.success.iter().any(|x| *x < min_read){
+            return false
+        }
+        if self.failures.iter().any(|x| *x < min_read){
+            return false
+        }
+        return true
+    }
 }
 
 impl Tester for GLM {
@@ -42,7 +59,7 @@ impl Tester for GLM {
     fn groups(&self) -> &Vec<Genotype>{&self.groups}
     fn groups_mut(&mut self) -> &mut Vec<Genotype>{&mut self.groups}
 
-    fn test(&self, donotrun: bool) -> TestResults {
+    fn test(&self, donotrun: bool, min_read: u32) -> TestResults {
 
         let mut test_res = TestResults::get_empty();
         let (ctrl_suc, ctrl_fail, treat_suc, treat_fail) = self.get_proportion();
@@ -53,8 +70,6 @@ impl Tester for GLM {
 
         test_res.string_count = self.get_proportion_string();
 
-        //info!("Counts prop: {} {} {} {}", test_res.control_failure, test_res.control_success, test_res.treatment_failure, test_res.treatment_success);
-        
 
         let treat_trial = treat_suc + treat_fail;
         let ctrl_trial = ctrl_fail + ctrl_suc;
@@ -70,6 +85,11 @@ impl Tester for GLM {
             test_res.status = Some(TestStatus::TreatmentIsNull);
             return test_res;
         }
+        else if ! self.pass_min_read(min_read){
+            test_res.status = Some(TestStatus::EmptyData);
+            return test_res;
+        }
+
         else{
             test_res.control_prop = Some(ctrl_suc as f32 / ctrl_trial as f32);
             test_res.treatment_prop = Some(treat_suc as f32 / treat_trial as f32);
@@ -105,6 +125,45 @@ fn vec_to_array<T, const N: usize>(v: Vec<T>) -> [T; N] {
     v.try_into()
         .unwrap_or_else(|v: Vec<T>| panic!("Expected a Vec of length {} but it was {}", N, v.len()))
 }
+
+
+/// use hyper geom test to compute 2 tailed p-value 
+/// the fischer test was returning some negative pvalue?
+/// hopefully this works!
+fn hyper_geom_test(a_succ: u64, a_fail: u64, b_succ: u64, b_fail: u64) -> Result<f64, OmniError>{
+
+    let cond_a = a_succ + a_fail;
+    let cond_b = b_succ + b_fail;
+    // missing data no meaning
+    if (cond_a == 0) && (cond_b == 0){
+        return Err(OmniError::EmptyHyperGrom);
+    }
+    let succes = a_succ + b_succ;
+    let fail = b_fail + a_fail;
+    // all succes / all failure no point
+    if (fail == 0) && (succes == 0){
+        return Ok(1.)
+    }
+    
+    let pop = succes + fail;
+
+    let n = Hypergeometric::new(pop, succes, cond_a).unwrap();
+    let k = a_succ;
+
+    let p_k = n.pmf(k);
+    let mut p_value: f64 = 0.;
+
+    let mut i_k = 0.0;
+    for i in n.min()..n.max(){
+        i_k =  n.pmf(i);
+        if i_k <= p_k{
+             p_value += i_k;
+        }
+    }
+    Ok(p_value)
+}
+
+
 impl GLM{
 
    
@@ -125,13 +184,34 @@ impl GLM{
             {
                 warn!("low count, fall back to Fisher {:?}", contingency);
                 //println!("low count, fall back to Fisher {:?}", contingency);
-                let p = fishers_exact(&vec_to_array(contingency.clone()), Alternative::TwoSided).unwrap();
+
+                match hyper_geom_test(contingency[0], contingency[1],
+                                     contingency[2], contingency[3]){
+                    Ok(p) => {
+                        let mut odd_ratio = 0. ;
+                        if  (contingency[1] != 0) && (contingency[3] != 0){
+                            odd_ratio = (contingency[0] as f64 / contingency[1] as f64 ) /(contingency[2] as f64 / contingency[3] as f64 );
+                        }
+                        return Ok((TestStatus::FisherFallBack, p, odd_ratio,  0. as f64 , 0. as f64)); 
+                    },
+                    Err(OmniError::EmptyHyperGrom) => {
+                        return Ok((TestStatus::FisherFallBack, f64::NAN, f64::NAN,  0. as f64 , 0. as f64)); 
+                    },
+                    Err(e) => { return Err(LogisticRegressionError::HyperGeomError); }
+                }
+                
+
+               /* let mut p = fishers_exact(&vec_to_array(contingency.clone()), Alternative::TwoSided).unwrap();
+                // likely a bug that make it negative in case of extreme separation
+                if (p < 0.) {
+                    p = 0.;
+                }
                 let mut odd_ratio = 0. ;
                 if  (contingency[1] != 0) && (contingency[3] != 0){
                     odd_ratio = (contingency[0] as f64 / contingency[1] as f64 ) /(contingency[2] as f64 / contingency[3] as f64 );
                 }
-            return Ok((TestStatus::FisherFallBack, p, odd_ratio,  0. as f64 , 0. as f64)); 
-        }
+            return Ok((TestStatus::FisherFallBack, p, odd_ratio,  0. as f64 , 0. as f64)); */
+            }
 
 
         let n_obs = self.groups().len();
@@ -194,6 +274,21 @@ impl GLM{
     // if it is really big > 100 most likely model collapsed fall back to Fisher
     if or > 100. || or < 0.001 {
                 warn!("odd ratio extrem value, fall back to Fisher {:?}", contingency);
+                match hyper_geom_test(contingency[0], contingency[1],
+                                     contingency[2], contingency[3]){
+                    Ok(p) => {
+                        let mut odd_ratio = 0. ;
+                        if  (contingency[1] != 0) && (contingency[3] != 0){
+                            odd_ratio = (contingency[0] as f64 / contingency[1] as f64 ) /(contingency[2] as f64 / contingency[3] as f64 );
+                        }
+                        return Ok((TestStatus::FisherFallBack, p, odd_ratio,  0. as f64 , 0. as f64)); 
+                    },
+                    Err(OmniError::EmptyHyperGrom) => {
+                        return Ok((TestStatus::FisherFallBack, f64::NAN, f64::NAN,  0. as f64 , 0. as f64)); 
+                    },
+                    Err(e) => { return Err(LogisticRegressionError::HyperGeomError); }
+                }
+                /* 
                 //println!("low count, fall back to Fisher {:?}", contingency);
                 let p = fishers_exact(&vec_to_array(contingency.clone()), Alternative::TwoSided).unwrap();
                 let mut odd_ratio = 0. ;
@@ -204,7 +299,7 @@ impl GLM{
                     odd_ratio = f64::NAN;
                 }
             return Ok((TestStatus::FisherFallBack, p
-                , odd_ratio,  0. as f64 , 0. as f64)); 
+                , odd_ratio,  0. as f64 , 0. as f64)); */
     }
     //let elapsed_time = now.elapsed();
 
@@ -586,7 +681,7 @@ mod tests {
             identifier: "Non".to_string()
         };
         // should be non significant but I found it at 10-7
-        let x = glm.test(false);
+        let x = glm.test(false, 0);
         println!("x: {:?}", x);
     }
 

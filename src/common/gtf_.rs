@@ -300,6 +300,50 @@ fn gtf_to_it(file: &str) -> Result<HashMap<String, IntervalTree<i64, String>>, O
     Ok(result)
 }
 
+
+pub struct ExonData{
+    pub start: i64, 
+    pub end: i64,
+    pub strand: Strand
+}
+
+pub fn exon_intervalltree(file: &str) -> Result<HashMap<String, IntervalTree<i64, ExonData>>, OmniError>{
+ //let file = "genomic.gtf";
+    let f = File::open(file)?;
+    let reader = BufReader::new(f);
+    let mut this_line: String; //::new();
+
+    let mut start: i64; //; = 0;
+    let mut chr_: String; // = "".to_string();
+    let mut end: i64; // = 0;
+    let mut strand: Strand;
+
+    let mut result: HashMap<String, IntervalTree<i64, ExonData>> = HashMap::new();
+
+    for line in reader.lines() {
+        this_line = line?;
+        let spt = this_line.trim().split('\t').collect::<Vec<&str>>();
+        if spt.len() < 8 {
+            continue;
+        }
+        if spt[2] != "exon" {
+            continue;
+        }
+
+        chr_ = spt[0].to_string();
+        strand = Strand::from(spt[6]);
+        start = spt[3].parse::<i64>()? - 1;
+        end = spt[4].parse::<i64>()?;
+
+
+        result
+            .entry(chr_)
+            .or_insert_with(|| IntervalTree::new())
+            .insert((start-1)..(end+1), ExonData { start, end, strand });
+    }
+    Ok(result)
+}
+
 fn graph_from_gtf(
     file: &str,
 ) -> Result<HashMap<String, HashMap<Intervall<i64>, HashSet<Intervall<i64>>>>, OmniError> {
@@ -450,3 +494,7 @@ pub fn get_invalid_pos(file: &str) -> Result<HashSet<(String, i64)>, OmniError> 
 
     Ok(results)
 }
+
+
+
+

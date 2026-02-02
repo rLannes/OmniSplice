@@ -15,7 +15,6 @@ use clap::CommandFactory;
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
-
 use rayon::ThreadPoolBuilder;
 use rayon::prelude::*;
 
@@ -60,12 +59,17 @@ fn sort_by_f32_copy<T>(data: &mut Vec<T>, scores: &mut Vec<f32>) {
     *scores = sorted_scores;
 }
 
-fn sort_by_f32_permutation<T: std::fmt::Debug>(data: &mut Vec<T>, scores: &mut Vec<f32>) {
+
+
+fn sort_by_f64_permutation<T: std::fmt::Debug>(data: &mut Vec<T>,
+                                               scores: &mut Vec<f64>) {
 
     let mut indices: Vec<usize> =  (0..scores.len()).collect();
     let mut rank = vec![0usize; scores.len()];
     {
-        indices.sort_by(|&a, &b| scores[a].partial_cmp(&scores[b]).unwrap_or_else(|| std::cmp::Ordering::Equal));
+        indices.sort_by(|&a, &b| scores[a]
+            .partial_cmp(&scores[b])
+            .unwrap_or_else(|| std::cmp::Ordering::Equal));
         
         
         for (sorted_pos, &orig_idx) in indices.iter().enumerate() {
@@ -74,23 +78,24 @@ fn sort_by_f32_permutation<T: std::fmt::Debug>(data: &mut Vec<T>, scores: &mut V
     }
         
     let n = rank.len();
-    //argsort
     
-    for i in 0..n{
-        let mut j = i;
-        while rank[j] != usize::MAX && rank[j] != j{
-            data.swap(i, rank[j]);
-            scores.swap(i, rank[j]);
-            let next = rank[j];
-            rank[j] = usize::MAX;
-            j = next;
-
+        for i in 0..n{
+        let mut j = rank[i];
+        while j != i{
+            data.swap(i, j);
+            scores.swap(i, j);
+            rank.swap(i, j);
+            j = rank[i];
         }
     }
+
 }
 
 
-fn parse_results_update_vec(vec_r: &Vec<(&JunctionStats, TestResults)>, result: &mut Vec<Vec<String>>, q_value: Option<Vec<f32>>){
+fn parse_results_update_vec(vec_r: &Vec<(&JunctionStats, TestResults)>,
+                            result: &mut Vec<Vec<String>>,
+                            q_value: Option<Vec<f64>>){
+
     let mut value: (String, String, String, String);
     for (i, (j, t)) in vec_r.into_iter().enumerate(){
         
@@ -117,8 +122,6 @@ fn parse_results_update_vec(vec_r: &Vec<(&JunctionStats, TestResults)>, result: 
                         None => "nan".to_string()}
         );
 
-
-
         f.push(j.gene_tr.iter().map(|x| x.to_owned()).collect::<Vec<String>>().join(";"));
         result.push(f)
     }
@@ -126,7 +129,7 @@ fn parse_results_update_vec(vec_r: &Vec<(&JunctionStats, TestResults)>, result: 
 
 
 fn run_one_test(junction: &HashMap<String, JunctionStats>, successes_cat: Vec<SplicingCategory>,
-                 failures_cat: Vec<SplicingCategory>, out_file_path: &str, ambi: bool) -> Result<(), Box<dyn std::error::Error + Send + Sync>>{
+                 failures_cat: Vec<SplicingCategory>, out_file_path: &str, ambi: bool, min_read: u32) -> Result<(), Box<dyn std::error::Error + Send + Sync>>{
 
     
     info!("Starting test!");
@@ -140,10 +143,10 @@ fn run_one_test(junction: &HashMap<String, JunctionStats>, successes_cat: Vec<Sp
                                                 &failures_cat,
                                             k.to_owned());
         if ambi == false && j.ambiguous == true{
-            x = glm.test(true);
+            x = glm.test(true, min_read);
         }
         else {
-            x = glm.test(false);
+            x = glm.test(false, min_read);
         }
         if x.p_value.is_some(){
             vec_ok.push((&j, x));
@@ -160,13 +163,13 @@ fn run_one_test(junction: &HashMap<String, JunctionStats>, successes_cat: Vec<Sp
         }
     }
     
-    let pval = vec_ok.iter().map(|x| x.1.p_value.unwrap() as f32).collect::<Vec<f32>>();
+    let pval = vec_ok.iter().map(|x| x.1.p_value.unwrap() as f64).collect::<Vec<f64>>();
     let mut qvalues = adjust(&pval, Procedure::BenjaminiHochberg);
 
     let mut final_: Vec<Vec<String>> = Vec::new();
     let mut value: (String, String, String, String);
     
-    sort_by_f32_permutation(&mut vec_ok, &mut qvalues);
+    sort_by_f64_permutation(&mut vec_ok, &mut qvalues);
 
     parse_results_update_vec(&vec_ok, &mut final_, Some(qvalues));
     parse_results_update_vec(&vec_err, &mut final_, None);
@@ -177,9 +180,10 @@ fn run_one_test(junction: &HashMap<String, JunctionStats>, successes_cat: Vec<Sp
             .unwrap_or_else(|_| panic!("output file {} should not exist.", &out_file_path)); //expect(&format!("output file {} should not exist.", &table));
     let mut out_stream = BufWriter::new(out_file_open);
 
-    out_stream.write("#success: spliced\n".to_string().as_bytes());
-    out_stream.write("#failures: unspliced\n".to_string().as_bytes());
-    out_stream.write("#test: GLM Binomial: (successes + failures) ~ group\n".to_string().as_bytes());
+
+    out_stream.write(format!("#success: {}\n", successes_cat.into_iter().map(|x| format!("{}", x).to_string()).collect::<Vec<String>>().join(" ")).to_string().as_bytes());
+    out_stream.write(format!("#failures: {}\n", failures_cat.into_iter().map(|x| format!("{}", x).to_string()).collect::<Vec<String>>().join(" ")).to_string().as_bytes());
+    out_stream.write(format!("#min_read: {}; test: GLM Binomial: (successes + failures) ~ group\n", min_read).to_string().as_bytes());
     let header = vec!["chr", "strand", "start", "end", "statistic", "p_value", "q_value", "status", "control_success", "control_failures", "control_ratio", "treatment_success", "treatment_failures", "treatment_ratio",  "gene_transcript_intron"];
     out_stream.write(format!("{}\n", header.join("\t")).as_bytes());
     for e in final_{
@@ -231,6 +235,15 @@ enum Commands {
        #[arg( long,)]
        ambigious: bool,
 
+       /// Minimum read count for test. Discards junctions (p-value = NaN) if any value in the 
+       /// control/treatment success/failure counts falls below this threshold. Filters out significant
+       /// calls driven by sparse, inconsistent observations across replicates.
+       /// Default: 0 | Recommended: 0–5
+       /// This is a pretty aggressive filter use it with caution
+       #[arg( long, default_value_t = 0)]
+       min_read: u32,
+
+
 
     },
     /// Run all comparisons against splices
@@ -246,6 +259,15 @@ enum Commands {
         /// Control Condition
         #[arg(short, long, num_args = 1.., required = true)]
         treatment_files: Vec<PathBuf>,
+
+       /// Minimum read count for  test. Discards junctions (p-value = NaN) if any value in the 
+       /// control/treatment success/failure counts falls below this threshold. Filters out significant
+       /// calls driven by sparse, inconsistent observations across replicates.
+       /// Default: 0 | Recommended: 0–5
+       /// This is a pretty aggressive filter use it with caution
+       #[arg( long, default_value_t = 0)]
+       min_read: u32,
+
     },
 }
 
@@ -269,7 +291,9 @@ fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Run { outfile, control_files, treatment_files, splicing_ok, splicing_fail, ambigious } => {
+        Commands::Run { outfile, control_files,
+                        treatment_files, splicing_ok,
+                        splicing_fail, ambigious, min_read } => {
         
             println!("Running comparison, output: {:?}", outfile);
             let control = parse_cat(splicing_ok)?;
@@ -291,11 +315,11 @@ fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
 
         run_one_test( &res, control,
-                 treatment,  outfile.to_str().unwrap(),  ambigious)?;
+                 treatment,  outfile.to_str().unwrap(),  ambigious, min_read)?;
                 //run_one_test
             // Your run logic here
         }
-        Commands::RunAll { control_files, treatment_files, outfile_prefix } => {
+        Commands::RunAll { control_files, treatment_files, outfile_prefix, min_read } => {
             println!("Running all single comparisons, output: {:?}", outfile_prefix);
                 
             let mut res:  HashMap<String, JunctionStats> = HashMap::with_capacity(1_000_000);
@@ -323,50 +347,50 @@ fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut p = Path::new(&outfile_prefix).to_path_buf();
 
 
-    let mut jobs: Vec<(Vec<SplicingCategory>, Vec<SplicingCategory>, &str, bool)> = Vec::new();
+    let mut jobs: Vec<(Vec<SplicingCategory>, Vec<SplicingCategory>, &str, bool, u32)> = Vec::new();
     let mut p = Path::new(&outfile_prefix).to_path_buf();
 
     let _ = p.set_extension("Unspliced.tsv");
     jobs.push((vec![SplicingCategory::Spliced], vec![SplicingCategory::Unspliced],
-       p.to_str().unwrap() , false));
+       p.to_str().unwrap() , false, min_read));
 
     let mut p = Path::new(&outfile_prefix).to_path_buf();
     let _ = p.set_extension("WrongStrand.tsv");
     jobs.push((vec![SplicingCategory::Spliced], vec![SplicingCategory::WrongStrand],
-       p.to_str().unwrap() , false));
+       p.to_str().unwrap() , false, min_read));
 
     let mut p = Path::new(&outfile_prefix).to_path_buf();
     let _ = p.set_extension("Skipped.tsv");
     jobs.push((vec![SplicingCategory::Spliced], vec![SplicingCategory::Skipped],
-       p.to_str().unwrap() , false));
+       p.to_str().unwrap() , false, min_read));
     
     let mut p = Path::new(&outfile_prefix).to_path_buf();
     let _ = p.set_extension("SkippedUnrelated.tsv");
     jobs.push((vec![SplicingCategory::Spliced], vec![SplicingCategory::SkippedUnrelated],
-       p.to_str().unwrap() , false));
+       p.to_str().unwrap() , false, min_read));
     
     let mut p = Path::new(&outfile_prefix).to_path_buf();
     let _ = p.set_extension("Clipped.tsv");
     jobs.push((vec![SplicingCategory::Spliced], vec![SplicingCategory::Clipped],
-       p.to_str().unwrap() , false));
+       p.to_str().unwrap() , false, min_read));
 
     let mut p = Path::new(&outfile_prefix).to_path_buf();
     let _ = p.set_extension("ExonOther.tsv");
     jobs.push((vec![SplicingCategory::Spliced], vec![SplicingCategory::ExonOther],
-       p.to_str().unwrap() , false));
+       p.to_str().unwrap() , false, min_read));
        
     let mut p = Path::new(&outfile_prefix).to_path_buf();
     let _ = p.set_extension("Isoform.tsv");
     jobs.push((vec![SplicingCategory::Spliced], vec![SplicingCategory::EIsoform],
-       p.to_str().unwrap() , false));
+       p.to_str().unwrap() , false, min_read));
 
 
     //println!("{:?}", );
     let now = Instant::now();
     let ok = jobs.into_par_iter().
-    try_for_each(|(a, b, c, d)| {
+    try_for_each(|(a, b, c, d, m)| {
         let shared_ref = Arc::clone(&shared);
-        run_one_test(&shared_ref, a, b, c, d)
+        run_one_test(&shared_ref, a, b, c, d, m)
     });
     match ok {
         Ok(()) => println!("All four tests finished successfully."),
@@ -381,60 +405,7 @@ fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     Ok(())
 }
-    /* let junction_file_ctrl = vec!["/lab/solexa_yamashita/people/Romain/Projets/OmniSplice/TDP43/omniSplice/SRR22002170_R1_001.out.sorted.bam.junctions",
-                                         "/lab/solexa_yamashita/people/Romain/Projets/OmniSplice/TDP43/omniSplice/SRR22002171_R1_001.out.sorted.bam.junctions", 
-                                        "/lab/solexa_yamashita/people/Romain/Projets/OmniSplice/TDP43/omniSplice/SRR22002172_R1_001.out.sorted.bam.junctions"];
-    let junction_file_treat = vec!["/lab/solexa_yamashita/people/Romain/Projets/OmniSplice/TDP43/omniSplice/SRR22002167_R1_001.out.sorted.bam.junctions",
-                                        "/lab/solexa_yamashita/people/Romain/Projets/OmniSplice/TDP43/omniSplice/SRR22002168_R1_001.out.sorted.bam.junctions",
-                                        "/lab/solexa_yamashita/people/Romain/Projets/OmniSplice/TDP43/omniSplice/SRR22002169_R1_001.out.sorted.bam.junctions"];
-
-    let mut res:  HashMap<String, JunctionStats> = HashMap::with_capacity(1_000_000);
 
 
-
-
-    for file in junction_file_ctrl{
-        info!("parsing {}", file);
-        parse_js_file(file, &mut res, Genotype::CONTROL).unwrap();
-        info!("done reading");
-    }
-
-    for file in junction_file_treat{
-        info!("parsing {}", file);
-        parse_js_file(file, &mut res, Genotype::TREATMENT).unwrap();
-        info!("done reading");
-    }
-
-
-    ThreadPoolBuilder::new()
-        .num_threads(6)          // ← set the limit here
-        .build_global()
-        .expect("Failed to initialise Rayon thread‑pool");
-
-    info!("All junction file parsed");
-    let shared = Arc::new(res);
-
-    let jobs: Vec<(Vec<SplicingCategory>, Vec<SplicingCategory>, &str, bool)> = vec![
-    (vec![SplicingCategory::Spliced], vec![SplicingCategory::Unspliced], "/lab/solexa_yamashita/people/Romain/Projets/OmniSplice/TDP43/OS_run_oh3/test/tdp43_omni_female_Cortex.Unspliced.tsv", false),
-    (vec![SplicingCategory::Spliced], vec![SplicingCategory::WrongStrand], "/lab/solexa_yamashita/people/Romain/Projets/OmniSplice/TDP43/OS_run_oh3/test/tdp43_omni_female_Cortex.WrongStrand.tsv", true),
-    (vec![SplicingCategory::Spliced], vec![SplicingCategory::Skipped], "/lab/solexa_yamashita/people/Romain/Projets/OmniSplice/TDP43/OS_run_oh3/test/tdp43_omni_female_Cortex.Skipped.tsv", true),
-    (vec![SplicingCategory::Spliced], vec![SplicingCategory::SkippedUnrelated], "/lab/solexa_yamashita/people/Romain/Projets/OmniSplice/TDP43/OS_run_oh3/test/tdp43_omni_female_Cortex.SkippedUnrelated.tsv", true),
-    (vec![SplicingCategory::Spliced], vec![SplicingCategory::Clipped], "/lab/solexa_yamashita/people/Romain/Projets/OmniSplice/TDP43/OS_run_oh3/test/tdp43_omni_female_Cortex.Clipped.tsv", true),
-    (vec![SplicingCategory::Spliced], vec![SplicingCategory::ExonOther], "/lab/solexa_yamashita/people/Romain/Projets/OmniSplice/TDP43/OS_run_oh3/test/tdp43_omni_female_Cortex.ExonOther.tsv", true),
-    (vec![SplicingCategory::Spliced], vec![SplicingCategory::EIsoform], "/lab/solexa_yamashita/people/Romain/Projets/OmniSplice/TDP43/OS_run_oh3/test/tdp43_omni_female_Cortex.Isoform.tsv", true),
-    ];
-    let now = Instant::now();
-    let ok = jobs.into_par_iter().
-    try_for_each(|(a, b, c, d)| {
-        let shared_ref = Arc::clone(&shared);
-        run_one_test(&shared_ref, a, b, c, d)
-    });
-    match ok {
-        Ok(()) => println!("All four tests finished successfully."),
-        Err(e) => eprintln!("A test failed: {}", e),
-    }
-
-    let elapsed_time = now.elapsed();
-    println!("Running slow_function() took {} seconds.", elapsed_time.as_secs());   */
 
        

@@ -30,6 +30,9 @@ pub enum OmniError {
     #[error("ParseIntError error: {0}")]
     ParseIntError(#[from] std::num::ParseIntError),
 
+    #[error("hypergeom empty data error")]
+    EmptyHyperGrom,
+
     #[error("Error converting: {0}")]
     fromutf8(#[from] std::string::FromUtf8Error),
     //#[error("rust bio error: {0}")]

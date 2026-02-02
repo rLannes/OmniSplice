@@ -3,6 +3,7 @@ use clap::CommandFactory;
 use clap::Parser;
 
 use CigarParser::cigar::Cigar;
+use rust_htslib::bam::header;
 use rust_htslib::bam::record::Record;
 use rust_htslib::bam::{IndexedReader, Read};
 use std::collections::HashMap;
@@ -34,7 +35,7 @@ use log::{debug, error, info, trace, warn};
 
 //use crate::common::utils::ReadAssign;
 use crate::common::gtf_::{
-    get_all_junction_for_a_gene, get_invalid_pos, get_junction_from_gtf, gtf_to_hashmap,
+    get_all_junction_for_a_gene, get_invalid_pos, get_junction_from_gtf, gtf_to_hashmap, exon_intervalltree
 };
 use crate::common::it_intron::TreeDataIntron;
 use crate::common::it_intron::{
@@ -49,8 +50,8 @@ use crate::common::read_record::file_to_table;
 use crate::common::utils;
 use crate::common::utils::Exon;
 use crate::common::utils::SplicingEvent;
-use crate::common::utils::{
-    ExonType, ReadAssign, ReadToWriteHandle, ReadsToWrite, update_read_to_write_handle,
+use crate::common::utils::{ReadsToWriteSEvent,ReadToWriteHandleJunc,
+    ExonType, ReadAssign, ReadToWriteHandle, ReadsToWrite, update_read_to_write_handle, update_read_to_write_handle_junc
 };
 mod splicing_efficiency;
 
@@ -74,7 +75,7 @@ struct Args {
 
 
     /// OmniSplice first identifies reads that align to exon ends and requires them to align at least X contiguous bases before the exon boundary. Then, for reads identified as unspliced, it requires at least X contiguous bases extending from the exon end into the intron.
-    /// Default for both: 1.
+    /// Default for both: 3.
     /// Use --anchor to set both values, or set them individually with --anchor_exon and --anchor_intron.
     /// must be stricly > 0;
     #[arg(long, help_heading = "Anchor Options")]
@@ -90,9 +91,15 @@ struct Args {
     flag_out: u16,
     #[arg(long, default_value_t = 13, help_heading = "QC Options")]
     mapq: u8,
-    /// space separated list of the annotated read you want to extract; i.e. all clipped read or all spliced read ...
+    /// space separated list of the annotated read you want to extract (This is relative to the exon); i.e. all clipped read or all spliced read ...
+    /// Junction reads are further divided see read_to_write_junc
+    /// 
     #[clap(long, value_parser, value_delimiter = ' ', num_args = 1.., help_heading = "Output Options")]
-    readToWrite: Vec<ReadsToWrite>,
+    read_to_write: Vec<ReadsToWrite>,
+    /// space separated list of the spliceEvent read you want to extract ( This is relative to the junctions); i.e. all Spliced, exon_other...
+    ///
+    #[clap(long, value_parser, value_delimiter = ' ', num_args = 1.., help_heading = "Output Options")]
+    read_to_write_junc: Vec<ReadsToWriteSEvent>,
     /// space separated list the column to use for "unspliced" for the splicing defect table.
     /// you can regenrate this using the splicing_efficiency exe
     /// What to consider as unspliced? spliced, unspliced, clipped, exon_other, skipped,
@@ -132,6 +139,7 @@ fn main_loop(
     flag_out: u16,
     mapq: u8,
     output_write_read_handle: &mut ReadToWriteHandle,
+    output_write_read_handle_jun: &mut ReadToWriteHandleJunc,
     librairy_type: LibType,
     gtf_hashmap: &HashMap<String, HashMap<String, Vec<Exon>>>,
     valid_j_gene: &HashMap<String, HashSet<(i64, i64)>>,
@@ -145,10 +153,8 @@ fn main_loop(
         interval_tree_from_gtfmap(gtf_hashmap).expect("failed to generate the hash tree from gtf");
 
     /// TODO duplication here! done that do in MAIN!
-    let junction_ambi = get_invalid_pos(&gtf_file)?;
+    //let junction_ambi = get_invalid_pos(&gtf_file)?;
     let junction_ = get_junction_from_gtf(&gtf_file, &librairy_type)?;
-
-
 
 
     update_tree_from_bam(
@@ -161,6 +167,7 @@ fn main_loop(
         flag_out,
         mapq,
         output_write_read_handle,
+        output_write_read_handle_jun,
         &junction_,
         valid_j_gene,
     );
@@ -187,7 +194,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         // anchor option
     let anchor = match args.anchor{
         Some(x) => x,
-        None => 1 as i64
+        None => 3 as i64
     };
     let anchor_exon = match args.anchor_exon{
         Some(x) => x,
@@ -236,7 +243,8 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     info!("\tFlag in: {}", args.flag_in);
     info!("\tFlag out: {}", args.flag_out);
     info!("\tMAPQ: {}", args.mapq);
-    info!("\tReads to write: {:?}", args.readToWrite);
+    info!("\tReads to write: {:?}", args.read_to_write);
+    info!("\tReads to write junciton: {:?}", args.read_to_write_junc);
     info!("\tUnspliced def: {:?}", args.unspliced_def);
     info!("\tSpliced def: {:?}", args.spliced_def);
     info!("\tLibrary type: {:?}", args.libtype);
@@ -252,15 +260,26 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let mut read_out_handle = ReadToWriteHandle::new();
     update_read_to_write_handle(
         &mut read_out_handle,
-        args.readToWrite,
+        args.read_to_write,
         header_reads_handle,
         &output_file_prefix,
     );
 
+    let header_handle_junc = "contig\tgene_id\ttranscript_id\tstrand\tJ_left\tJ_right\taln_start\tcigar\tsequence\n".as_bytes();
+    let mut read_out_handle_jun = ReadToWriteHandleJunc::new();
+        update_read_to_write_handle_junc(
+        &mut read_out_handle_jun,
+        args.read_to_write_junc,
+        header_handle_junc,
+        &output_file_prefix,
+    );
+
+
     info!("Parsing gtf file.");
     info!("Getting all ambiguous position");
     let ambiguous_position = get_invalid_pos(&args.gtf.clone())?;
-
+    // for ambigious
+    let exon_it = exon_intervalltree(&args.gtf.clone())?;
     let gtf_hashmap = gtf_to_hashmap(&args.gtf.clone()).expect("failed to parse gtf");
     info!("getting all valid junction to identify isoform");
     let valid_j_gene = get_all_junction_for_a_gene(&gtf_hashmap)
@@ -277,6 +296,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         args.flag_out,
         args.mapq,
         &mut read_out_handle,
+        &mut read_out_handle_jun,
         args.libtype,
         &gtf_hashmap,
         &valid_j_gene,
@@ -301,6 +321,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         &out_exons,
         &out_junction,
         &ambiguous_position,
+        &exon_it,
         &junction_order,
     )?;
 

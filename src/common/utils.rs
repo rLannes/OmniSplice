@@ -76,6 +76,190 @@ macro_rules! get_header {
 pub(crate) use get_header;
 
 use crate::common::error::OmniError;
+pub fn update_read_to_write_handle_junc(
+    read_out_handle: &mut ReadToWriteHandleJunc,
+    read_to_write: Vec<ReadsToWriteSEvent>,
+    header_reads_handle: &[u8],
+    output_file_prefix: &str,
+) {
+        
+    for e in read_to_write {
+        match e {
+            ReadsToWriteSEvent::ExonOther => {
+                read_out_handle.exon_other = Some(BufWriter::new(
+                    File::create_new(format!("{}{}", output_file_prefix, ".exonOther"))
+                        .unwrap_or_else(|_| panic!("exonOther file should not exist.")),
+                ));
+                read_out_handle
+                    .exon_other
+                    .as_mut()
+                    .unwrap()
+                    .write_all(header_reads_handle)
+                    .expect("Unable to write file");
+            },
+            ReadsToWriteSEvent::Isoform => {
+                read_out_handle.isoform = Some(BufWriter::new(
+                    File::create_new(format!("{}{}", output_file_prefix, ".isoform"))
+                        .unwrap_or_else(|_| panic!("isoform file should not exist.")),
+                ));
+                read_out_handle
+                    .isoform
+                    .as_mut()
+                    .unwrap()
+                    .write_all(header_reads_handle)
+                    .expect("Unable to write file");
+            },
+            ReadsToWriteSEvent::Spliced => {
+                read_out_handle.spliced = Some(BufWriter::new(
+                    File::create_new(format!("{}{}", output_file_prefix, ".spliced"))
+                        .unwrap_or_else(|_| panic!("spliced file should not exist.")),
+                ));
+                read_out_handle
+                    .spliced
+                    .as_mut()
+                    .unwrap()
+                    .write_all(header_reads_handle)
+                    .expect("Unable to write file");
+            },
+            ReadsToWriteSEvent::Unspliced => {
+                read_out_handle.unspliced = Some(BufWriter::new(
+                    File::create_new(format!("{}{}", output_file_prefix, ".spliced"))
+                        .unwrap_or_else(|_| panic!("spliced file should not exist.")),
+                ));
+                read_out_handle
+                    .unspliced
+                    .as_mut()
+                    .unwrap()
+                    .write_all(header_reads_handle)
+                    .expect("Unable to write file");
+            },
+            ReadsToWriteSEvent::Clipped => {
+                read_out_handle.clipped = Some(BufWriter::new(
+                    File::create_new(format!("{}{}", output_file_prefix, ".spliced"))
+                        .unwrap_or_else(|_| panic!("spliced file should not exist.")),
+                ));
+                read_out_handle
+                    .clipped
+                    .as_mut()
+                    .unwrap()
+                    .write_all(header_reads_handle)
+                    .expect("Unable to write file");
+            },
+            ReadsToWriteSEvent::WrongStrand => {
+                read_out_handle.wrong_strand = Some(BufWriter::new(
+                    File::create_new(format!("{}{}", output_file_prefix, ".spliced"))
+                        .unwrap_or_else(|_| panic!("spliced file should not exist.")),
+                ));
+                read_out_handle
+                    .wrong_strand
+                    .as_mut()
+                    .unwrap()
+                    .write_all(header_reads_handle)
+                    .expect("Unable to write file");
+            },
+            ReadsToWriteSEvent::Skipped => {
+                read_out_handle.skipped = Some(BufWriter::new(
+                    File::create_new(format!("{}{}", output_file_prefix, ".spliced"))
+                        .unwrap_or_else(|_| panic!("spliced file should not exist.")),
+                ));
+                read_out_handle
+                    .skipped
+                    .as_mut()
+                    .unwrap()
+                    .write_all(header_reads_handle)
+                    .expect("Unable to write file");
+            },
+            ReadsToWriteSEvent::SkippedUnrelated => {
+                read_out_handle.spliced = Some(BufWriter::new(
+                    File::create_new(format!("{}{}", output_file_prefix, ".spliced"))
+                        .unwrap_or_else(|_| panic!("spliced file should not exist.")),
+                ));
+                read_out_handle
+                    .skipped_unrelated
+                    .as_mut()
+                    .unwrap()
+                    .write_all(header_reads_handle)
+                    .expect("Unable to write file");
+            },
+                    }
+    }
+}
+
+#[derive(clap::ValueEnum, Clone, Debug)]
+pub enum ReadsToWriteSEvent{
+    ExonOther,
+    Spliced, 
+    Isoform,
+    Unspliced,
+    Clipped,
+    WrongStrand,
+    Skipped,
+    SkippedUnrelated,
+}
+
+pub struct ReadToWriteHandleJunc {
+    pub exon_other: Option<BufWriter<File>>,
+    pub spliced: Option<BufWriter<File>>, 
+    pub isoform: Option<BufWriter<File>>,
+    pub unspliced: Option<BufWriter<File>>,
+    pub clipped: Option<BufWriter<File>>,
+    pub wrong_strand: Option<BufWriter<File>>,
+    pub skipped: Option<BufWriter<File>>,
+    pub skipped_unrelated: Option<BufWriter<File>>,
+}
+impl ReadToWriteHandleJunc {
+
+    pub fn new() -> Self {
+        ReadToWriteHandleJunc {
+            exon_other: None,
+            spliced: None, 
+            isoform: None,
+            unspliced: None,
+            clipped: None,
+            wrong_strand: None,
+            skipped: None,
+            skipped_unrelated: None,
+        }
+    }
+
+    pub fn flush(&mut self) -> Result<(), std::io::Error> {
+        match self.exon_other {
+            Some(ref mut handle) => handle.flush(),
+            _ => Ok(()),
+        };
+        match self.spliced {
+            Some(ref mut handle) => handle.flush(),
+            _ => Ok(()),
+        };
+        match self.isoform {
+            Some(ref mut handle) => handle.flush(),
+            _ => Ok(()),
+        };
+        match self.unspliced {
+            Some(ref mut handle) => handle.flush(),
+            _ => Ok(()),
+        };
+        match self.clipped {
+            Some(ref mut handle) => handle.flush(),
+            _ => Ok(()),
+        };
+        match self.wrong_strand {
+            Some(ref mut handle) => handle.flush(),
+            _ => Ok(()),
+        };
+        match self.skipped {
+            Some(ref mut handle) => handle.flush(),
+            _ => Ok(()),
+        };
+          match self.skipped_unrelated {
+            Some(ref mut handle) => handle.flush(),
+            _ => Ok(()),
+        };
+    Ok(())
+    }
+}
+
+
 
 /// Enum representing all the differents reads at a splicing junction
 #[derive(clap::ValueEnum, Clone, Debug)]
@@ -88,11 +272,14 @@ pub enum ReadsToWrite {
     FailQc,
     EmptyPileup,
     Skipped,
+    SkippedUnrelated,
     SoftClipped,
     OverhangFail,
     Empty,
     All,
 }
+
+
 
 pub fn update_read_to_write_handle(
     read_out_handle: &mut ReadToWriteHandle,
@@ -113,7 +300,19 @@ pub fn update_read_to_write_handle(
                     .unwrap()
                     .write_all(header_reads_handle)
                     .expect("Unable to write file");
-            }
+            },
+            ReadsToWrite::SkippedUnrelated => {
+                read_out_handle.skipped_unrelated = Some(BufWriter::new(
+                    File::create_new(format!("{}{}", output_file_prefix, ".skippedunrelated"))
+                        .unwrap_or_else(|_| panic!("skippedunrelated file should not exist.")),
+                ));
+                read_out_handle
+                    .skipped_unrelated
+                    .as_mut()
+                    .unwrap()
+                    .write_all(header_reads_handle)
+                    .expect("Unable to write file");
+            },
             ReadsToWrite::ReadThrough => {
                 read_out_handle.read_through = Some(BufWriter::new(
                     File::create_new(format!("{}{}", output_file_prefix, ".readThrough"))
@@ -125,7 +324,7 @@ pub fn update_read_to_write_handle(
                     .unwrap()
                     .write_all(header_reads_handle)
                     .expect("Unable to write file");
-            }
+            },
             ReadsToWrite::ReadJunction => {
                 read_out_handle.read_junction = Some(BufWriter::new(
                     File::create_new(format!("{}{}", output_file_prefix, ".readJunction"))
@@ -137,7 +336,7 @@ pub fn update_read_to_write_handle(
                     .unwrap()
                     .write_all(header_reads_handle)
                     .expect("Unable to write file");
-            }
+            },
             ReadsToWrite::Unexpected => {
                 read_out_handle.unexpected = Some(BufWriter::new(
                     File::create_new(format!("{}{}", output_file_prefix, ".unexpected"))
@@ -149,7 +348,7 @@ pub fn update_read_to_write_handle(
                     .unwrap()
                     .write_all(header_reads_handle)
                     .expect("Unable to write file");
-            }
+            },
             ReadsToWrite::FailPosFilter => {
                 read_out_handle.fail_pos_filter = Some(BufWriter::new(
                     File::create_new(format!("{}{}", output_file_prefix, ".FailPosFilter"))
@@ -161,7 +360,7 @@ pub fn update_read_to_write_handle(
                     .unwrap()
                     .write_all(header_reads_handle)
                     .expect("Unable to write file");
-            }
+            },
             ReadsToWrite::WrongStrand => {
                 read_out_handle.wrong_strand = Some(BufWriter::new(
                     File::create_new(format!("{}{}", output_file_prefix, ".WrongStrand"))
@@ -173,7 +372,7 @@ pub fn update_read_to_write_handle(
                     .unwrap()
                     .write_all(header_reads_handle)
                     .expect("Unable to write file");
-            }
+            },
             ReadsToWrite::FailQc => {
                 read_out_handle.fail_qc = Some(BufWriter::new(
                     File::create_new(format!("{}{}", output_file_prefix, ".FailQC"))
@@ -185,7 +384,7 @@ pub fn update_read_to_write_handle(
                     .unwrap()
                     .write_all(header_reads_handle)
                     .expect("Unable to write file");
-            }
+            },
             ReadsToWrite::EmptyPileup => {
                 read_out_handle.empty_pileup = Some(BufWriter::new(
                     File::create_new(format!("{}{}", output_file_prefix, ".EmptyPileup"))
@@ -197,7 +396,7 @@ pub fn update_read_to_write_handle(
                     .unwrap()
                     .write_all(header_reads_handle)
                     .expect("Unable to write file");
-            }
+            },
             ReadsToWrite::Skipped => {
                 read_out_handle.skipped = Some(BufWriter::new(
                     File::create_new(format!("{}{}", output_file_prefix, ".Skipped"))
@@ -209,7 +408,7 @@ pub fn update_read_to_write_handle(
                     .unwrap()
                     .write_all(header_reads_handle)
                     .expect("Unable to write file");
-            }
+            },
             ReadsToWrite::SoftClipped => {
                 read_out_handle.soft_clipped = Some(BufWriter::new(
                     File::create_new(format!("{}{}", output_file_prefix, ".SoftClipped"))
@@ -221,7 +420,7 @@ pub fn update_read_to_write_handle(
                     .unwrap()
                     .write_all(header_reads_handle)
                     .expect("Unable to write file");
-            }
+            },
             ReadsToWrite::OverhangFail => {
                 read_out_handle.overhang_fail = Some(BufWriter::new(
                     File::create_new(format!("{}{}", output_file_prefix, ".OverhangFail"))
@@ -233,7 +432,7 @@ pub fn update_read_to_write_handle(
                     .unwrap()
                     .write_all(header_reads_handle)
                     .expect("Unable to write file");
-            }
+            },
             ReadsToWrite::Empty => {
                 read_out_handle.empty = Some(BufWriter::new(
                     File::create_new(format!("{}{}", output_file_prefix, ".Empty"))
@@ -291,9 +490,13 @@ pub struct ReadToWriteHandle {
     pub fail_qc: Option<BufWriter<File>>,
     pub empty_pileup: Option<BufWriter<File>>,
     pub skipped: Option<BufWriter<File>>,
+    pub skipped_unrelated: Option<BufWriter<File>>,
     pub soft_clipped: Option<BufWriter<File>>,
     pub overhang_fail: Option<BufWriter<File>>,
     pub empty: Option<BufWriter<File>>,
+    pub exon_other: Option<BufWriter<File>>,
+    pub spliced: Option<BufWriter<File>>, 
+    pub isoform: Option<BufWriter<File>>,
     pub all: Option<BufWriter<File>>,
 }
 impl ReadToWriteHandle {
@@ -308,13 +511,29 @@ impl ReadToWriteHandle {
             fail_qc: None,
             empty_pileup: None,
             skipped: None,
+            skipped_unrelated: None,
             soft_clipped: None,
             overhang_fail: None,
+            exon_other: None,
+            spliced: None,
+            isoform: None,
             empty: None,
         }
     }
     pub fn flush(&mut self) -> Result<(), std::io::Error> {
         match self.read_through {
+            Some(ref mut handle) => handle.flush(),
+            _ => Ok(()),
+        };
+        match self.exon_other {
+            Some(ref mut handle) => handle.flush(),
+            _ => Ok(()),
+        };
+        match self.spliced {
+            Some(ref mut handle) => handle.flush(),
+            _ => Ok(()),
+        };
+        match self.isoform {
             Some(ref mut handle) => handle.flush(),
             _ => Ok(()),
         };
@@ -732,6 +951,24 @@ fn is_read_junction(cigar: &Cigar, aln_start:i64, feature_pos: i64, position: &E
     }
 }
 
+
+
+pub fn dont_report(feature: i64, aln_start: i64, aln_end: i64, strand: &Strand, overhang: i64) -> bool {
+    match strand {
+        Strand::Minus => {
+           if  ( feature - aln_start) < overhang {
+            return true
+           }
+        }
+        Strand::Plus | Strand::NA => {
+           if  (aln_start - feature ) < overhang {
+            return true
+           }
+        }
+    }
+    false
+}
+
 pub fn read_toassign(
     feature_strand: Strand,
     feature_pos: Option<i64>,
@@ -804,15 +1041,15 @@ pub fn read_toassign(
             Some(x) => return Ok(Some(x)),
             _ => (),
         }
-        
     }
-    warn!(
-        "read unexpected alignment -> cigar:{:?} feature_strand:{:?}, read_strand: {:?}, feature_pos:{:?}, aln_start:{:?}, aln_end:{:?}",
-        cigar, feature_strand, read_strand, feature_pos, aln_start, aln_end
-        );
+    if dont_report(feature_pos, aln_start, aln_end,  &read_strand, anchor_exon.min(anchor_intron)){
+        warn!(
+            "read unexpected alignment -> cigar:{:?} feature_strand:{:?}, read_strand: {:?}, feature_pos:{:?}, aln_start:{:?}, aln_end:{:?}",
+            cigar, feature_strand, read_strand, feature_pos, aln_start, aln_end
+            );
+        return Ok(None);
+    }
     return Ok(Some(ReadAssign::Unexpected));
-
-
 
 
 
