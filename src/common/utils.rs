@@ -1001,10 +1001,9 @@ pub fn read_toassign(
         return Ok(None);
     }
 
-    match test_wrong_strand(&read_strand, &feature_strand) {
-        Some(x) => return Ok(Some(x)),
-        _ => (),
-    };
+
+
+
 
 
     // test if it match exons end
@@ -1021,6 +1020,13 @@ pub fn read_toassign(
 
     // if it map exon end we test readthrough, clipped and junction
     if map_exon_end{
+        // only count wrong strand if come from there (weird if you asm me)
+        match test_wrong_strand(&read_strand, &feature_strand) {
+            Some(x) => return Ok(Some(x)),
+            _ => (),
+        };
+
+
         if is_read_through(&cigar, aln_start, feature_pos, anchor_exon, anchor_intron, &exon_pos){
             return Ok(Some(ReadAssign::ReadThrough));
         }   
@@ -1037,6 +1043,12 @@ pub fn read_toassign(
     } // else test skipped
     else{
 
+        // read doesn't map ( junction read that foe over) if wrong strand ignore
+    match test_wrong_strand(&read_strand, &feature_strand) {
+            Some(x) => return Ok(None),
+            _ => (),
+        };
+
     match test_skipped(&cigar, aln_start, feature_pos, feature_pos_bis) {
             Some(x) => return Ok(Some(x)),
             _ => (),
@@ -1051,119 +1063,6 @@ pub fn read_toassign(
     }
     return Ok(Some(ReadAssign::Unexpected));
 
-
-
-    /* match (feature_strand, feature_exontype) {
-        (Strand::Plus, ExonType::Donnor) | (Strand::Minus, ExonType::Acceptor) => {
-            if !cigar.does_it_match_an_intervall(aln_start, feature_pos - overhang, feature_pos) {
-                return Ok(Some(ReadAssign::OverhangFail));
-            }
-
-            if cigar.does_it_match_an_intervall(
-                aln_start,
-                feature_pos - overhang,
-                feature_pos + overhang,
-            ) {
-                return Ok(Some(ReadAssign::ReadThrough));
-            }
-
-            if cigar.soft_clipped_end(&Strand::Plus, 10) && aln_end == feature_pos {
-                return Ok(Some(ReadAssign::SoftClipped));
-            }
-        }
-        (Strand::Plus, ExonType::Acceptor) | (Strand::Minus, ExonType::Donnor) => {
-            if !cigar.does_it_match_an_intervall(aln_start, feature_pos, feature_pos + overhang) {
-                return Ok(Some(ReadAssign::OverhangFail));
-            }
-
-            //if cigar.does_it_match_an_intervall(&aln_start, feature_pos - 1, feature_pos + overhang)
-            if cigar.does_it_match_an_intervall(
-                aln_start,
-                feature_pos - overhang,
-                feature_pos + overhang,
-            ) {
-                return Ok(Some(ReadAssign::ReadThrough));
-            }
-
-            if cigar.soft_clipped_end(&Strand::Minus, 10) && aln_start == feature_pos {
-                return Ok(Some(ReadAssign::SoftClipped));
-            }
-        }
-        //feature strand!s
-        (Strand::NA, _) => {
-            return Ok(None);
-        }
-    };
-
-    match cigar.get_skipped_pos_on_ref(aln_start) {
-        Some(j) => {
-            match (
-                j.iter().position(|&x| x == feature_pos),
-                feature_strand,
-                feature_exontype,
-            ) {
-                // TODO add overhang check!
-                (Some(p), Strand::Plus, ExonType::Donnor)
-                | (Some(p), Strand::Minus, ExonType::Acceptor) => {
-                    if !((cigar.does_it_match_an_intervall(aln_start, j[p] - overhang, j[p]))
-                        & (cigar.does_it_match_an_intervall(
-                            aln_start,
-                            j[p + 1],
-                            j[p + 1] + overhang,
-                        )))
-                    {
-                        return Ok(Some(ReadAssign::OverhangFail));
-                    }
-                    return Ok(Some(ReadAssign::ReadJunction(j[p], j[p + 1])));
-                }
-
-                (Some(p), Strand::Plus, ExonType::Acceptor)
-                | (Some(p), Strand::Minus, ExonType::Donnor) => {
-                    if !((cigar.does_it_match_an_intervall(
-                        aln_start,
-                        j[p - 1] - overhang,
-                        j[p - 1],
-                    )) & (cigar.does_it_match_an_intervall(aln_start, j[p], j[p] + overhang)))
-                    {
-                        return Ok(Some(ReadAssign::OverhangFail));
-                    }
-                    return Ok(Some(ReadAssign::ReadJunction(j[p - 1], j[p])));
-                }
-                (_, _, _) => {
-                    if let Some(i) = j
-                        .iter()
-                        .enumerate()
-                        .step_by(2)
-                        .find(|&(ref i, &x)| (x < feature_pos) & (j[i + 1] > feature_pos))
-                    {
-                        //println!("Skipped: {:?} {:?} {:?} {:?} {:?} {:?} {:?} {:?} {:?}",\
-                        // j, aln_start ,aln_end, cigar, read_strand, feature_strand, feature_pos, feature_exontype, overhang);
-                        return Ok(Some(ReadAssign::Skipped(*i.1, j[i.0 + 1])));
-                    } else {
-                        // TODO this should be in the overhang?
-                        // right now this is overhang 0 edge case.
-                        if (aln_start == feature_pos) | (aln_end == feature_pos) {
-                            return Ok(None);
-                        }
-                        //println!("Unexp: {:?} {:?} {:?} {:?} {:?} {:?} {:?} {:?} {:?}",\
-                        // j, aln_start ,aln_end, cigar, read_strand, feature_strand, feature_pos, feature_exontype, overhang);
-                        warn!(
-                            "read unexpected alignment -> cigar:{:?} feature_strand:{:?}, read_strand: {:?}, feature_pos:{:?}, aln_start:{:?}, aln_end:{:?}",
-                            cigar, feature_strand, read_strand, feature_pos, aln_start, aln_end
-                        );
-                        return Ok(Some(ReadAssign::Unexpected));
-                    }
-                }
-            }
-        }
-        None => {
-            warn!(
-                "read unexpected alignment -> cigar:{:?} feature_strand:{:?}, read_strand: {:?}, feature_pos:{:?}, aln_start:{:?}, aln_end:{:?}",
-                cigar, feature_strand, read_strand, feature_pos, aln_start, aln_end
-            );
-            return Ok(Some(ReadAssign::Unexpected));
-        }
-    }*/
 }
 
 

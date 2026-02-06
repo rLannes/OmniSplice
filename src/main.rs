@@ -206,8 +206,6 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     };
 
 
-
-
     let mut clipped = false;
 
     let intermediate = output_file_prefix.to_owned();
