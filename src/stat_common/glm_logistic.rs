@@ -13,6 +13,7 @@ use statrs::statistics::{Min, Max};
 
 use core::f64;
 use std::collections::{HashMap, HashSet};
+use std::error::Error;
 use std::fmt::format;
 use std::iter::Sum;
 use std::mem::min_align_of;
@@ -162,18 +163,19 @@ fn vec_to_array<T, const N: usize>(v: Vec<T>) -> [T; N] {
 /// use hyper geom test to compute 2 tailed p-value 
 /// the fischer test was returning some negative pvalue?
 /// hopefully this works!
+
 fn hyper_geom_test(a_succ: u64, a_fail: u64, b_succ: u64, b_fail: u64) -> Result<f64, OmniError>{
 
     let cond_a = a_succ + a_fail;
     let cond_b = b_succ + b_fail;
     // missing data no meaning
     if (cond_a == 0) && (cond_b == 0){
-        return Err(OmniError::EmptyHyperGrom);
+        return Ok(-1.);
     }
     let succes = a_succ + b_succ;
     let fail = b_fail + a_fail;
     // all succes / all failure no point
-    if (fail == 0) || (succes == 0){
+    if (fail == 0) && (succes == 0){
         return Ok(1.)
     }
     
@@ -184,15 +186,20 @@ fn hyper_geom_test(a_succ: u64, a_fail: u64, b_succ: u64, b_fail: u64) -> Result
 
     let p_k = n.pmf(k);
     let mut p_value: f64 = 0.;
+    let log_p_k = n.ln_pmf(k);
 
-    let mut i_k = 0.0;
-    for i in n.min()..=n.max(){
-        i_k =  n.pmf(i);
-        if i_k <= p_k{
-             p_value += i_k;
-        }
+    let log_term:Vec<f64> = (n.min()..=n.max())
+            .map(|i| n.ln_pmf(i))
+            .filter(|&lp| lp <= log_p_k + 1e-10)
+            .collect();
+
+    
+    if log_term.is_empty(){
+        return Ok(1.0)
     }
-    Ok(p_value)
+    let max_lp = log_term.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+    let p_val = (max_lp + log_term.iter().map(|&lp| (lp - max_lp).exp()).sum::<f64>().ln()).exp();
+    return  Ok(p_val.min(1.0))
 }
 
 
