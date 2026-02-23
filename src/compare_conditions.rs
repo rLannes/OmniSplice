@@ -235,8 +235,8 @@ enum Commands {
        #[arg( long,)]
        ambigious: bool,
 
-       /// Minimum read count for test. Discards junctions (p-value = NaN) if any value in the 
-       /// control/treatment success/failure counts falls below this threshold. Filters out significant
+       /// Minimum read count for test. Discards junctions (p-value = NaN):
+       /// if control fail AND treat fail < min_read OR control sucess OR treat success . Filters out significant
        /// calls driven by sparse, inconsistent observations across replicates.
        /// Default: 0 | Recommended: 0–5
        /// This is a pretty aggressive filter use it with caution
@@ -260,8 +260,7 @@ enum Commands {
         #[arg(short, long, num_args = 1.., required = true)]
         treatment_files: Vec<PathBuf>,
 
-       /// Minimum read count for  test. Discards junctions (p-value = NaN) if any value in the 
-       /// control/treatment success/failure counts falls below this threshold. Filters out significant
+       /// Minimum read count for  test. Discards junctions (p-value = NaN) if control fail or treat fail < min_read OR control sucess or treat success. Filters out significant
        /// calls driven by sparse, inconsistent observations across replicates.
        /// Default: 0 | Recommended: 0–5
        /// This is a pretty aggressive filter use it with caution
@@ -324,17 +323,21 @@ fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 
             let mut res:  HashMap<String, JunctionStats> = HashMap::with_capacity(1_000_000);
 
-            for file in control_files{
+            for file in control_files.clone(){
                     info!("parsing {:?}", file);
                     parse_js_file(file.to_str().unwrap(), &mut res, Genotype::CONTROL).unwrap();
                     info!("done reading");
                 }
 
-            for file in treatment_files{
+            for file in treatment_files.clone(){
                     info!("parsing {:?}", file);
                     parse_js_file(file.to_str().unwrap(), &mut res, Genotype::TREATMENT).unwrap();
                     info!("done reading");
                 }
+            
+            //println!("{:?}", res.get("3R - 16931613 16935926"));
+            //println!("{:?}", &treatment_files);
+            //println!("{:?}", &control_files);
 
             ThreadPoolBuilder::new()
         .num_threads(6)          // ← set the limit here
@@ -377,7 +380,7 @@ fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut p = Path::new(&outfile_prefix).to_path_buf();
     let _ = p.set_extension("ExonOther.tsv");
     jobs.push((vec![SplicingCategory::Spliced], vec![SplicingCategory::ExonOther],
-       p.to_str().unwrap() , false, min_read));
+       p.to_str().unwrap(), true, min_read));
        
     let mut p = Path::new(&outfile_prefix).to_path_buf();
     let _ = p.set_extension("Isoform.tsv");

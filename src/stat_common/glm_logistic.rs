@@ -36,16 +36,47 @@ pub struct GLM{
     identifier: String
 }
 
+
 impl GLM {
+
+
+    fn get_sub_vec(&self) -> (Vec<u32>, Vec<u32>, Vec<u32>, Vec<u32>){
+        let g1 = &self.groups[0];
+        let mut g1_succ = Vec::new();
+        let mut g1_fail = Vec::new();
+        let mut g2_succ = Vec::new();
+        let mut g2_fail = Vec::new();
+        for (i, g) in self.groups.iter().enumerate(){
+            if g == g1{
+                g1_succ.push(self.success[i]);
+                g1_fail.push(self.failures[i]);
+            }
+            else{
+                g2_succ.push(self.success[i]);
+                g2_fail.push(self.failures[i]);
+            }
+        }
+        (g1_succ, g1_fail, g2_succ, g2_fail)
+    }
+
 
     fn pass_min_read(&self, min_read: u32) -> bool{
         
-        if self.success.iter().any(|x| *x < min_read){
+         let (g1_succ, g1_fail, g2_succ, g2_fail) = self.get_sub_vec();
+
+        if (g1_fail.iter().sum::<u32>() < min_read) && (g2_fail.iter().sum::<u32>() < min_read){
+            return false
+        }
+
+        if (g1_succ.iter().sum::<u32>() < min_read) || (g2_succ.iter().sum::<u32>() < min_read){
+            return false
+        }
+        /*if self.success.iter().any(|x| *x < min_read){
             return false
         }
         if self.failures.iter().any(|x| *x < min_read){
             return false
-        }
+        }*/
         return true
     }
 }
@@ -85,6 +116,7 @@ impl Tester for GLM {
             test_res.status = Some(TestStatus::TreatmentIsNull);
             return test_res;
         }
+
         else if ! self.pass_min_read(min_read){
             test_res.status = Some(TestStatus::EmptyData);
             return test_res;
@@ -141,7 +173,7 @@ fn hyper_geom_test(a_succ: u64, a_fail: u64, b_succ: u64, b_fail: u64) -> Result
     let succes = a_succ + b_succ;
     let fail = b_fail + a_fail;
     // all succes / all failure no point
-    if (fail == 0) && (succes == 0){
+    if (fail == 0) || (succes == 0){
         return Ok(1.)
     }
     
@@ -154,7 +186,7 @@ fn hyper_geom_test(a_succ: u64, a_fail: u64, b_succ: u64, b_fail: u64) -> Result
     let mut p_value: f64 = 0.;
 
     let mut i_k = 0.0;
-    for i in n.min()..n.max(){
+    for i in n.min()..=n.max(){
         i_k =  n.pmf(i);
         if i_k <= p_k{
              p_value += i_k;
@@ -684,5 +716,12 @@ mod tests {
         let x = glm.test(false, 0);
         println!("x: {:?}", x);
     }
+    #[test]
+    fn hyper_geom_test1(){ //(a_succ: u64, a_fail: u64, b_succ: u64, b_fail: u64){
+        let x= hyper_geom_test(50, 0, 45, 1);
+        println!("{:?}", x);
+
+    }
+
 
 }

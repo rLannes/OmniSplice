@@ -191,7 +191,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let out_junction = format!("{}{}", output_file_prefix, ".junctions");
     let log_file = format!("{}{}", output_file_prefix, ".log");
 
-        // anchor option
+    // anchor option
     let anchor = match args.anchor{
         Some(x) => x,
         None => 3 as i64

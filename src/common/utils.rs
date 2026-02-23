@@ -1003,9 +1003,6 @@ pub fn read_toassign(
 
 
 
-
-
-
     // test if it match exons end
     // here I need to know if it is start or end
     let  map_exon_end = match exon_pos{

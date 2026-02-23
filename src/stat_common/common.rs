@@ -195,9 +195,7 @@ pub fn parse_js_file(file_path: &str, result: &mut HashMap<String, JunctionStats
             spt = trimed.split("\t").collect::<Vec<&str>>();
 
             let ambi = if spt[*header.get("Ambiguous").unwrap()] == "true" {true} else {false}; 
-            //if (ambiguous == false) && (ambi == true){
-            //    continue
-            //}
+  
             gene = format!("{}_{}_{}", spt[*header.get("Gene").unwrap()], spt[*header.get("Transcript").unwrap()], spt[*header.get("Intron").unwrap()]);
             contig = spt[*header.get("Contig").unwrap()].to_string();
             strand = spt[*header.get("Strand").unwrap()].to_string();
@@ -226,6 +224,8 @@ pub fn parse_js_file(file_path: &str, result: &mut HashMap<String, JunctionStats
                 made = true
             }
 
+
+
             if never{
                 let counts = CountsStats::new(&spt[8..]);
                 let mut junction = JunctionStats{
@@ -245,7 +245,7 @@ pub fn parse_js_file(file_path: &str, result: &mut HashMap<String, JunctionStats
                     Genotype::CONTROL => {junction.control_count.push(counts);}
                     Genotype::TREATMENT => {junction.treat_count.push(counts);}
                 }
-                result.insert(key, junction);
+                result.insert(key.clone(), junction); // TODO remove this clonae after debug
             }
             else if made{
                 let counts = CountsStats::new(&spt[8..]);
@@ -271,6 +271,14 @@ pub fn parse_js_file(file_path: &str, result: &mut HashMap<String, JunctionStats
                     None => {warn!("unreachable 'visited' case in parse js"); ()}
             }
         }
+
+        /*if spt[*header.get("Gene").unwrap()] == "FBgn0000015"{
+                warn!("{:?}", spt);
+                warn!("{:?} {:?} {:?} {:?}", key.clone(), never, visited, made);
+                warn!("{:?}", result.get(&key));
+
+            } */
+
     }
     Ok(())
 }
