@@ -100,7 +100,7 @@ pub fn update_read_to_write_handle_junc(
             ReadsToWriteSEvent::Isoform => {
                 read_out_handle.isoform = Some(BufWriter::new(
                     File::create_new(format!("{}{}", output_file_prefix, ".isoform"))
-                        .unwrap_or_else(|_| panic!("isoform file should not exist.")),
+                        .unwrap_or_else(|_| panic!("Isoform file should not exist.")),
                 ));
                 read_out_handle
                     .isoform
@@ -112,7 +112,7 @@ pub fn update_read_to_write_handle_junc(
             ReadsToWriteSEvent::Spliced => {
                 read_out_handle.spliced = Some(BufWriter::new(
                     File::create_new(format!("{}{}", output_file_prefix, ".spliced"))
-                        .unwrap_or_else(|_| panic!("spliced file should not exist.")),
+                        .unwrap_or_else(|_| panic!("Spliced file should not exist.")),
                 ));
                 read_out_handle
                     .spliced
@@ -123,8 +123,8 @@ pub fn update_read_to_write_handle_junc(
             },
             ReadsToWriteSEvent::Unspliced => {
                 read_out_handle.unspliced = Some(BufWriter::new(
-                    File::create_new(format!("{}{}", output_file_prefix, ".spliced"))
-                        .unwrap_or_else(|_| panic!("spliced file should not exist.")),
+                    File::create_new(format!("{}{}", output_file_prefix, ".unspliced"))
+                        .unwrap_or_else(|_| panic!("Unspliced file should not exist.")),
                 ));
                 read_out_handle
                     .unspliced
@@ -135,8 +135,8 @@ pub fn update_read_to_write_handle_junc(
             },
             ReadsToWriteSEvent::Clipped => {
                 read_out_handle.clipped = Some(BufWriter::new(
-                    File::create_new(format!("{}{}", output_file_prefix, ".spliced"))
-                        .unwrap_or_else(|_| panic!("spliced file should not exist.")),
+                    File::create_new(format!("{}{}", output_file_prefix, ".clipped"))
+                        .unwrap_or_else(|_| panic!("Clipped file should not exist.")),
                 ));
                 read_out_handle
                     .clipped
@@ -147,8 +147,8 @@ pub fn update_read_to_write_handle_junc(
             },
             ReadsToWriteSEvent::WrongStrand => {
                 read_out_handle.wrong_strand = Some(BufWriter::new(
-                    File::create_new(format!("{}{}", output_file_prefix, ".spliced"))
-                        .unwrap_or_else(|_| panic!("spliced file should not exist.")),
+                    File::create_new(format!("{}{}", output_file_prefix, ".wrongStrand"))
+                        .unwrap_or_else(|_| panic!("WrongStrand file should not exist.")),
                 ));
                 read_out_handle
                     .wrong_strand
@@ -159,8 +159,8 @@ pub fn update_read_to_write_handle_junc(
             },
             ReadsToWriteSEvent::Skipped => {
                 read_out_handle.skipped = Some(BufWriter::new(
-                    File::create_new(format!("{}{}", output_file_prefix, ".spliced"))
-                        .unwrap_or_else(|_| panic!("spliced file should not exist.")),
+                    File::create_new(format!("{}{}", output_file_prefix, ".skipped"))
+                        .unwrap_or_else(|_| panic!("Skipped file should not exist.")),
                 ));
                 read_out_handle
                     .skipped
@@ -399,7 +399,7 @@ pub fn update_read_to_write_handle(
             },
             ReadsToWrite::Skipped => {
                 read_out_handle.skipped = Some(BufWriter::new(
-                    File::create_new(format!("{}{}", output_file_prefix, ".Skipped"))
+                    File::create_new(format!("{}{}", output_file_prefix, ".exonlSkipped"))
                         .unwrap_or_else(|_| panic!("Skipped file should not exist.")),
                 ));
                 read_out_handle
