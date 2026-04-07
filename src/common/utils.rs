@@ -1051,11 +1051,12 @@ pub fn read_toassign(
             _ => (),
         }
     }
-    if dont_report(feature_pos, aln_start, aln_end,  &read_strand, anchor_exon.min(anchor_intron)){
-        warn!(
+    warn!(
             "read unexpected alignment -> cigar:{:?} feature_strand:{:?}, read_strand: {:?}, feature_pos:{:?}, aln_start:{:?}, aln_end:{:?}",
             cigar, feature_strand, read_strand, feature_pos, aln_start, aln_end
             );
+    if dont_report(feature_pos, aln_start, aln_end,  &read_strand, anchor_exon.min(anchor_intron)){
+
         return Ok(None);
     }
     return Ok(Some(ReadAssign::Unexpected));

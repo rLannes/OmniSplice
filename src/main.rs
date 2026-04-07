@@ -187,7 +187,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
     let out_exons = format!("{}{}", output_file_prefix, ".exons");
     let out_raw = format!("{}{}", output_file_prefix, ".raw");
-    let splicing_defect = format!("{}{}", output_file_prefix, ".sd");
+    let splicing_defect = format!("{}{}", output_file_prefix, ".se");
     let out_junction = format!("{}{}", output_file_prefix, ".junctions");
     let log_file = format!("{}{}", output_file_prefix, ".log");
 
