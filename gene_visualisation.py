@@ -10,11 +10,16 @@ from pathlib import Path
 import re
 from common_python.junction_class import Junction, parse_js_file
 import logging
+import warnings
+
+
 
 mpl.rcParams["axes.spines.right"] = False
 mpl.rcParams["axes.spines.top"] = False
 
 logging.basicConfig(format='%(asctime)s %(levelname)s => %(message)s', level=logging.INFO, datefmt='%m/%d/%Y %I:%M:%S %p')
+logging.getLogger('matplotlib').setLevel(logging.WARNING)
+logging.getLogger('fontTools').setLevel(logging.WARNING)
 logger = logging.getLogger()
 
 
@@ -26,15 +31,16 @@ def collapse(values):
     return res
 
 
+COLOR_TEXT = "#afd136" # green
 
-def ax_plot_bar(ax, counts_, genotype, defect_index, defect_to_plot, colors, reverse=False):
+def ax_plot_bar(ax, counts_, genotype, defect_index, defect_to_plot, colors, reverse=False, show_text=False):
     
     counts = np.array(counts_)
     masks = [defect_index[defect] for defect in defect_to_plot]
     counts = counts[:, masks]
     sum_ = np.sum(np.array(counts), axis=1).reshape(counts.shape[0])
     prop = counts /  sum_[:, np.newaxis]  
-
+    #  print("sum: {}; count: {}, prop: {}".format(sum_, counts, prop))
     bottom = np.zeros(len(counts_))
     for i in range(len(masks)):
 
@@ -42,6 +48,9 @@ def ax_plot_bar(ax, counts_, genotype, defect_index, defect_to_plot, colors, rev
         bottom += prop[:,i]
     
     ax.set_xlabel(genotype)
+    if show_text:
+        for i in range(len(counts)):
+            ax.text(x=0.5, y=i, s=sum_[i], ha="center", va="center", color=COLOR_TEXT)
 
     if reverse:
         ax.xaxis.set_inverted(True)
@@ -49,14 +58,14 @@ def ax_plot_bar(ax, counts_, genotype, defect_index, defect_to_plot, colors, rev
     return ax
 
 
-def plot_1(out, defect_index, colors, counts_intron, order, defect_to_plot, width, height, title):
+def plot_1(out, defect_index, colors, counts_intron, order, defect_to_plot, width, height, title, show_text):
 
     counts_intron.sort(key=lambda x: int(x[1]))
     counts_intron = counts_intron[1:-1]
     counts, intron = list(zip(*counts_intron))
     fig = plt.figure(figsize=(width, height))
     ax1 = fig.add_axes((0, 0, 1, 1))
-    ax1 = ax_plot_bar(ax1, [x[order[0]] for x in counts], order[0], defect_index, defect_to_plot, colors, reverse=False)
+    ax1 = ax_plot_bar(ax1, [x[order[0]] for x in counts], order[0], defect_index, defect_to_plot, colors, reverse=False, show_text=show_text)
     ax1.set(ylabel = "introns")
     ax1.set_xticks([])
 
@@ -67,7 +76,7 @@ def plot_1(out, defect_index, colors, counts_intron, order, defect_to_plot, widt
     fig.suptitle(title, y = 1.02)
     plt.savefig(out, bbox_inches="tight")
 
-def plot_2(out, defect_index, colors, counts_intron, order, defect_to_plot, width, height, title):
+def plot_2(out, defect_index, colors, counts_intron, order, defect_to_plot, width, height, title, show_text):
 
     counts_intron.sort(key=lambda x: int(x[1]))
     counts_intron = counts_intron[1:-1]
@@ -78,8 +87,8 @@ def plot_2(out, defect_index, colors, counts_intron, order, defect_to_plot, widt
     ax1 = fig.add_axes((0, 0, 0.48, 1))
     ax2 = fig.add_axes((0.52, 0, 0.48, 1), sharey=ax1)
 
-    ax1 = ax_plot_bar(ax1, [x[order[0]] for x in counts], order[0], defect_index, defect_to_plot, colors, reverse=False)
-    ax2 = ax_plot_bar(ax2, [x[order[1]] for x in counts], order[1], defect_index, defect_to_plot, colors, reverse=True)
+    ax1 = ax_plot_bar(ax1, [x[order[0]] for x in counts], order[0], defect_index, defect_to_plot, colors, reverse=False, show_text=show_text)
+    ax2 = ax_plot_bar(ax2, [x[order[1]] for x in counts], order[1], defect_index, defect_to_plot, colors, reverse=True, show_text=show_text)
 
     ax1.set(ylabel = "introns")
     ax1.set_xticks([])
@@ -95,8 +104,7 @@ def plot_2(out, defect_index, colors, counts_intron, order, defect_to_plot, widt
     plt.savefig(out, bbox_inches="tight")
 
 
-def plot_3(out, defect_index, colors, counts_intron, order, defect_to_plot, width, height, title):
-    print(out)
+def plot_3(out, defect_index, colors, counts_intron, order, defect_to_plot, width, height, title, show_text):
     
     fig = plt.figure(figsize=(width, height))
 
@@ -115,9 +123,9 @@ def plot_3(out, defect_index, colors, counts_intron, order, defect_to_plot, widt
     left += axes_h + 0.05
     ax3 = fig.add_axes((left, 0, axes_h, 1), sharey=ax1)
     ax1.set_yticks(range(0, len(counts_intron) ), labels=list(map( str, range(1, len(counts_intron) + 1))))
-    ax1 = ax_plot_bar(ax1, [x[order[0]] for x in counts], order[0], defect_index, defect_to_plot, colors, reverse=False)
-    ax2 = ax_plot_bar(ax2, [x[order[1]] for x in counts], order[1], defect_index, defect_to_plot, colors, reverse=False)
-    ax3 = ax_plot_bar(ax3, [x[order[2]] for x in counts], order[2], defect_index, defect_to_plot, colors, reverse=False)
+    ax1 = ax_plot_bar(ax1, [x[order[0]] for x in counts], order[0], defect_index, defect_to_plot, colors, reverse=False, show_text=show_text)
+    ax2 = ax_plot_bar(ax2, [x[order[1]] for x in counts], order[1], defect_index, defect_to_plot, colors, reverse=False, show_text=show_text)
+    ax3 = ax_plot_bar(ax3, [x[order[2]] for x in counts], order[2], defect_index, defect_to_plot, colors, reverse=False, show_text=show_text)
 
     ax1.set(ylabel = "introns")
     ax1.set_xticks([])
@@ -186,6 +194,7 @@ if __name__ == "__main__":
     
     parse.add_argument("--gene_list", nargs="+", required=False, help='gene list to plot')
     parse.add_argument("--transcript_list", nargs="+", required=False, help='gene list to plot')
+    parse.add_argument("--hide_count", action='store_false', help='do not show total count')
     parse.add_argument("--outfile_prefix", required=True, help='basename for output')
 
     parse.add_argument("--splicing_defect", nargs="+", help="""default = SPLICED, UNSPLICED, CLIPPED, EXON_OTHER""", 
@@ -262,18 +271,21 @@ if __name__ == "__main__":
                 logging.debug(" 1 samples ")
                 order = [args.group1_name]
                 plot_1(out="{}_{}_{}{}".format(args.outfile_prefix, gene_id, tr_id, args.format), defect_index=defect_index, colors=args.color, 
-                       counts_intron=counts_dico, order=order, defect_to_plot=args.splicing_defect, width=args.fig_width, height=args.fig_height, title='{} {}'.format( gene_id, tr_id))
+                       counts_intron=counts_dico, order=order, defect_to_plot=args.splicing_defect, width=args.fig_width,
+                         height=args.fig_height, title='{} {}'.format( gene_id, tr_id), show_text=args.hide_count)
             elif  not args.group3:
                 logging.debug(" 2 samples ")
                 order = [args.group1_name, args.group2_name]
                 plot_2(out="{}_{}_{}{}".format(args.outfile_prefix, gene_id, tr_id, args.format), defect_index=defect_index, colors=args.color, 
-                       counts_intron=counts_dico, order=order, defect_to_plot=args.splicing_defect, width=args.fig_width, height=args.fig_height, title='{} {}'.format( gene_id, tr_id))
+                       counts_intron=counts_dico, order=order, defect_to_plot=args.splicing_defect, width=args.fig_width,
+                         height=args.fig_height, title='{} {}'.format( gene_id, tr_id), show_text=args.hide_count)
                 # plot2
             elif args.group3 :
                 logging.debug(" 3 samples ")
                 order = [args.group1_name, args.group2_name,  args.group3_name]
                 plot_3(out="{}_{}_{}{}".format(args.outfile_prefix, gene_id, tr_id, args.format), defect_index=defect_index, colors=args.color, 
-                       counts_intron=counts_dico, order=order, defect_to_plot=args.splicing_defect, width=args.fig_width, height=args.fig_height, title='{} {}'.format( gene_id, tr_id))
+                       counts_intron=counts_dico, order=order, defect_to_plot=args.splicing_defect, width=args.fig_width,
+                         height=args.fig_height, title='{} {}'.format( gene_id, tr_id), show_text=args.hide_count)
             else:
                 pass
             plt.close()
