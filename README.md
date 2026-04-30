@@ -1,7 +1,8 @@
 Welcome to the omnisplice read me.
 
-Readme is currently (at 30/04) not matching the  current version (which come with hudge improvment and bug fixes).
-We are working hard to update it ASAP.
+Readme is currently (at 30/04) behind the CLI, please refers to the CLI help for the full list of options. 
+
+
 
 Omnisplice is a tool to categorize all reads present at exon's extremity.
 get more info reading the paper: https://www.biorxiv.org/content/10.1101/2025.04.06.647416v1
