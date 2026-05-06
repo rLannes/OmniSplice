@@ -205,7 +205,8 @@ if __name__ == "__main__":
                                  "EXON_OTHER",
                                  "SKIPPED",
                                  "WRONG_STRAND",
-                                 "E_ISOFORM"] )
+                                 "E_ISOFORM",
+                                  "SKIPPED_UNR"] )
 
     parse.add_argument("--format",  default='.pdf', help='output format default: ".pdf"')
     parse.add_argument("--fig_width",  default=6.4, help="")
@@ -220,6 +221,7 @@ if __name__ == "__main__":
                     "CLIPPED", 
                     "EXON_OTHER",
                     "SKIPPED",
+                    "SKIPPED_UNR",
                     "WRONG_STRAND",
                     "E_ISOFORM"]
     
